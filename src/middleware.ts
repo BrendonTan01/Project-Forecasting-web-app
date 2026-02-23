@@ -9,6 +9,7 @@ const protectedPaths = [
   "/capacity",
   "/time-entry",
   "/alerts",
+  "/settings",
 ];
 
 // Routes only for unauthenticated users

@@ -42,6 +42,12 @@ export default async function DashboardLayout({
           </nav>
           <div className="flex items-center gap-4">
             <span className="text-sm text-zinc-600">{user.email}</span>
+            <Link
+              href="/settings"
+              className="text-sm font-medium text-zinc-600 hover:text-zinc-900"
+            >
+              Settings
+            </Link>
             <form action="/api/auth/signout" method="POST">
               <button
                 type="submit"
