@@ -1,6 +1,6 @@
 // Database types for Capacity Intelligence Platform
 
-export type UserRole = "exec" | "manager" | "staff";
+export type UserRole = "manager" | "staff" | "administrator";
 
 export interface Tenant {
   id: string;

@@ -24,7 +24,7 @@ export async function getCurrentUserWithTenant() {
     id: authUser.id,
     email: authUser.email ?? "",
     tenantId: dbUser.tenant_id,
-    role: dbUser.role as "exec" | "manager" | "staff" | "administrator",
+    role: dbUser.role as "manager" | "staff" | "administrator",
     officeId: dbUser.office_id,
   };
 }

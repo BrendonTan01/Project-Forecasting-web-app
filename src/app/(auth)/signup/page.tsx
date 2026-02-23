@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
-  const [role, setRole] = useState<"exec" | "manager" | "staff" | "administrator">("staff");
+  const [role, setRole] = useState<"manager" | "staff" | "administrator">("staff");
   const [officeId, setOfficeId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("");
@@ -168,13 +168,12 @@ export default function SignupPage() {
             <select
               id="role"
               value={role}
-              onChange={(e) => setRole(e.target.value as "exec" | "manager" | "staff" | "administrator")}
+              onChange={(e) => setRole(e.target.value as "manager" | "staff" | "administrator")}
               className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             >
               <option value="staff">Staff</option>
               <option value="manager">Manager</option>
               <option value="administrator">Administrator</option>
-              <option value="exec">Executive</option>
             </select>
           </div>
           <div>

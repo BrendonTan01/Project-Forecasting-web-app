@@ -34,7 +34,7 @@ const PROJECT_IDS = [
 ];
 
 const STAFF = [
-  { email: "ceo@acme.com", role: "exec" as const, office: 0, title: "CEO", capacity: 40 },
+  { email: "ceo@acme.com", role: "administrator" as const, office: 0, title: "CEO", capacity: 40 },
   { email: "director@acme.com", role: "manager" as const, office: 0, title: "Director", capacity: 40 },
   { email: "pm1@acme.com", role: "manager" as const, office: 0, title: "Project Manager", capacity: 40 },
   { email: "engineer1@acme.com", role: "staff" as const, office: 0, title: "Senior Engineer", capacity: 40 },

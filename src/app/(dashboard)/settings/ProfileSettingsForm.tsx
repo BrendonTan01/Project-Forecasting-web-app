@@ -38,13 +38,11 @@ export function ProfileSettingsForm({
   const [loading, setLoading] = useState(false);
 
   const roleLabel =
-    role === "exec"
-      ? "Executive"
+    role === "administrator"
+      ? "Administrator"
       : role === "manager"
         ? "Manager"
-        : role === "administrator"
-          ? "Administrator"
-          : "Staff";
+        : "Staff";
   const canSeeRates = role !== "staff";
 
   async function handleSubmit(e: React.FormEvent) {

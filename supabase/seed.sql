@@ -39,7 +39,7 @@ ON CONFLICT DO NOTHING;
 --
 -- Example (replace USER_ID with actual auth.users id):
 INSERT INTO users (id, tenant_id, email, role, office_id)
-VALUES ('ebee5529-f6a6-4cd4-add8-b743d7711fec', 'a0000000-0000-0000-0000-000000000001', 'admin@acme.com', 'exec', 'b0000000-0000-0000-0000-000000000001');
+VALUES ('ebee5529-f6a6-4cd4-add8-b743d7711fec', 'a0000000-0000-0000-0000-000000000001', 'admin@acme.com', 'administrator', 'b0000000-0000-0000-0000-000000000001');
 --
 INSERT INTO staff_profiles (user_id, tenant_id, job_title, weekly_capacity_hours, billable_rate, cost_rate)
 VALUES ('ebee5529-f6a6-4cd4-add8-b743d7711fec', 'a0000000-0000-0000-0000-000000000001', 'Managing Director', 40, 250, 120);
