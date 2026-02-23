@@ -20,10 +20,14 @@ AS $$
   SELECT role = 'administrator' FROM users WHERE id = auth.uid()
 $$;
 
--- Drop old function (if exists from previous migration)
+-- 4. Drop policies that depend on is_administrator_or_exec BEFORE dropping the function
+DROP POLICY IF EXISTS "Administrators can manage projects" ON projects;
+DROP POLICY IF EXISTS "Administrators can manage project assignments" ON project_assignments;
+
+-- Drop old function (no longer has dependents)
 DROP FUNCTION IF EXISTS is_administrator_or_exec();
 
--- 4. Update is_manager_or_exec: managers and administrators can view tenant-wide data
+-- 5. Update is_manager_or_exec: managers and administrators can view tenant-wide data
 CREATE OR REPLACE FUNCTION is_manager_or_exec()
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -34,14 +38,14 @@ AS $$
   SELECT role IN ('manager', 'administrator') FROM users WHERE id = auth.uid()
 $$;
 
--- 5. Projects: only administrators can manage (update policies to use is_administrator)
+-- 6. Projects: only administrators can manage (recreate policies to use is_administrator)
 DROP POLICY IF EXISTS "Administrators can manage projects" ON projects;
 CREATE POLICY "Administrators can manage projects"
   ON projects FOR ALL
   USING (tenant_id = get_tenant_id() AND is_administrator())
   WITH CHECK (tenant_id = get_tenant_id() AND is_administrator());
 
--- 6. Project assignments: only administrators can manage
+-- 7. Project assignments: only administrators can manage
 DROP POLICY IF EXISTS "Administrators can manage project assignments" ON project_assignments;
 CREATE POLICY "Administrators can manage project assignments"
   ON project_assignments FOR ALL
@@ -62,7 +66,7 @@ CREATE POLICY "Administrators can manage project assignments"
     )
   );
 
--- 7. Only administrators can change user roles and location (office)
+-- 8. Only administrators can change user roles and location (office)
 CREATE OR REPLACE FUNCTION public.prevent_role_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -77,7 +81,7 @@ BEGIN
 END;
 $$;
 
--- 8. Replace "Managers can manage users" with "Administrators can manage users"
+-- 9. Replace "Managers can manage users" with "Administrators can manage users"
 DROP POLICY IF EXISTS "Managers can manage users" ON users;
 CREATE POLICY "Administrators can manage users"
   ON users FOR ALL
