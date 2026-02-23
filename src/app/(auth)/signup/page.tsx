@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
-  const [role, setRole] = useState<"exec" | "manager" | "staff">("staff");
+  const [role, setRole] = useState<"exec" | "manager" | "staff" | "administrator">("staff");
   const [officeId, setOfficeId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("");
@@ -168,11 +168,12 @@ export default function SignupPage() {
             <select
               id="role"
               value={role}
-              onChange={(e) => setRole(e.target.value as "exec" | "manager" | "staff")}
+              onChange={(e) => setRole(e.target.value as "exec" | "manager" | "staff" | "administrator")}
               className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             >
               <option value="staff">Staff</option>
               <option value="manager">Manager</option>
+              <option value="administrator">Administrator</option>
               <option value="exec">Executive</option>
             </select>
           </div>
@@ -223,38 +224,40 @@ export default function SignupPage() {
               className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="billableRate" className="mb-1 block text-sm font-medium text-zinc-700">
-                Billable rate
-              </label>
-              <input
-                id="billableRate"
-                type="number"
-                min="0"
-                step="0.01"
-                value={billableRate}
-                onChange={(e) => setBillableRate(e.target.value)}
-                placeholder="Optional"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              />
+          {role !== "staff" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="billableRate" className="mb-1 block text-sm font-medium text-zinc-700">
+                  Billable rate
+                </label>
+                <input
+                  id="billableRate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={billableRate}
+                  onChange={(e) => setBillableRate(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="costRate" className="mb-1 block text-sm font-medium text-zinc-700">
+                  Cost rate
+                </label>
+                <input
+                  id="costRate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costRate}
+                  onChange={(e) => setCostRate(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="costRate" className="mb-1 block text-sm font-medium text-zinc-700">
-                Cost rate
-              </label>
-              <input
-                id="costRate"
-                type="number"
-                min="0"
-                step="0.01"
-                value={costRate}
-                onChange={(e) => setCostRate(e.target.value)}
-                placeholder="Optional"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              />
-            </div>
-          </div>
+          )}
           {error && (
             <p className="text-sm text-red-600">{error}</p>
           )}

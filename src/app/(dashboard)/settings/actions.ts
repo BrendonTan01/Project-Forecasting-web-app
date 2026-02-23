@@ -8,8 +8,8 @@ export type ProfileFormData = {
   job_title: string | null;
   office_id: string | null;
   weekly_capacity_hours: number;
-  billable_rate: number | null;
-  cost_rate: number | null;
+  billable_rate?: number | null;
+  cost_rate?: number | null;
 };
 
 export async function updateProfileSettings(data: ProfileFormData) {
@@ -35,13 +35,17 @@ export async function updateProfileSettings(data: ProfileFormData) {
 
   if (userError) return { error: userError.message };
 
-  // Update staff_profiles
+  // Update staff_profiles (staff cannot update billable_rate/cost_rate)
   const staffUpdate: Record<string, unknown> = {
     job_title: data.job_title?.trim() || null,
     weekly_capacity_hours: capacity,
-    billable_rate: data.billable_rate != null && data.billable_rate > 0 ? data.billable_rate : null,
-    cost_rate: data.cost_rate != null && data.cost_rate > 0 ? data.cost_rate : null,
   };
+  if (user.role !== "staff" && data.billable_rate !== undefined) {
+    staffUpdate.billable_rate = data.billable_rate != null && data.billable_rate > 0 ? data.billable_rate : null;
+  }
+  if (user.role !== "staff" && data.cost_rate !== undefined) {
+    staffUpdate.cost_rate = data.cost_rate != null && data.cost_rate > 0 ? data.cost_rate : null;
+  }
 
   const { error: staffError } = await supabase
     .from("staff_profiles")

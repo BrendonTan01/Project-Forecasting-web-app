@@ -38,7 +38,14 @@ export function ProfileSettingsForm({
   const [loading, setLoading] = useState(false);
 
   const roleLabel =
-    role === "exec" ? "Executive" : role === "manager" ? "Manager" : "Staff";
+    role === "exec"
+      ? "Executive"
+      : role === "manager"
+        ? "Manager"
+        : role === "administrator"
+          ? "Administrator"
+          : "Staff";
+  const canSeeRates = role !== "staff";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,8 +64,8 @@ export function ProfileSettingsForm({
       job_title: jobTitle.trim() || null,
       office_id: officeId || null,
       weekly_capacity_hours: capacity,
-      billable_rate: billableRate ? parseFloat(billableRate) : null,
-      cost_rate: costRate ? parseFloat(costRate) : null,
+      billable_rate: canSeeRates && billableRate ? parseFloat(billableRate) : undefined,
+      cost_rate: canSeeRates && costRate ? parseFloat(costRate) : undefined,
     });
 
     setLoading(false);
@@ -145,44 +152,46 @@ export function ProfileSettingsForm({
               className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="billableRate"
-                className="mb-1 block text-sm font-medium text-zinc-700"
-              >
-                Billable rate
-              </label>
-              <input
-                id="billableRate"
-                type="number"
-                min="0"
-                step="0.01"
-                value={billableRate}
-                onChange={(e) => setBillableRate(e.target.value)}
-                placeholder="Optional"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              />
+          {canSeeRates && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="billableRate"
+                  className="mb-1 block text-sm font-medium text-zinc-700"
+                >
+                  Billable rate
+                </label>
+                <input
+                  id="billableRate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={billableRate}
+                  onChange={(e) => setBillableRate(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="costRate"
+                  className="mb-1 block text-sm font-medium text-zinc-700"
+                >
+                  Cost rate
+                </label>
+                <input
+                  id="costRate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costRate}
+                  onChange={(e) => setCostRate(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                />
+              </div>
             </div>
-            <div>
-              <label
-                htmlFor="costRate"
-                className="mb-1 block text-sm font-medium text-zinc-700"
-              >
-                Cost rate
-              </label>
-              <input
-                id="costRate"
-                type="number"
-                min="0"
-                step="0.01"
-                value={costRate}
-                onChange={(e) => setCostRate(e.target.value)}
-                placeholder="Optional"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              />
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

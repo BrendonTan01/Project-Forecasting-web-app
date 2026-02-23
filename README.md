@@ -83,7 +83,9 @@ Open [http://localhost:3000](http://localhost:3000).
 - All tables include `tenant_id`
 - Row Level Security (RLS) enforces tenant isolation
 - Sign up requires selecting a company (tenant)
-- Exec/Manager: full tenant access; Staff: own data + assigned projects
+- **Administrator/Executive**: Create and modify projects, add/remove staff from projects
+- **Manager**: View staff details, progress, and all projects (no project management)
+- **Staff**: View only assigned projects; cannot see billable or cost rates
 
 ## Definition of Done
 
