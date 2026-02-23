@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Capacity Intelligence Platform
+
+A multi-tenant Capacity Intelligence Platform for engineering consulting firms (100–150 staff, multi-country offices). Helps executives decide on bidding, staff utilisation, project health, and capacity forecasting.
+
+## Tech Stack
+
+- **Frontend**: Next.js (App Router), TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Auth, RLS)
+- **Hosting**: Vercel
 
 ## Getting Started
 
-First, run the development server:
+### 1. Create Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a project
+2. Copy the project URL and anon key from Settings > API
+
+### 2. Environment Variables
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Edit `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=your_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+For the seed script, also add:
 
-## Learn More
+```
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Database Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Apply migrations via Supabase Dashboard (SQL Editor) or CLI:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# If using Supabase CLI
+supabase db push
+```
 
-## Deploy on Vercel
+Or run the migration file manually: `supabase/migrations/20250223000001_initial_schema.sql`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 4. Seed Data (Optional)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm install -D tsx
+npx tsx scripts/seed.ts
+```
+
+This creates 1 tenant, 3 offices, 20 staff, 5 projects, time entries, and leave. Login with `engineer1@acme.com` / `Password123!`
+
+### 5. Run Development Server
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Routes
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Landing (redirects to dashboard when logged in) |
+| `/login`, `/signup` | Auth |
+| `/dashboard` | Executive dashboard |
+| `/projects` | Project list |
+| `/projects/[id]` | Project detail |
+| `/staff` | Staff directory |
+| `/staff/[id]` | Staff profile |
+| `/capacity` | Capacity planner |
+| `/time-entry` | Weekly timesheet |
+| `/alerts` | Alerts list |
+
+## Multi-Tenant
+
+- All tables include `tenant_id`
+- Row Level Security (RLS) enforces tenant isolation
+- Sign up requires selecting a company (tenant)
+- Exec/Manager: full tenant access; Staff: own data + assigned projects
+
+## Definition of Done
+
+- [x] Multi-tenant works
+- [x] Utilisation metrics accurate
+- [x] Forecasts include leave and allocations
+- [x] Dashboard shows actionable insights
+- [x] Alerts highlight real issues
+- [x] Multi-office timezones supported

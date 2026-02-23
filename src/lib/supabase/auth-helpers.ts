@@ -1,0 +1,47 @@
+import { createClient } from "./server";
+
+/**
+ * Get current user and their tenant_id from the users table.
+ * Used for tenant scoping in server components and actions.
+ */
+export async function getCurrentUserWithTenant() {
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser) return null;
+
+  const { data: dbUser } = await supabase
+    .from("users")
+    .select("id, tenant_id, role, office_id")
+    .eq("id", authUser.id)
+    .single();
+
+  if (!dbUser) return null;
+
+  return {
+    id: authUser.id,
+    email: authUser.email ?? "",
+    tenantId: dbUser.tenant_id,
+    role: dbUser.role as "exec" | "manager" | "staff",
+    officeId: dbUser.office_id,
+  };
+}
+
+/**
+ * Get current user's staff_profile id (for time entries, etc.)
+ */
+export async function getCurrentStaffId() {
+  const user = await getCurrentUserWithTenant();
+  if (!user) return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("staff_profiles")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  return data?.id ?? null;
+}
