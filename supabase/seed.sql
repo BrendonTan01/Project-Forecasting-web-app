@@ -177,6 +177,43 @@ INSERT INTO auth.users (
     ''
   );
 
+-- ============================================
+-- PUBLIC USERS + STAFF_PROFILES (from auth.users)
+-- The handle_new_user trigger may not fire on direct auth.users INSERT in seed.
+-- Explicitly populate to ensure tenant_id/role exist for RLS (get_tenant_id, is_manager_or_exec).
+-- ============================================
+INSERT INTO public.users (id, tenant_id, email, role, office_id)
+SELECT
+  id,
+  (raw_user_meta_data->>'tenant_id')::uuid,
+  email,
+  COALESCE(NULLIF(TRIM(raw_user_meta_data->>'role'), ''), 'staff'),
+  (raw_user_meta_data->>'office_id')::uuid
+FROM auth.users
+WHERE email LIKE '%@acme.com'
+ON CONFLICT (id) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  email = EXCLUDED.email,
+  role = EXCLUDED.role,
+  office_id = EXCLUDED.office_id;
+
+INSERT INTO public.staff_profiles (user_id, tenant_id, job_title, weekly_capacity_hours, billable_rate, cost_rate)
+SELECT
+  id,
+  (raw_user_meta_data->>'tenant_id')::uuid,
+  NULLIF(TRIM(raw_user_meta_data->>'job_title'), ''),
+  COALESCE((raw_user_meta_data->>'weekly_capacity_hours')::numeric, 40),
+  NULLIF((raw_user_meta_data->>'billable_rate')::numeric, 0),
+  NULLIF((raw_user_meta_data->>'cost_rate')::numeric, 0)
+FROM auth.users
+WHERE email LIKE '%@acme.com'
+ON CONFLICT (user_id) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  job_title = EXCLUDED.job_title,
+  weekly_capacity_hours = EXCLUDED.weekly_capacity_hours,
+  billable_rate = EXCLUDED.billable_rate,
+  cost_rate = EXCLUDED.cost_rate;
+
 -- Auth identities (required for login)
 INSERT INTO auth.identities (
   id,
