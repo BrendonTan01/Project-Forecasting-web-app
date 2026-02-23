@@ -5,12 +5,24 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+interface Office {
+  id: string;
+  name: string;
+  country: string;
+}
+
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [role, setRole] = useState<"exec" | "manager" | "staff">("staff");
+  const [officeId, setOfficeId] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [weeklyCapacityHours, setWeeklyCapacityHours] = useState("");
+  const [billableRate, setBillableRate] = useState("");
+  const [costRate, setCostRate] = useState("");
   const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -28,6 +40,27 @@ export default function SignupPage() {
     fetchTenants();
   }, []);
 
+  useEffect(() => {
+    if (!tenantId) {
+      setOffices([]);
+      setOfficeId("");
+      return;
+    }
+    async function fetchOffices() {
+      const client = createClient();
+      const { data } = await client
+        .from("offices")
+        .select("id, name, country")
+        .eq("tenant_id", tenantId)
+        .order("name");
+      if (data) {
+        setOffices(data);
+        setOfficeId("");
+      }
+    }
+    fetchOffices();
+  }, [tenantId]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -39,15 +72,25 @@ export default function SignupPage() {
       return;
     }
 
+    const metadata: Record<string, string | number | undefined> = {
+      tenant_id: tenantId,
+      role,
+    };
+    if (officeId) metadata.office_id = officeId;
+    if (jobTitle.trim()) metadata.job_title = jobTitle.trim();
+    const capacity = parseFloat(weeklyCapacityHours);
+    if (!isNaN(capacity) && capacity > 0) metadata.weekly_capacity_hours = capacity;
+    const billable = parseFloat(billableRate);
+    if (!isNaN(billable) && billable > 0) metadata.billable_rate = billable;
+    const cost = parseFloat(costRate);
+    if (!isNaN(cost) && cost > 0) metadata.cost_rate = cost;
+
     const client = createClient();
     const { error: signUpError } = await client.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          tenant_id: tenantId,
-          role,
-        },
+        data: metadata,
       },
     });
 
@@ -132,6 +175,85 @@ export default function SignupPage() {
               <option value="manager">Manager</option>
               <option value="exec">Executive</option>
             </select>
+          </div>
+          <div>
+            <label htmlFor="office" className="mb-1 block text-sm font-medium text-zinc-700">
+              Office
+            </label>
+            <select
+              id="office"
+              value={officeId}
+              onChange={(e) => setOfficeId(e.target.value)}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            >
+              <option value="">Select office (optional)</option>
+              {offices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name} ({o.country})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="jobTitle" className="mb-1 block text-sm font-medium text-zinc-700">
+              Job title
+            </label>
+            <input
+              id="jobTitle"
+              type="text"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              placeholder="e.g. Senior Engineer"
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="weeklyCapacity" className="mb-1 block text-sm font-medium text-zinc-700">
+              Weekly capacity (hours)
+            </label>
+            <input
+              id="weeklyCapacity"
+              type="number"
+              min="0.5"
+              max="168"
+              step="0.5"
+              value={weeklyCapacityHours}
+              onChange={(e) => setWeeklyCapacityHours(e.target.value)}
+              placeholder="40 (default)"
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="billableRate" className="mb-1 block text-sm font-medium text-zinc-700">
+                Billable rate
+              </label>
+              <input
+                id="billableRate"
+                type="number"
+                min="0"
+                step="0.01"
+                value={billableRate}
+                onChange={(e) => setBillableRate(e.target.value)}
+                placeholder="Optional"
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="costRate" className="mb-1 block text-sm font-medium text-zinc-700">
+                Cost rate
+              </label>
+              <input
+                id="costRate"
+                type="number"
+                min="0"
+                step="0.01"
+                value={costRate}
+                onChange={(e) => setCostRate(e.target.value)}
+                placeholder="Optional"
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
           </div>
           {error && (
             <p className="text-sm text-red-600">{error}</p>
