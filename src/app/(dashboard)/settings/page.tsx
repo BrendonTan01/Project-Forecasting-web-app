@@ -24,7 +24,7 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <h1 className="text-2xl font-semibold text-zinc-900">Profile settings</h1>
-      <p className="text-sm text-zinc-600">
+      <p className="text-sm text-zinc-700">
         Update your profile. Your role cannot be changed.
       </p>
 

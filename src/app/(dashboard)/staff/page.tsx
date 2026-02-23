@@ -69,19 +69,19 @@ export default async function StaffPage() {
         <table className="min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Staff
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Office
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Role
               </th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                 Allocation
               </th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                 Utilisation
               </th>
             </tr>
@@ -104,16 +104,16 @@ export default async function StaffPage() {
                       {u?.email ?? "Unknown"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-sm text-zinc-700">
                     {office ? `${office.name} (${office.country})` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-sm text-zinc-700">
                     {u?.role ?? sp.job_title ?? "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
                     {allocationByStaff[sp.id] ?? 0}%
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
                     {formatUtilisation(utilisation)}
                   </td>
                 </tr>
@@ -124,7 +124,7 @@ export default async function StaffPage() {
       </div>
 
       {(!staffProfiles || staffProfiles.length === 0) && (
-        <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-500">
+        <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
           No staff found.
         </p>
       )}

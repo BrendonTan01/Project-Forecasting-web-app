@@ -86,13 +86,13 @@ export function TimeEntrySheet({
         <div className="flex gap-2">
           <Link
             href={`/time-entry?week=${prevWeek.toISOString().split("T")[0]}`}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100"
+            className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
           >
             Previous week
           </Link>
           <Link
             href={`/time-entry?week=${nextWeek.toISOString().split("T")[0]}`}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100"
+            className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
           >
             Next week
           </Link>
@@ -107,13 +107,13 @@ export function TimeEntrySheet({
         <table className="min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Project
               </th>
               {dates.map((d) => (
                 <th
                   key={d}
-                  className="min-w-[120px] px-4 py-3 text-center text-sm font-medium text-zinc-700"
+                  className="min-w-[120px] px-4 py-3 text-center text-sm font-semibold text-zinc-800"
                 >
                   {formatDate(d)}
                   {totalByDate[d] > 12 && (
@@ -129,23 +129,23 @@ export function TimeEntrySheet({
           <tbody>
             {timeEntries.length === 0 && !adding && (
               <tr>
-                <td colSpan={dates.length + 2} className="px-4 py-8 text-center text-sm text-zinc-500">
+                <td colSpan={dates.length + 2} className="px-4 py-8 text-center text-sm text-zinc-600">
                   No time entries this week. Click &quot;Add time entry&quot; to log time.
                 </td>
               </tr>
             )}
             {timeEntries.map((entry) => (
               <tr key={entry.id} className="border-b border-zinc-100">
-                <td className="px-4 py-2 text-sm text-zinc-900">
+                <td className="px-4 py-2 text-sm font-medium text-zinc-900">
                   {entry.projects?.name ?? "Unknown"}
                 </td>
                 {dates.map((d) => (
-                  <td key={d} className="px-4 py-2 text-center">
+                  <td key={d} className="px-4 py-2 text-center text-zinc-800">
                     {entry.date === d ? (
-                      <span className="inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1 font-medium">
                         {entry.hours}h
                         {entry.billable_flag && (
-                          <span className="text-xs text-zinc-500">(B)</span>
+                          <span className="text-xs text-zinc-600">(B)</span>
                         )}
                         <button
                           type="button"
@@ -175,7 +175,7 @@ export function TimeEntrySheet({
                       <select
                         name="project_id"
                         required
-                        className="rounded border border-zinc-300 px-2 py-1 text-sm"
+                        className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
                       >
                         <option value="">Select project</option>
                         {projects.map((p) => (
@@ -189,7 +189,7 @@ export function TimeEntrySheet({
                       <label className="mb-1 block text-xs font-medium text-zinc-600">
                         Date
                       </label>
-                      <select name="date" required className="rounded border border-zinc-300 px-2 py-1 text-sm">
+                      <select name="date" required className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900">
                         {dates.map((d) => (
                           <option key={d} value={d}>
                             {formatDate(d)}
@@ -208,7 +208,7 @@ export function TimeEntrySheet({
                         min="0.25"
                         max="24"
                         required
-                        className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm"
+                        className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export function TimeEntrySheet({
                         defaultChecked
                         className="rounded"
                       />
-                      <label htmlFor="billable" className="text-sm text-zinc-600">
+                      <label htmlFor="billable" className="text-sm text-zinc-700">
                         Billable
                       </label>
                     </div>
@@ -233,7 +233,7 @@ export function TimeEntrySheet({
                       <button
                         type="button"
                         onClick={() => setAdding(false)}
-                        className="rounded border border-zinc-300 px-3 py-1 text-sm hover:bg-zinc-100"
+                        className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
                       >
                         Cancel
                       </button>
@@ -250,7 +250,7 @@ export function TimeEntrySheet({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-600 hover:border-zinc-400 hover:bg-zinc-50"
+          className="rounded border border-dashed border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50"
         >
           + Add time entry
         </button>

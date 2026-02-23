@@ -46,14 +46,14 @@ export function getProjectHealthLabel(status: ProjectHealthStatus): string {
 export function getProjectHealthColour(status: ProjectHealthStatus): string {
   switch (status) {
     case "on_track":
-      return "text-zinc-600";
+      return "text-emerald-700";
     case "at_risk":
-      return "text-amber-600";
+      return "text-amber-700";
     case "overrun":
-      return "text-red-600";
+      return "text-red-700";
     case "no_estimate":
-      return "text-zinc-500";
-    default:
       return "text-zinc-600";
+    default:
+      return "text-zinc-700";
   }
 }

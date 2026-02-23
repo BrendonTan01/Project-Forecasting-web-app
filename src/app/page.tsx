@@ -18,7 +18,7 @@ export default async function HomePage() {
         <h1 className="mb-4 text-4xl font-bold text-zinc-900">
           Capacity Intelligence Platform
         </h1>
-        <p className="mb-8 text-lg text-zinc-600">
+        <p className="mb-8 text-lg text-zinc-700">
           Plan capacity, track utilisation, and monitor project health for your engineering consulting firm.
         </p>
         <div className="flex gap-4 justify-center">

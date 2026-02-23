@@ -97,32 +97,32 @@ export default async function CapacityPage() {
       <h1 className="text-2xl font-semibold text-zinc-900">Capacity Planner</h1>
 
       <div className="rounded-lg border border-zinc-200 bg-white">
-        <h2 className="border-b border-zinc-200 px-4 py-3 font-medium text-zinc-900">
+        <h2 className="border-b border-zinc-200 px-4 py-3 font-semibold text-zinc-900">
           Allocation overview
         </h2>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
-                <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                   Staff
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                   Weekly capacity
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                   Allocation
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                   Free (30d)
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                   Free (60d)
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                   Free (90d)
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                   Status
                 </th>
               </tr>
@@ -138,24 +138,24 @@ export default async function CapacityPage() {
                       {row.email}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {row.weeklyCapacity}h
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
                     {row.allocationSum}%
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {row.free30.toFixed(0)}h
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {row.free60.toFixed(0)}h
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {row.free90.toFixed(0)}h
                   </td>
                   <td className="px-4 py-3">
                     {(row.overload30 || row.overload60 || row.overload90) && (
-                      <span className="text-sm font-medium text-amber-600">
+                      <span className="text-sm font-semibold text-amber-700">
                         Overload
                       </span>
                     )}
@@ -169,7 +169,7 @@ export default async function CapacityPage() {
 
       {/* Timeline view - simplified */}
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Project allocations</h2>
+        <h2 className="mb-4 font-semibold text-zinc-900">Project allocations</h2>
         {assignments && assignments.length > 0 ? (
           <div className="space-y-2">
             {assignments.map((a) => {
@@ -183,11 +183,11 @@ export default async function CapacityPage() {
                   key={a.staff_id + (projectName ?? "")}
                   className="flex items-center justify-between rounded border border-zinc-200 px-3 py-2"
                 >
-                  <span className="text-sm text-zinc-600">
+                  <span className="text-sm text-zinc-700">
                     {staffEmail}
                   </span>
-                  <span className="text-sm text-zinc-900">{projectName ?? "Unknown"}</span>
-                  <span className="text-sm font-medium text-zinc-600">
+                  <span className="text-sm font-medium text-zinc-900">{projectName ?? "Unknown"}</span>
+                  <span className="text-sm font-semibold text-zinc-800">
                     {a.allocation_percentage}%
                   </span>
                 </div>
@@ -195,7 +195,7 @@ export default async function CapacityPage() {
             })}
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">No project assignments</p>
+          <p className="text-sm text-zinc-600">No project assignments</p>
         )}
       </div>
     </div>

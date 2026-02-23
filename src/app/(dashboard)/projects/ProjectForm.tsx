@@ -90,7 +90,7 @@ export function ProjectForm({ project }: ProjectFormProps) {
           type="text"
           required
           defaultValue={project?.name}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           placeholder="e.g. Bridge Design Phase 1"
         />
       </div>
@@ -104,7 +104,7 @@ export function ProjectForm({ project }: ProjectFormProps) {
           name="client_name"
           type="text"
           defaultValue={project?.client_name ?? ""}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           placeholder="e.g. City Council"
         />
       </div>
@@ -121,7 +121,7 @@ export function ProjectForm({ project }: ProjectFormProps) {
             min="0"
             step="0.5"
             defaultValue={project?.estimated_hours ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             placeholder="e.g. 400"
           />
         </div>
@@ -133,7 +133,7 @@ export function ProjectForm({ project }: ProjectFormProps) {
             id="status"
             name="status"
             defaultValue={project?.status ?? "active"}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           >
             <option value="active">Active</option>
             <option value="on_hold">On hold</option>
@@ -153,7 +153,7 @@ export function ProjectForm({ project }: ProjectFormProps) {
             name="start_date"
             type="date"
             defaultValue={project?.start_date ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           />
         </div>
         <div>
@@ -165,7 +165,7 @@ export function ProjectForm({ project }: ProjectFormProps) {
             name="end_date"
             type="date"
             defaultValue={project?.end_date ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           />
         </div>
       </div>

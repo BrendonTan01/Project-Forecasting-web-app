@@ -76,27 +76,27 @@ export default async function StaffProfilePage({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Job title</p>
-          <p className="font-medium text-zinc-900">{staffProfile.job_title ?? "-"}</p>
+          <p className="text-sm font-medium text-zinc-500">Job title</p>
+          <p className="font-semibold text-zinc-900">{staffProfile.job_title ?? "-"}</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Office</p>
-          <p className="font-medium text-zinc-900">
+          <p className="text-sm font-medium text-zinc-500">Office</p>
+          <p className="font-semibold text-zinc-900">
             {office ? `${office.name} (${office.country})` : "-"}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Utilisation (30d)</p>
-          <p className="font-medium text-zinc-900">{formatUtilisation(utilisation)}</p>
+          <p className="text-sm font-medium text-zinc-500">Utilisation (30d)</p>
+          <p className="font-semibold text-zinc-900">{formatUtilisation(utilisation)}</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Allocation</p>
-          <p className="font-medium text-zinc-900">{allocationSum}%</p>
+          <p className="text-sm font-medium text-zinc-500">Allocation</p>
+          <p className="font-semibold text-zinc-900">{allocationSum}%</p>
         </div>
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Current projects</h2>
+        <h2 className="mb-4 font-semibold text-zinc-900">Current projects</h2>
         {assignments && assignments.length > 0 ? (
           <ul className="space-y-2">
             {assignments.map((a) => {
@@ -110,41 +110,41 @@ export default async function StaffProfilePage({
                   >
                     {project?.name ?? "Unknown"}
                   </Link>
-                  <span className="text-zinc-600">{a.allocation_percentage}%</span>
+                  <span className="font-medium text-zinc-800">{a.allocation_percentage}%</span>
                 </li>
               );
             })}
           </ul>
         ) : (
-          <p className="text-sm text-zinc-500">No project assignments</p>
+          <p className="text-sm text-zinc-600">No project assignments</p>
         )}
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Forecast availability</h2>
-        <p className="text-sm text-zinc-600">
-          Weekly capacity: {staffProfile.weekly_capacity_hours}h
+        <h2 className="mb-4 font-semibold text-zinc-900">Forecast availability</h2>
+        <p className="text-sm text-zinc-700">
+          Weekly capacity: <span className="font-medium text-zinc-900">{staffProfile.weekly_capacity_hours}h</span>
         </p>
-        <p className="text-sm text-zinc-600">
-          Allocated: {allocationSum}% ({(allocationSum / 100) * staffProfile.weekly_capacity_hours}h/week)
+        <p className="text-sm text-zinc-700">
+          Allocated: <span className="font-medium text-zinc-900">{allocationSum}%</span> ({(allocationSum / 100) * staffProfile.weekly_capacity_hours}h/week)
         </p>
-        <p className="mt-2 text-sm font-medium text-zinc-900">
+        <p className="mt-2 text-sm font-semibold text-zinc-900">
           Free capacity: {Math.max(0, staffProfile.weekly_capacity_hours * (1 - allocationSum / 100)).toFixed(1)}h/week
         </p>
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Upcoming leave</h2>
+        <h2 className="mb-4 font-semibold text-zinc-900">Upcoming leave</h2>
         {leaveRequests && leaveRequests.length > 0 ? (
           <ul className="space-y-2">
             {leaveRequests.map((lr) => (
-              <li key={lr.start_date + lr.end_date} className="text-sm text-zinc-600">
-                {lr.leave_type}: {lr.start_date} to {lr.end_date} ({lr.status})
+              <li key={lr.start_date + lr.end_date} className="text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">{lr.leave_type}:</span> {lr.start_date} to {lr.end_date} ({lr.status})
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-zinc-500">No upcoming leave</p>
+          <p className="text-sm text-zinc-600">No upcoming leave</p>
         )}
       </div>
     </div>

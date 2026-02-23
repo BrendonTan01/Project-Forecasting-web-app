@@ -85,22 +85,22 @@ export default async function ProjectsPage({
         <table className="min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Project
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Client
               </th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                 Estimated
               </th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
                 Actual
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Health
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Status
               </th>
             </tr>
@@ -125,13 +125,13 @@ export default async function ProjectsPage({
                       {project.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-sm text-zinc-700">
                     {project.client_name ?? "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {estimated > 0 ? `${estimated}h` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-600">
+                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {actual}h
                   </td>
                   <td className="px-4 py-3">
@@ -154,7 +154,7 @@ export default async function ProjectsPage({
       </div>
 
       {(!projects || projects.length === 0) && (
-        <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-500">
+        <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
           No projects found{status ? ` with status "${statusConfig[status]?.label ?? status}"` : ""}.
         </p>
       )}

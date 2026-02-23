@@ -82,10 +82,10 @@ export function ProfileSettingsForm({
           <label className="mb-1 block text-sm font-medium text-zinc-700">
             Role
           </label>
-          <div className="flex h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-600">
+          <div className="flex h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium text-zinc-700">
             {roleLabel}
           </div>
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-zinc-600">
             Your role is set by your administrator and cannot be changed.
           </p>
         </div>

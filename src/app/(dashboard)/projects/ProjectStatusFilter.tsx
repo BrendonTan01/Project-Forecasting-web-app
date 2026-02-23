@@ -34,7 +34,7 @@ export default function ProjectStatusFilter() {
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             current === s.value
               ? "bg-white text-zinc-900 shadow-sm"
-              : "text-zinc-500 hover:text-zinc-700"
+              : "text-zinc-600 hover:text-zinc-900"
           }`}
         >
           {s.label}

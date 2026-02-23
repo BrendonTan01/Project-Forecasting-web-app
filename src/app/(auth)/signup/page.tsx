@@ -110,7 +110,7 @@ export default function SignupPage() {
         <h1 className="mb-6 text-2xl font-semibold text-zinc-900">
           Create account
         </h1>
-        <p className="mb-6 text-sm text-zinc-600">
+        <p className="mb-6 text-sm text-zinc-700">
           Join your organization&apos;s Capacity Intelligence Platform
         </p>
 
@@ -269,7 +269,7 @@ export default function SignupPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-zinc-600">
+        <p className="mt-4 text-center text-sm text-zinc-700">
           Already have an account?{" "}
           <Link href="/login" className="font-medium text-zinc-900 hover:underline">
             Sign in

@@ -207,7 +207,7 @@ export default async function AlertsPage() {
 
       <div className="space-y-3">
         {alerts.length === 0 ? (
-          <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-500">
+          <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
             No alerts. All systems healthy.
           </p>
         ) : (
@@ -222,8 +222,8 @@ export default async function AlertsPage() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium text-zinc-900">{alert.title}</p>
-                  <p className="mt-1 text-sm text-zinc-600">{alert.description}</p>
+                  <p className="font-semibold text-zinc-900">{alert.title}</p>
+                  <p className="mt-1 text-sm font-medium text-zinc-700">{alert.description}</p>
                 </div>
                 {alert.link && (
                   <Link

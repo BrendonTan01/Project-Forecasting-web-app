@@ -130,31 +130,31 @@ export default async function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Utilisation rate</p>
+          <p className="text-sm font-medium text-zinc-500">Utilisation rate</p>
           <p className="text-2xl font-semibold text-zinc-900">
             {formatUtilisation(overallUtilisation)}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Billable ratio</p>
+          <p className="text-sm font-medium text-zinc-500">Billable ratio</p>
           <p className="text-2xl font-semibold text-zinc-900">
             {totalHours > 0 ? `${(billableRatio * 100).toFixed(1)}%` : "N/A"}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Staff overallocated</p>
-          <p className={`text-2xl font-semibold ${overallocated > 0 ? "text-amber-600" : "text-zinc-900"}`}>
+          <p className="text-sm font-medium text-zinc-500">Staff overallocated</p>
+          <p className={`text-2xl font-semibold ${overallocated > 0 ? "text-amber-700" : "text-zinc-900"}`}>
             {overallocated}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Staff underutilised</p>
-          <p className={`text-2xl font-semibold ${underutilised > 0 ? "text-amber-600" : "text-zinc-900"}`}>
+          <p className="text-sm font-medium text-zinc-500">Staff underutilised</p>
+          <p className={`text-2xl font-semibold ${underutilised > 0 ? "text-amber-700" : "text-zinc-900"}`}>
             {underutilised}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Free capacity (30d)</p>
+          <p className="text-sm font-medium text-zinc-500">Free capacity (30d)</p>
           <p className="text-2xl font-semibold text-zinc-900">
             {freeCapacity30.toFixed(0)}h
           </p>
@@ -163,14 +163,14 @@ export default async function DashboardPage() {
 
       {/* Capacity heatmap */}
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Capacity heatmap</h2>
-        <p className="mb-4 text-sm text-zinc-600">
+        <h2 className="mb-4 font-semibold text-zinc-900">Capacity heatmap</h2>
+        <p className="mb-4 text-sm text-zinc-700">
           Staff utilisation (last 30 days). Green: healthy, Amber: under/over
         </p>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
-              <tr className="border-b border-zinc-200 text-left text-sm text-zinc-600">
+              <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
                 <th className="pb-2">Staff</th>
                 <th className="pb-2 text-right">Utilisation</th>
                 <th className="pb-2 text-right">Status</th>
@@ -182,10 +182,10 @@ export default async function DashboardPage() {
                 const email = staff?.users?.email ?? "Unknown";
                 const statusColour =
                   m.status === "overallocated"
-                    ? "text-amber-600"
+                    ? "text-amber-700 font-medium"
                     : m.status === "underutilised"
-                      ? "text-amber-600"
-                      : "text-zinc-600";
+                      ? "text-amber-700 font-medium"
+                      : "text-emerald-700 font-medium";
                 return (
                   <tr key={m.id} className="border-b border-zinc-100">
                     <td className="py-2">
@@ -196,7 +196,7 @@ export default async function DashboardPage() {
                         {email}
                       </Link>
                     </td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 text-right text-zinc-900">
                       {formatUtilisation(m.utilisation)}
                     </td>
                     <td className={`py-2 text-right ${statusColour}`}>
@@ -212,7 +212,7 @@ export default async function DashboardPage() {
 
       {/* Alerts */}
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Alerts</h2>
+        <h2 className="mb-4 font-semibold text-zinc-900">Alerts</h2>
         <div className="space-y-2">
           {overallocated > 0 && (
             <Link
@@ -244,7 +244,7 @@ export default async function DashboardPage() {
             );
           })}
           {overallocated === 0 && underutilised === 0 && projectsAtRisk.length === 0 && (
-            <p className="text-sm text-zinc-500">No alerts</p>
+            <p className="text-sm text-zinc-600">No alerts</p>
           )}
         </div>
       </div>

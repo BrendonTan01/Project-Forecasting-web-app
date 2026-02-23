@@ -85,19 +85,19 @@ export default async function ProjectDetailPage({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Client</p>
-          <p className="font-medium text-zinc-900">{project.client_name ?? "-"}</p>
+          <p className="text-sm font-medium text-zinc-500">Client</p>
+          <p className="font-semibold text-zinc-900">{project.client_name ?? "-"}</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Estimated hours</p>
-          <p className="font-medium text-zinc-900">{estimated > 0 ? `${estimated}h` : "-"}</p>
+          <p className="text-sm font-medium text-zinc-500">Estimated hours</p>
+          <p className="font-semibold text-zinc-900">{estimated > 0 ? `${estimated}h` : "-"}</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Actual hours</p>
-          <p className="font-medium text-zinc-900">{actualHours}h</p>
+          <p className="text-sm font-medium text-zinc-500">Actual hours</p>
+          <p className="font-semibold text-zinc-900">{actualHours}h</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Health</p>
+          <p className="text-sm font-medium text-zinc-500">Health</p>
           <p className={`font-medium ${getProjectHealthColour(health)}`}>
             {getProjectHealthLabel(health)}
           </p>
@@ -106,23 +106,23 @@ export default async function ProjectDetailPage({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Burn rate</p>
-          <p className="font-medium text-zinc-900">{burnRate.toFixed(1)}h/week</p>
+          <p className="text-sm font-medium text-zinc-500">Burn rate</p>
+          <p className="font-semibold text-zinc-900">{burnRate.toFixed(1)}h/week</p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-600">Billable ratio</p>
-          <p className="font-medium text-zinc-900">
+          <p className="text-sm font-medium text-zinc-500">Billable ratio</p>
+          <p className="font-semibold text-zinc-900">
             {actualHours > 0 ? `${((billableHours / actualHours) * 100).toFixed(0)}%` : "-"}
           </p>
         </div>
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-medium text-zinc-900">Assigned staff</h2>
+        <h2 className="mb-4 font-semibold text-zinc-900">Assigned staff</h2>
         {assignments && assignments.length > 0 ? (
           <table className="min-w-full">
             <thead>
-              <tr className="border-b border-zinc-200 text-left text-sm text-zinc-600">
+              <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
                 <th className="pb-2">Staff</th>
                 <th className="pb-2">Allocation</th>
               </tr>
@@ -145,14 +145,14 @@ export default async function ProjectDetailPage({
                         {email}
                       </Link>
                     </td>
-                    <td className="py-2">{a.allocation_percentage}%</td>
+                    <td className="py-2 font-medium text-zinc-800">{a.allocation_percentage}%</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-zinc-500">No staff assigned</p>
+          <p className="text-sm text-zinc-600">No staff assigned</p>
         )}
       </div>
     </div>

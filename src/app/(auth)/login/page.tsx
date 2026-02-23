@@ -36,7 +36,7 @@ export default function LoginPage() {
         <h1 className="mb-6 text-2xl font-semibold text-zinc-900">
           Capacity Intelligence Platform
         </h1>
-        <p className="mb-6 text-sm text-zinc-600">
+        <p className="mb-6 text-sm text-zinc-700">
           Sign in to your account
         </p>
 
@@ -79,7 +79,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-zinc-600">
+        <p className="mt-4 text-center text-sm text-zinc-700">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="font-medium text-zinc-900 hover:underline">
             Sign up
