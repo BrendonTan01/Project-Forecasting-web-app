@@ -1,7 +1,10 @@
--- Capacity Intelligence Platform - Seed Data
--- Run after migrations. Creates 1 tenant, 3 offices, 20 staff, 5 projects, time entries, leave.
--- Note: Auth users must be created via Supabase Auth (signUp). This seed creates the app data.
--- For local dev, you may need to create auth users first and get their IDs.
+-- Capacity Intelligence Platform - Comprehensive Seed Data
+-- Tests all features with users across all roles: administrator, manager, staff
+-- Run: supabase db reset (or supabase start for first time)
+-- All test users share password: TestPassword123!
+
+-- Enable password hashing
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================
 -- TENANT
@@ -26,26 +29,177 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================
--- AUTH USERS + APP USERS + STAFF PROFILES
+-- AUTH USERS (all roles: administrator, manager, staff)
+-- handle_new_user trigger creates users + staff_profiles automatically
+-- Password for all: TestPassword123!
 -- ============================================
--- IMPORTANT: You must create auth.users first via Supabase Auth (Dashboard or API).
--- Then insert into public.users with matching id.
--- This seed assumes you will run it AFTER creating auth users, or use the Supabase seed flow.
---
--- For testing, create one auth user manually:
--- 1. Go to Supabase Dashboard -> Authentication -> Users -> Add user
--- 2. Email: admin@acme.com, Password: (your choice)
--- 3. Copy the user ID and use below
---
--- Example (replace USER_ID with actual auth.users id):
-INSERT INTO users (id, tenant_id, email, role, office_id)
-VALUES ('ebee5529-f6a6-4cd4-add8-b743d7711fec', 'a0000000-0000-0000-0000-000000000001', 'admin@acme.com', 'administrator', 'b0000000-0000-0000-0000-000000000001');
---
-INSERT INTO staff_profiles (user_id, tenant_id, job_title, weekly_capacity_hours, billable_rate, cost_rate)
-VALUES ('ebee5529-f6a6-4cd4-add8-b743d7711fec', 'a0000000-0000-0000-0000-000000000001', 'Managing Director', 40, 250, 120);
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  confirmation_token,
+  email_change,
+  email_change_token_new,
+  recovery_token
+) VALUES
+  -- Administrator (full tenant access, manage projects/users)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000001',
+    'authenticated',
+    'authenticated',
+    'admin@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"administrator","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Managing Director","weekly_capacity_hours":40,"billable_rate":250,"cost_rate":120}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  -- Manager 1 (view tenant-wide, no project management)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000002',
+    'authenticated',
+    'authenticated',
+    'manager.london@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"manager","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Project Manager","weekly_capacity_hours":40,"billable_rate":180,"cost_rate":95}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  -- Manager 2 (Singapore)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000003',
+    'authenticated',
+    'authenticated',
+    'manager.singapore@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"manager","office_id":"b0000000-0000-0000-0000-000000000002","job_title":"Regional Manager","weekly_capacity_hours":40,"billable_rate":200,"cost_rate":100}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  -- Staff 1 (London)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000004',
+    'authenticated',
+    'authenticated',
+    'staff.engineer@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Senior Engineer","weekly_capacity_hours":40,"billable_rate":150,"cost_rate":75}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  -- Staff 2 (Singapore)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000005',
+    'authenticated',
+    'authenticated',
+    'staff.designer@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000002","job_title":"Design Engineer","weekly_capacity_hours":40,"billable_rate":130,"cost_rate":65}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  -- Staff 3 (Sydney)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000006',
+    'authenticated',
+    'authenticated',
+    'staff.analyst@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000003","job_title":"Structural Analyst","weekly_capacity_hours":37.5,"billable_rate":140,"cost_rate":70}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  -- Staff 4 (London, unassigned to projects - tests staff with no assignments)
+  (
+    '00000000-0000-0000-0000-000000000000',
+    'd1000000-0000-0000-0000-000000000007',
+    'authenticated',
+    'authenticated',
+    'staff.new@acme.com',
+    crypt('TestPassword123!', gen_salt('bf')),
+    NOW(),
+    '{"provider":"email","providers":["email"]}',
+    '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Junior Engineer","weekly_capacity_hours":40,"billable_rate":90,"cost_rate":45}'::jsonb,
+    NOW(),
+    NOW(),
+    '',
+    '',
+    '',
+    ''
+  );
+
+-- Auth identities (required for login)
+INSERT INTO auth.identities (
+  id,
+  user_id,
+  provider_id,
+  identity_data,
+  provider,
+  created_at,
+  updated_at
+)
+SELECT
+  uuid_generate_v4(),
+  id,
+  id,
+  format('{"sub":"%s","email":"%s"}', id::text, email)::jsonb,
+  'email',
+  NOW(),
+  NOW()
+FROM auth.users
+WHERE email LIKE '%@acme.com';
 
 -- ============================================
--- PROJECTS (5 projects)
+-- PROJECTS (5 projects, various statuses)
 -- ============================================
 INSERT INTO projects (id, tenant_id, name, client_name, estimated_hours, start_date, end_date, status)
 VALUES
@@ -57,17 +211,77 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================
--- SEED SCRIPT INSTRUCTIONS
+-- PROJECT ASSIGNMENTS (staff to projects)
 -- ============================================
--- To fully seed the database:
--- 1. Run migrations: supabase db push (or apply 001_initial_schema.sql)
--- 2. Create auth users via Supabase Dashboard or API with user_metadata: { tenant_id, role, office_id }
--- 3. The handle_new_user trigger will create users + staff_profiles automatically
--- 4. Run this seed for projects (tenant + offices + projects)
--- 5. Manually add project_assignments, time_entries, leave_requests via the app or additional SQL
+INSERT INTO project_assignments (project_id, staff_id, allocation_percentage)
+SELECT p.id, sp.id, alloc
+FROM (VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000004', 50),
+  ('c0000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000005', 30),
+  ('c0000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000004', 100),
+  ('c0000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000006', 80),
+  ('c0000000-0000-0000-0000-000000000003', 'd1000000-0000-0000-0000-000000000004', 20),
+  ('c0000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000005', 60),
+  ('c0000000-0000-0000-0000-000000000004', 'd1000000-0000-0000-0000-000000000006', 40),
+  ('c0000000-0000-0000-0000-000000000005', 'd1000000-0000-0000-0000-000000000006', 100)
+) AS v(project_id, user_id, alloc)
+JOIN projects p ON p.id = v.project_id::uuid
+JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
+
+-- ============================================
+-- TIME ENTRIES (historical and recent)
+-- ============================================
+INSERT INTO time_entries (tenant_id, staff_id, project_id, date, hours, billable_flag)
+SELECT
+  'a0000000-0000-0000-0000-000000000001',
+  sp.id,
+  v.project_id::uuid,
+  v.entry_date::date,
+  v.hours,
+  v.billable
+FROM (VALUES
+  ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001', '2025-02-10', 8, true),
+  ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001', '2025-02-11', 6, true),
+  ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000002', '2025-02-12', 4, true),
+  ('d1000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000001', '2025-02-10', 4, true),
+  ('d1000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000004', '2025-02-11', 8, true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000003', '2025-02-10', 8, true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000004', '2025-02-12', 6, true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000005', '2025-02-13', 2, false)
+) AS v(user_id, project_id, entry_date, hours, billable)
+JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
+
+-- ============================================
+-- LEAVE REQUESTS (pending, approved, rejected)
+-- ============================================
+INSERT INTO leave_requests (tenant_id, staff_id, start_date, end_date, leave_type, status)
+SELECT
+  'a0000000-0000-0000-0000-000000000001',
+  sp.id,
+  v.start_date::date,
+  v.end_date::date,
+  v.leave_type,
+  v.status
+FROM (VALUES
+  ('d1000000-0000-0000-0000-000000000004', '2025-03-15', '2025-03-17', 'annual', 'pending'),
+  ('d1000000-0000-0000-0000-000000000005', '2025-02-20', '2025-02-21', 'sick', 'approved'),
+  ('d1000000-0000-0000-0000-000000000006', '2025-04-01', '2025-04-05', 'annual', 'approved'),
+  ('d1000000-0000-0000-0000-000000000007', '2025-03-01', '2025-03-02', 'annual', 'rejected')
+) AS v(user_id, start_date, end_date, leave_type, status)
+JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
+
+-- ============================================
+-- SEED SUMMARY
+-- ============================================
+-- Test users (password: TestPassword123!):
+--   administrator: admin@acme.com
+--   managers:      manager.london@acme.com, manager.singapore@acme.com
+--   staff:         staff.engineer@acme.com, staff.designer@acme.com, staff.analyst@acme.com, staff.new@acme.com
 --
--- For a quick demo, sign up at /signup with:
--- - Company: Acme Engineering Consultants
--- - Your email/password
--- - Role: Executive
--- The trigger will create your user and staff_profile. Then you can add more data via the UI.
+-- Features covered:
+--   - All 3 roles (administrator, manager, staff)
+--   - Multi-office (London, Singapore, Sydney)
+--   - Project assignments with varying allocations
+--   - Time entries (billable and non-billable)
+--   - Leave requests (pending, approved, rejected)
+--   - Staff with no project assignments (staff.new@acme.com)
