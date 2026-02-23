@@ -15,7 +15,7 @@ const protectedPaths = [
 // Routes only for unauthenticated users
 const authPaths = ["/login", "/signup"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const response = await updateSession(request);
