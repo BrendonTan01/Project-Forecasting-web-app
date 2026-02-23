@@ -9,13 +9,9 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
 
-  const selectFields =
-    user.role === "staff"
-      ? "id, job_title, weekly_capacity_hours"
-      : "id, job_title, weekly_capacity_hours, billable_rate, cost_rate";
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
-    .select(selectFields)
+    .select("id, job_title, weekly_capacity_hours, billable_rate, cost_rate")
     .eq("user_id", user.id)
     .single();
 
@@ -38,12 +34,12 @@ export default async function SettingsPage() {
           office_id: user.officeId ?? "",
           weekly_capacity_hours: staffProfile?.weekly_capacity_hours ?? 40,
           billable_rate:
-            user.role !== "staff" && staffProfile && "billable_rate" in staffProfile
-              ? (staffProfile.billable_rate as number | null)?.toString() ?? ""
+            user.role !== "staff"
+              ? (staffProfile?.billable_rate as number | null)?.toString() ?? ""
               : "",
           cost_rate:
-            user.role !== "staff" && staffProfile && "cost_rate" in staffProfile
-              ? (staffProfile.cost_rate as number | null)?.toString() ?? ""
+            user.role !== "staff"
+              ? (staffProfile?.cost_rate as number | null)?.toString() ?? ""
               : "",
         }}
         role={user.role}

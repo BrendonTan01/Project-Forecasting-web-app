@@ -22,13 +22,9 @@ export default async function StaffProfilePage({
 
   const supabase = await createClient();
 
-  const selectFields =
-    user.role === "staff"
-      ? "id, user_id, job_title, weekly_capacity_hours, users (email, office_id, offices (name, country, timezone))"
-      : "id, user_id, job_title, weekly_capacity_hours, billable_rate, cost_rate, users (email, office_id, offices (name, country, timezone))";
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
-    .select(selectFields)
+    .select("id, user_id, job_title, weekly_capacity_hours, billable_rate, cost_rate, users (email, office_id, offices (name, country, timezone))")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
