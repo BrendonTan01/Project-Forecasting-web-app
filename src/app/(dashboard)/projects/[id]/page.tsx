@@ -7,6 +7,7 @@ import {
   getProjectHealthLabel,
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
+import { DeleteProjectButton } from "./DeleteProjectButton";
 
 export default async function ProjectDetailPage({
   params,
@@ -69,6 +70,17 @@ export default async function ProjectDetailPage({
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-zinc-900">{project.name}</h1>
         </div>
+        {user.role === "administrator" && (
+          <div className="flex gap-2">
+            <Link
+              href={`/projects/${id}/edit`}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              Edit
+            </Link>
+            <DeleteProjectButton projectId={id} projectName={project.name} />
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -245,7 +245,7 @@ VALUES
   ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Structural Assessment', 'Insurance Co', 80, '2025-01-15', '2025-03-15', 'active'),
   ('c0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'MEP Design Package', 'Developer Ltd', 600, '2024-11-01', '2025-08-31', 'active'),
   ('c0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Feasibility Study', 'New Client Inc', 50, '2025-02-10', '2025-03-10', 'active')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- PROJECT ASSIGNMENTS (staff to projects)

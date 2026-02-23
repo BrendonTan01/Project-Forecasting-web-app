@@ -45,14 +45,22 @@ supabase db push
 
 Or run the migration file manually: `supabase/migrations/20250223000001_initial_schema.sql`
 
-### 4. Seed Data (Optional)
+### 4. Seed Data (Required for demo)
 
+**Option A – Supabase CLI (local):**
 ```bash
-npm install -D tsx
-npx tsx scripts/seed.ts
+supabase db reset
 ```
+This runs migrations and `supabase/seed.sql`, creating 5 projects, staff, time entries, etc.
 
-This creates 1 tenant, 3 offices, 20 staff, 5 projects, time entries, and leave. Login with `engineer1@acme.com` / `Password123!`
+**Option B – Supabase Cloud:** Run `supabase/seed.sql` in the SQL Editor after applying migrations.
+
+**Test users (password: TestPassword123!):**
+- Administrator: `admin@acme.com` (can create/edit/delete projects)
+- Managers: `manager.london@acme.com`, `manager.singapore@acme.com`
+- Staff: `staff.engineer@acme.com`, `staff.designer@acme.com`, `staff.analyst@acme.com`, `staff.new@acme.com`
+
+**If projects don’t appear:** Ensure the seed has run. Administrators and managers see all projects in their tenant; staff see only assigned projects.
 
 ### 5. Run Development Server
 
@@ -71,7 +79,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | `/login`, `/signup` | Auth |
 | `/dashboard` | Executive dashboard |
 | `/projects` | Project list |
+| `/projects/new` | Add project (administrators only) |
 | `/projects/[id]` | Project detail |
+| `/projects/[id]/edit` | Edit project (administrators only) |
 | `/staff` | Staff directory |
 | `/staff/[id]` | Staff profile |
 | `/capacity` | Capacity planner |

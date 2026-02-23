@@ -46,7 +46,17 @@ export default async function ProjectsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Projects</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-zinc-900">Projects</h1>
+        {user.role === "administrator" && (
+          <Link
+            href="/projects/new"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+          >
+            Add project
+          </Link>
+        )}
+      </div>
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
         <table className="min-w-full">
