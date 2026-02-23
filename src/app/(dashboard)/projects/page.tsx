@@ -6,14 +6,28 @@ import {
   getProjectHealthLabel,
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
+import ProjectStatusFilter from "./ProjectStatusFilter";
 
-export default async function ProjectsPage() {
+const statusConfig: Record<string, { label: string; colour: string }> = {
+  active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
+  on_hold: { label: "On hold", colour: "bg-amber-50 text-amber-700" },
+  completed: { label: "Completed", colour: "bg-blue-50 text-blue-700" },
+  cancelled: { label: "Cancelled", colour: "bg-zinc-100 text-zinc-500" },
+};
+
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
 
+  const { status } = await searchParams;
+
   const supabase = await createClient();
 
-  const { data: projects } = await supabase
+  let query = supabase
     .from("projects")
     .select(`
       id,
@@ -27,7 +41,12 @@ export default async function ProjectsPage() {
     .eq("tenant_id", user.tenantId)
     .order("name");
 
-  // Fetch actual hours per project
+  if (status && status in statusConfig) {
+    query = query.eq("status", status);
+  }
+
+  const { data: projects } = await query;
+
   const projectIds = projects?.map((p) => p.id) ?? [];
   const { data: actualHoursData } = projectIds.length
     ? await supabase
@@ -56,6 +75,10 @@ export default async function ProjectsPage() {
             Add project
           </Link>
         )}
+      </div>
+
+      <div className="mb-4">
+        <ProjectStatusFilter />
       </div>
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
@@ -87,6 +110,10 @@ export default async function ProjectsPage() {
               const actual = actualByProject[project.id] ?? 0;
               const estimated = project.estimated_hours ?? 0;
               const health = getProjectHealthStatus(actual, project.estimated_hours);
+              const badge = statusConfig[project.status] ?? {
+                label: project.status,
+                colour: "bg-zinc-100 text-zinc-500",
+              };
 
               return (
                 <tr key={project.id} className="border-b border-zinc-100">
@@ -112,8 +139,12 @@ export default async function ProjectsPage() {
                       {getProjectHealthLabel(health)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
-                    {project.status}
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
+                    >
+                      {badge.label}
+                    </span>
                   </td>
                 </tr>
               );
@@ -123,8 +154,8 @@ export default async function ProjectsPage() {
       </div>
 
       {(!projects || projects.length === 0) && (
-        <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-500">
-          No projects yet.
+        <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-500">
+          No projects found{status ? ` with status "${statusConfig[status]?.label ?? status}"` : ""}.
         </p>
       )}
     </div>
