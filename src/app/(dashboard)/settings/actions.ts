@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserWithTenant, getCurrentStaffId } from "@/lib/supabase/auth-helpers";
+import { getCurrentUserWithTenant, getStaffIdByUserId } from "@/lib/supabase/auth-helpers";
 import { revalidatePath } from "next/cache";
 
 export type ProfileFormData = {
@@ -14,7 +14,7 @@ export type ProfileFormData = {
 
 export async function updateProfileSettings(data: ProfileFormData) {
   const user = await getCurrentUserWithTenant();
-  const staffId = await getCurrentStaffId();
+  const staffId = user ? await getStaffIdByUserId(user.id) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }

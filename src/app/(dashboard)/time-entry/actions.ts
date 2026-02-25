@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserWithTenant, getCurrentStaffId } from "@/lib/supabase/auth-helpers";
+import { getCurrentUserWithTenant, getStaffIdByUserId } from "@/lib/supabase/auth-helpers";
 import { revalidatePath } from "next/cache";
 
 export type TimeEntryFormData = {
@@ -13,7 +13,7 @@ export type TimeEntryFormData = {
 
 export async function createTimeEntry(data: TimeEntryFormData) {
   const user = await getCurrentUserWithTenant();
-  const staffId = await getCurrentStaffId();
+  const staffId = user ? await getStaffIdByUserId(user.id) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -54,7 +54,7 @@ export async function createTimeEntry(data: TimeEntryFormData) {
 
 export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormData>) {
   const user = await getCurrentUserWithTenant();
-  const staffId = await getCurrentStaffId();
+  const staffId = user ? await getStaffIdByUserId(user.id) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -72,6 +72,9 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
   if (user.role === "staff" && existing.staff_id !== staffId) {
     return { error: "Unauthorized" };
   }
+  if (data.hours !== undefined && (data.hours <= 0 || data.hours > 24)) {
+    return { error: "Hours must be between 0 and 24" };
+  }
 
   const updateData: Record<string, unknown> = {};
   if (data.project_id !== undefined) updateData.project_id = data.project_id;
@@ -82,7 +85,8 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
   const { error } = await supabase
     .from("time_entries")
     .update(updateData)
-    .eq("id", id);
+    .eq("id", id)
+    .eq("tenant_id", user.tenantId);
 
   if (error) return { error: error.message };
   revalidatePath("/time-entry");
@@ -92,7 +96,7 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
 
 export async function deleteTimeEntry(id: string) {
   const user = await getCurrentUserWithTenant();
-  const staffId = await getCurrentStaffId();
+  const staffId = user ? await getStaffIdByUserId(user.id) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -110,7 +114,11 @@ export async function deleteTimeEntry(id: string) {
     return { error: "Unauthorized" };
   }
 
-  const { error } = await supabase.from("time_entries").delete().eq("id", id);
+  const { error } = await supabase
+    .from("time_entries")
+    .delete()
+    .eq("id", id)
+    .eq("tenant_id", user.tenantId);
 
   if (error) return { error: error.message };
   revalidatePath("/time-entry");

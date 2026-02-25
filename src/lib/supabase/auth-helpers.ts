@@ -36,11 +36,17 @@ export async function getCurrentStaffId() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
 
+  return getStaffIdByUserId(user.id);
+}
+
+export async function getStaffIdByUserId(userId: string) {
+  if (!userId) return null;
+
   const supabase = await createClient();
   const { data } = await supabase
     .from("staff_profiles")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
 
   return data?.id ?? null;
