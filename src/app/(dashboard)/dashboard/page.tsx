@@ -56,10 +56,6 @@ const trackingHealthFilterOptions: { value: "all" | ProjectHealthStatus; label: 
   { value: "no_estimate", label: "No estimate" },
 ];
 
-function formatCurrency(value: number): string {
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
-
 function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`;
 }
@@ -191,24 +187,10 @@ export default async function DashboardPage({
         .in("project_id", projectIds)
     : { data: [] };
 
-  // Proposed future work for bid forecasting
+  // Proposed future work for bid capacity forecasting
   const { data: proposals } = await supabase
     .from("project_proposals")
-    .select(`
-      id,
-      name,
-      estimated_hours,
-      expected_revenue,
-      manual_estimated_cost,
-      derived_estimated_cost_override,
-      risk_allowance_amount,
-      win_probability_percent,
-      schedule_confidence_percent,
-      cross_office_dependency_percent,
-      client_quality_score,
-      cost_source_preference,
-      status
-    `)
+    .select("id, name, estimated_hours, estimated_hours_per_week, status")
     .eq("tenant_id", user.tenantId)
     .in("status", ["draft", "submitted", "won"]);
 
@@ -349,14 +331,6 @@ export default async function DashboardPage({
 
   const isAdmin = user.role === "administrator";
 
-  const avgCostRate = (() => {
-    const rates = (staffProfiles ?? [])
-      .map((profile) => Number((profile as { cost_rate?: number | null }).cost_rate))
-      .filter((rate) => Number.isFinite(rate) && rate > 0);
-    if (rates.length === 0) return 0;
-    return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-  })();
-
   const relevantProposals = proposals ?? [];
   const proposalCount = relevantProposals.length;
   const freeCapacityHours = freeCapacity30;
@@ -368,75 +342,11 @@ export default async function DashboardPage({
   const capacityCoverageRatio = freeCapacityHours > 0 ? totalProposalHours / freeCapacityHours : null;
   const capacityCoverageWarning = relevantProposals.filter((proposal) => proposal.estimated_hours === null).length;
 
-  const proposalCostRows = relevantProposals.map((proposal) => {
-    const estimatedHours = proposal.estimated_hours ? Number(proposal.estimated_hours) : null;
-    const derivedBaseCost = proposal.derived_estimated_cost_override !== null
-      ? Number(proposal.derived_estimated_cost_override)
-      : estimatedHours !== null
-        ? estimatedHours * avgCostRate
-        : null;
-
-    const manualCost = proposal.manual_estimated_cost !== null ? Number(proposal.manual_estimated_cost) : null;
-    const costUsed = proposal.cost_source_preference === "derived_first"
-      ? (derivedBaseCost ?? manualCost)
-      : (manualCost ?? derivedBaseCost);
-
-    return {
-      id: proposal.id,
-      expectedRevenue: proposal.expected_revenue !== null ? Number(proposal.expected_revenue) : null,
-      riskAllowance: proposal.risk_allowance_amount !== null ? Number(proposal.risk_allowance_amount) : 0,
-      winProbability: proposal.win_probability_percent !== null ? Number(proposal.win_probability_percent) : null,
-      scheduleConfidence: proposal.schedule_confidence_percent !== null ? Number(proposal.schedule_confidence_percent) : null,
-      dependencyPercent: proposal.cross_office_dependency_percent !== null ? Number(proposal.cross_office_dependency_percent) : null,
-      clientQualityScore: proposal.client_quality_score !== null ? Number(proposal.client_quality_score) : null,
-      estimatedHours,
-      costUsed,
-    };
-  });
-
-  const riskAdjustedRows = proposalCostRows.filter(
-    (row) => row.expectedRevenue !== null && row.expectedRevenue > 0 && row.costUsed !== null
-  );
-  const totalRevenue = riskAdjustedRows.reduce((sum, row) => sum + (row.expectedRevenue ?? 0), 0);
-  const totalRiskAdjustedProfit = riskAdjustedRows.reduce(
-    (sum, row) => sum + ((row.expectedRevenue ?? 0) - (row.costUsed ?? 0) - row.riskAllowance),
-    0
-  );
-  const riskAdjustedMargin = totalRevenue > 0 ? totalRiskAdjustedProfit / totalRevenue : null;
-  const riskAdjustedMissingCount = proposalCount - riskAdjustedRows.length;
-
-  const evRows = proposalCostRows.filter(
-    (row) => row.expectedRevenue !== null && row.winProbability !== null && row.scheduleConfidence !== null
-  );
-  const expectedValue = evRows.reduce((sum, row) => {
-    const revenue = row.expectedRevenue ?? 0;
-    const probability = (row.winProbability ?? 0) / 100;
-    const confidence = (row.scheduleConfidence ?? 0) / 100;
-    return sum + (revenue * probability * confidence);
-  }, 0);
-  const evMissingCount = proposalCount - evRows.length;
-
-  const scheduleRows = proposalCostRows.filter((row) => row.scheduleConfidence !== null);
-  const scheduleConfidenceIndex = scheduleRows.length > 0
-    ? scheduleRows.reduce((sum, row) => sum + (row.scheduleConfidence ?? 0), 0) / scheduleRows.length
-    : null;
-  const scheduleMissingCount = proposalCount - scheduleRows.length;
-
-  const dependencyRows = proposalCostRows.filter((row) => row.dependencyPercent !== null && row.estimatedHours !== null);
-  const dependencyWeightedHours = dependencyRows.reduce((sum, row) => sum + (row.estimatedHours ?? 0), 0);
-  const crossOfficeDependencyIndex = dependencyWeightedHours > 0
-    ? dependencyRows.reduce(
-        (sum, row) => sum + ((row.dependencyPercent ?? 0) * (row.estimatedHours ?? 0)),
-        0
-      ) / dependencyWeightedHours
-    : null;
-  const dependencyMissingCount = proposalCount - dependencyRows.length;
-
-  const clientRows = proposalCostRows.filter((row) => row.clientQualityScore !== null);
-  const clientQualityScoreIndex = clientRows.length > 0
-    ? clientRows.reduce((sum, row) => sum + (row.clientQualityScore ?? 0), 0) / clientRows.length
-    : null;
-  const clientMissingCount = proposalCount - clientRows.length;
+  const proposalsWithHours = relevantProposals.filter((p) => p.estimated_hours !== null).length;
+  const avgHoursPerWeek = relevantProposals
+    .filter((p) => p.estimated_hours_per_week !== null)
+    .reduce((sum, p) => sum + Number(p.estimated_hours_per_week), 0) /
+    Math.max(relevantProposals.filter((p) => p.estimated_hours_per_week !== null).length, 1);
 
   const bidMetrics: BidMetricCard[] = [
     {
@@ -445,29 +355,23 @@ export default async function DashboardPage({
       warning: capacityCoverageWarning > 0 ? `${capacityCoverageWarning} proposal(s) missing estimated hours` : undefined,
     },
     {
-      title: "Risk-adjusted margin",
-      value: riskAdjustedMargin === null ? "N/A" : formatPercentage(riskAdjustedMargin * 100),
-      warning: riskAdjustedMissingCount > 0 ? `${riskAdjustedMissingCount} proposal(s) missing revenue or cost` : undefined,
+      title: "Active proposals",
+      value: proposalCount > 0 ? String(proposalCount) : "—",
+      warning: proposalCount - proposalsWithHours > 0
+        ? `${proposalCount - proposalsWithHours} proposal(s) missing hour estimates`
+        : undefined,
     },
     {
-      title: "Expected value (EV)",
-      value: formatCurrency(expectedValue),
-      warning: evMissingCount > 0 ? `${evMissingCount} proposal(s) missing probability or confidence` : undefined,
+      title: "Total proposed hours",
+      value: totalProposalHours > 0 ? `${Math.round(totalProposalHours)}h` : "—",
+      warning: undefined,
     },
     {
-      title: "Schedule confidence index",
-      value: scheduleConfidenceIndex === null ? "N/A" : formatPercentage(scheduleConfidenceIndex),
-      warning: scheduleMissingCount > 0 ? `${scheduleMissingCount} proposal(s) missing schedule confidence` : undefined,
-    },
-    {
-      title: "Cross-office dependency index",
-      value: crossOfficeDependencyIndex === null ? "N/A" : formatPercentage(crossOfficeDependencyIndex),
-      warning: dependencyMissingCount > 0 ? `${dependencyMissingCount} proposal(s) missing dependency inputs` : undefined,
-    },
-    {
-      title: "Client quality score",
-      value: clientQualityScoreIndex === null ? "N/A" : formatPercentage(clientQualityScoreIndex),
-      warning: clientMissingCount > 0 ? `${clientMissingCount} proposal(s) missing client score` : undefined,
+      title: "Avg hrs / week (proposals)",
+      value: relevantProposals.filter((p) => p.estimated_hours_per_week !== null).length > 0
+        ? `${Math.round(avgHoursPerWeek)}h`
+        : "—",
+      warning: undefined,
     },
   ];
 

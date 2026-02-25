@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProposal, updateProposal, type ProposalFormData } from "./actions";
 
+type Office = { id: string; name: string };
+
 type ProposalFormProps = {
+  offices: Office[];
   proposal?: {
     id: string;
     name: string;
@@ -13,32 +16,85 @@ type ProposalFormProps = {
     proposed_start_date?: string | null;
     proposed_end_date?: string | null;
     estimated_hours?: number | null;
-    expected_revenue?: number | null;
-    manual_estimated_cost?: number | null;
-    derived_estimated_cost_override?: number | null;
-    risk_allowance_amount?: number | null;
-    win_probability_percent?: number | null;
-    schedule_confidence_percent?: number | null;
-    cross_office_dependency_percent?: number | null;
-    client_quality_score?: number | null;
-    cost_source_preference: "manual_first" | "derived_first";
+    estimated_hours_per_week?: number | null;
+    office_scope?: string[] | null;
     status: "draft" | "submitted" | "won" | "lost";
     notes?: string | null;
   };
 };
 
-function parseOptionalNumber(formData: FormData, field: string): number | undefined {
-  const value = formData.get(field);
-  if (!value || typeof value !== "string" || !value.trim()) return undefined;
+function parseOptionalNumber(value: string): number | undefined {
+  if (!value.trim()) return undefined;
   const parsed = Number.parseFloat(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-export function ProposalForm({ proposal }: ProposalFormProps) {
+function countProjectWeeks(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffMs = end.getTime() - start.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  return Math.max(diffDays / 7, 0);
+}
+
+function fmtHours(h: number): string {
+  return `${Math.round(h * 10) / 10}h`;
+}
+
+export function ProposalForm({ offices, proposal }: ProposalFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!proposal;
+
+  // Hours input mode: "total" or "per_week"
+  const [hoursMode, setHoursMode] = useState<"total" | "per_week">(() => {
+    if (proposal?.estimated_hours_per_week && !proposal?.estimated_hours) return "per_week";
+    return "total";
+  });
+
+  const [totalHours, setTotalHours] = useState(proposal?.estimated_hours?.toString() ?? "");
+  const [hoursPerWeek, setHoursPerWeek] = useState(proposal?.estimated_hours_per_week?.toString() ?? "");
+  const [startDate, setStartDate] = useState(proposal?.proposed_start_date ?? "");
+  const [endDate, setEndDate] = useState(proposal?.proposed_end_date ?? "");
+  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
+    new Set(proposal?.office_scope ?? [])
+  );
+
+  // Derived values shown read-only
+  const [derivedTotal, setDerivedTotal] = useState<number | null>(null);
+  const [derivedPerWeek, setDerivedPerWeek] = useState<number | null>(null);
+
+  useEffect(() => {
+    const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+
+    if (hoursMode === "total") {
+      const total = parseOptionalNumber(totalHours);
+      setDerivedTotal(null);
+      if (total !== undefined && weeks && weeks > 0) {
+        setDerivedPerWeek(total / weeks);
+      } else {
+        setDerivedPerWeek(null);
+      }
+    } else {
+      const perWeek = parseOptionalNumber(hoursPerWeek);
+      setDerivedPerWeek(null);
+      if (perWeek !== undefined && weeks && weeks > 0) {
+        setDerivedTotal(perWeek * weeks);
+      } else {
+        setDerivedTotal(null);
+      }
+    }
+  }, [hoursMode, totalHours, hoursPerWeek, startDate, endDate]);
+
+  function toggleOffice(id: string) {
+    setSelectedOffices((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -48,22 +104,28 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
+    const finalTotalHours =
+      hoursMode === "total"
+        ? parseOptionalNumber(totalHours)
+        : derivedTotal !== null
+          ? Math.round(derivedTotal * 10) / 10
+          : undefined;
+
+    const finalPerWeek =
+      hoursMode === "per_week"
+        ? parseOptionalNumber(hoursPerWeek)
+        : derivedPerWeek !== null
+          ? Math.round(derivedPerWeek * 10) / 10
+          : undefined;
+
     const data: ProposalFormData = {
       name: (formData.get("name") as string)?.trim() ?? "",
       client_name: (formData.get("client_name") as string)?.trim() || undefined,
-      proposed_start_date: (formData.get("proposed_start_date") as string) || undefined,
-      proposed_end_date: (formData.get("proposed_end_date") as string) || undefined,
-      estimated_hours: parseOptionalNumber(formData, "estimated_hours"),
-      expected_revenue: parseOptionalNumber(formData, "expected_revenue"),
-      manual_estimated_cost: parseOptionalNumber(formData, "manual_estimated_cost"),
-      derived_estimated_cost_override: parseOptionalNumber(formData, "derived_estimated_cost_override"),
-      risk_allowance_amount: parseOptionalNumber(formData, "risk_allowance_amount"),
-      win_probability_percent: parseOptionalNumber(formData, "win_probability_percent"),
-      schedule_confidence_percent: parseOptionalNumber(formData, "schedule_confidence_percent"),
-      cross_office_dependency_percent: parseOptionalNumber(formData, "cross_office_dependency_percent"),
-      client_quality_score: parseOptionalNumber(formData, "client_quality_score"),
-      cost_source_preference:
-        ((formData.get("cost_source_preference") as string) || "manual_first") as ProposalFormData["cost_source_preference"],
+      proposed_start_date: startDate || undefined,
+      proposed_end_date: endDate || undefined,
+      estimated_hours: finalTotalHours,
+      estimated_hours_per_week: finalPerWeek,
+      office_scope: selectedOffices.size > 0 ? Array.from(selectedOffices) : null,
       status: ((formData.get("status") as string) || "draft") as ProposalFormData["status"],
       notes: (formData.get("notes") as string)?.trim() || undefined,
     };
@@ -97,6 +159,12 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
     router.refresh();
   }
 
+  const inputClass =
+    "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500";
+
+  const weeks =
+    startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -108,6 +176,7 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
         </p>
       )}
 
+      {/* Basic info */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="name" className="mb-1 block text-sm font-medium text-zinc-700">
@@ -119,7 +188,7 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
             type="text"
             required
             defaultValue={proposal?.name}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className={inputClass}
             placeholder="e.g. Airport Expansion Bid"
           />
         </div>
@@ -132,13 +201,14 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
             name="client_name"
             type="text"
             defaultValue={proposal?.client_name ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className={inputClass}
             placeholder="e.g. State Infrastructure Agency"
           />
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Dates */}
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="proposed_start_date" className="mb-1 block text-sm font-medium text-zinc-700">
             Proposed start
@@ -147,8 +217,9 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
             id="proposed_start_date"
             name="proposed_start_date"
             type="date"
-            defaultValue={proposal?.proposed_start_date ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className={inputClass}
           />
         </div>
         <div>
@@ -159,185 +230,172 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
             id="proposed_end_date"
             name="proposed_end_date"
             type="date"
-            defaultValue={proposal?.proposed_end_date ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className={inputClass}
           />
         </div>
+      </div>
+
+      {/* Labour hours */}
+      <div className="rounded-md border border-zinc-200 p-4">
+        <h2 className="mb-3 font-medium text-zinc-900">Labour estimate</h2>
+
+        {/* Toggle */}
+        <div className="mb-4 inline-flex rounded-md border border-zinc-300 p-0.5 text-sm">
+          <button
+            type="button"
+            onClick={() => setHoursMode("total")}
+            className={`rounded px-3 py-1.5 font-medium transition-colors ${
+              hoursMode === "total"
+                ? "bg-zinc-900 text-white"
+                : "text-zinc-600 hover:text-zinc-900"
+            }`}
+          >
+            Total project hours
+          </button>
+          <button
+            type="button"
+            onClick={() => setHoursMode("per_week")}
+            className={`rounded px-3 py-1.5 font-medium transition-colors ${
+              hoursMode === "per_week"
+                ? "bg-zinc-900 text-white"
+                : "text-zinc-600 hover:text-zinc-900"
+            }`}
+          >
+            Hours per week
+          </button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Primary input */}
+          {hoursMode === "total" ? (
+            <div>
+              <label htmlFor="estimated_hours" className="mb-1 block text-sm font-medium text-zinc-700">
+                Total project hours
+              </label>
+              <input
+                id="estimated_hours"
+                type="number"
+                min="0"
+                step="0.5"
+                value={totalHours}
+                onChange={(e) => setTotalHours(e.target.value)}
+                className={inputClass}
+                placeholder="e.g. 1200"
+              />
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="hours_per_week" className="mb-1 block text-sm font-medium text-zinc-700">
+                Hours per week (team total)
+              </label>
+              <input
+                id="hours_per_week"
+                type="number"
+                min="0"
+                step="0.5"
+                value={hoursPerWeek}
+                onChange={(e) => setHoursPerWeek(e.target.value)}
+                className={inputClass}
+                placeholder="e.g. 80"
+              />
+            </div>
+          )}
+
+          {/* Derived summary */}
+          <div className="flex flex-col justify-end">
+            <div className="rounded-md bg-zinc-50 px-4 py-3 text-sm">
+              {weeks !== null && weeks > 0 ? (
+                <div className="space-y-1 text-zinc-700">
+                  <div className="flex justify-between">
+                    <span>Duration</span>
+                    <span className="font-medium">{Math.round(weeks * 10) / 10} weeks</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total hours</span>
+                    <span className="font-medium">
+                      {hoursMode === "total"
+                        ? parseOptionalNumber(totalHours) !== undefined
+                          ? fmtHours(parseOptionalNumber(totalHours)!)
+                          : "—"
+                        : derivedTotal !== null
+                          ? fmtHours(derivedTotal)
+                          : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Hours / week</span>
+                    <span className="font-medium">
+                      {hoursMode === "per_week"
+                        ? parseOptionalNumber(hoursPerWeek) !== undefined
+                          ? fmtHours(parseOptionalNumber(hoursPerWeek)!)
+                          : "—"
+                        : derivedPerWeek !== null
+                          ? fmtHours(derivedPerWeek)
+                          : "—"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-zinc-400">
+                  Set start and end dates to see derived values.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Office scope */}
+      {offices.length > 0 && (
+        <div className="rounded-md border border-zinc-200 p-4">
+          <h2 className="mb-1 font-medium text-zinc-900">Staff scope</h2>
+          <p className="mb-3 text-xs text-zinc-500">
+            Select which offices to include in feasibility analysis. Leave all unchecked to include all offices.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {offices.map((office) => {
+              const checked = selectedOffices.has(office.id);
+              return (
+                <button
+                  key={office.id}
+                  type="button"
+                  onClick={() => toggleOffice(office.id)}
+                  className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                    checked
+                      ? "border-zinc-900 bg-zinc-900 text-white"
+                      : "border-zinc-300 text-zinc-600 hover:border-zinc-500 hover:text-zinc-900"
+                  }`}
+                >
+                  {office.name}
+                </button>
+              );
+            })}
+          </div>
+          {selectedOffices.size === 0 && (
+            <p className="mt-2 text-xs text-zinc-400">All offices will be included.</p>
+          )}
+        </div>
+      )}
+
+      {/* Status and notes */}
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="estimated_hours" className="mb-1 block text-sm font-medium text-zinc-700">
-            Estimated hours
+          <label htmlFor="status" className="mb-1 block text-sm font-medium text-zinc-700">
+            Status
           </label>
-          <input
-            id="estimated_hours"
-            name="estimated_hours"
-            type="number"
-            min="0"
-            step="0.5"
-            defaultValue={proposal?.estimated_hours ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            placeholder="e.g. 1200"
-          />
-        </div>
-      </div>
-
-      <div className="rounded-md border border-zinc-200 p-4">
-        <h2 className="mb-3 font-medium text-zinc-900">Financial inputs</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label htmlFor="expected_revenue" className="mb-1 block text-sm font-medium text-zinc-700">
-              Expected revenue
-            </label>
-            <input
-              id="expected_revenue"
-              name="expected_revenue"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={proposal?.expected_revenue ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              placeholder="e.g. 850000"
-            />
-          </div>
-          <div>
-            <label htmlFor="manual_estimated_cost" className="mb-1 block text-sm font-medium text-zinc-700">
-              Manual estimated cost
-            </label>
-            <input
-              id="manual_estimated_cost"
-              name="manual_estimated_cost"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={proposal?.manual_estimated_cost ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              placeholder="e.g. 600000"
-            />
-          </div>
-          <div>
-            <label htmlFor="derived_estimated_cost_override" className="mb-1 block text-sm font-medium text-zinc-700">
-              Derived cost override
-            </label>
-            <input
-              id="derived_estimated_cost_override"
-              name="derived_estimated_cost_override"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={proposal?.derived_estimated_cost_override ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-              placeholder="Optional fallback override"
-            />
-          </div>
-          <div>
-            <label htmlFor="risk_allowance_amount" className="mb-1 block text-sm font-medium text-zinc-700">
-              Risk allowance amount
-            </label>
-            <input
-              id="risk_allowance_amount"
-              name="risk_allowance_amount"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={proposal?.risk_allowance_amount ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="cost_source_preference" className="mb-1 block text-sm font-medium text-zinc-700">
-              Cost source preference
-            </label>
-            <select
-              id="cost_source_preference"
-              name="cost_source_preference"
-              defaultValue={proposal?.cost_source_preference ?? "manual_first"}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            >
-              <option value="manual_first">Manual first</option>
-              <option value="derived_first">Derived first</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="status" className="mb-1 block text-sm font-medium text-zinc-700">
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={proposal?.status ?? "draft"}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            >
-              <option value="draft">Draft</option>
-              <option value="submitted">Submitted</option>
-              <option value="won">Won</option>
-              <option value="lost">Lost</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-md border border-zinc-200 p-4">
-        <h2 className="mb-3 font-medium text-zinc-900">Delivery and bid risk inputs</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <label htmlFor="win_probability_percent" className="mb-1 block text-sm font-medium text-zinc-700">
-              Win probability (%)
-            </label>
-            <input
-              id="win_probability_percent"
-              name="win_probability_percent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              defaultValue={proposal?.win_probability_percent ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="schedule_confidence_percent" className="mb-1 block text-sm font-medium text-zinc-700">
-              Schedule confidence (%)
-            </label>
-            <input
-              id="schedule_confidence_percent"
-              name="schedule_confidence_percent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              defaultValue={proposal?.schedule_confidence_percent ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="cross_office_dependency_percent" className="mb-1 block text-sm font-medium text-zinc-700">
-              Cross-office dependency (%)
-            </label>
-            <input
-              id="cross_office_dependency_percent"
-              name="cross_office_dependency_percent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              defaultValue={proposal?.cross_office_dependency_percent ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="client_quality_score" className="mb-1 block text-sm font-medium text-zinc-700">
-              Client quality score (0-100)
-            </label>
-            <input
-              id="client_quality_score"
-              name="client_quality_score"
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              defaultValue={proposal?.client_quality_score ?? ""}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-            />
-          </div>
+          <select
+            id="status"
+            name="status"
+            defaultValue={proposal?.status ?? "draft"}
+            className={inputClass}
+          >
+            <option value="draft">Draft</option>
+            <option value="submitted">Submitted</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+          </select>
         </div>
       </div>
 
@@ -350,8 +408,8 @@ export function ProposalForm({ proposal }: ProposalFormProps) {
           name="notes"
           rows={3}
           defaultValue={proposal?.notes ?? ""}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-          placeholder="Optional assumptions, dependencies, or risk notes"
+          className={inputClass}
+          placeholder="Optional assumptions, dependencies, or scope notes"
         />
       </div>
 

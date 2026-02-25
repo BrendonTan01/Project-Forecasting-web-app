@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { createClient } from "@/lib/supabase/server";
 import { ProposalForm } from "../ProposalForm";
 
 export default async function NewProposalPage() {
@@ -10,6 +11,13 @@ export default async function NewProposalPage() {
     redirect("/proposals");
   }
 
+  const supabase = await createClient();
+  const { data: offices } = await supabase
+    .from("offices")
+    .select("id, name")
+    .eq("tenant_id", user.tenantId)
+    .order("name");
+
   return (
     <div className="space-y-6">
       <div>
@@ -18,7 +26,7 @@ export default async function NewProposalPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-zinc-900">Add new proposal</h1>
       </div>
-      <ProposalForm />
+      <ProposalForm offices={offices ?? []} />
     </div>
   );
 }

@@ -17,12 +17,19 @@ export default async function EditProposalPage({
   }
 
   const supabase = await createClient();
-  const { data: proposal } = await supabase
-    .from("project_proposals")
-    .select("*")
-    .eq("id", id)
-    .eq("tenant_id", user.tenantId)
-    .single();
+  const [{ data: proposal }, { data: offices }] = await Promise.all([
+    supabase
+      .from("project_proposals")
+      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, status, notes")
+      .eq("id", id)
+      .eq("tenant_id", user.tenantId)
+      .single(),
+    supabase
+      .from("offices")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId)
+      .order("name"),
+  ]);
 
   if (!proposal) notFound();
 
@@ -35,6 +42,7 @@ export default async function EditProposalPage({
         <h1 className="mt-2 text-2xl font-semibold text-zinc-900">Edit proposal</h1>
       </div>
       <ProposalForm
+        offices={offices ?? []}
         proposal={{
           id: proposal.id,
           name: proposal.name,
@@ -42,15 +50,8 @@ export default async function EditProposalPage({
           proposed_start_date: proposal.proposed_start_date,
           proposed_end_date: proposal.proposed_end_date,
           estimated_hours: proposal.estimated_hours,
-          expected_revenue: proposal.expected_revenue,
-          manual_estimated_cost: proposal.manual_estimated_cost,
-          derived_estimated_cost_override: proposal.derived_estimated_cost_override,
-          risk_allowance_amount: proposal.risk_allowance_amount,
-          win_probability_percent: proposal.win_probability_percent,
-          schedule_confidence_percent: proposal.schedule_confidence_percent,
-          cross_office_dependency_percent: proposal.cross_office_dependency_percent,
-          client_quality_score: proposal.client_quality_score,
-          cost_source_preference: proposal.cost_source_preference,
+          estimated_hours_per_week: proposal.estimated_hours_per_week,
+          office_scope: proposal.office_scope as string[] | null,
           status: proposal.status,
           notes: proposal.notes,
         }}

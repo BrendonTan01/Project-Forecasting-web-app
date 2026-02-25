@@ -9,9 +9,9 @@ const proposalStatusConfig: Record<string, { label: string; colour: string }> = 
   lost: { label: "Lost", colour: "bg-red-50 text-red-700" },
 };
 
-function formatCurrency(value: number | null) {
-  if (value === null || value === undefined) return "-";
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+function fmtHours(h: number | null): string {
+  if (h === null || h === undefined) return "—";
+  return `${Math.round(h)}h`;
 }
 
 export default async function ProposalsPage({
@@ -33,7 +33,8 @@ export default async function ProposalsPage({
       client_name,
       proposed_start_date,
       proposed_end_date,
-      expected_revenue,
+      estimated_hours,
+      estimated_hours_per_week,
       status
     `)
     .eq("tenant_id", user.tenantId)
@@ -51,7 +52,7 @@ export default async function ProposalsPage({
         <div>
           <h1 className="text-2xl font-semibold text-zinc-900">Project Proposals</h1>
           <p className="text-sm text-zinc-600">
-            Future opportunities used for bid and capacity forecasting.
+            Future opportunities — assess staff availability before bidding.
           </p>
         </div>
         {user.role === "administrator" && (
@@ -96,7 +97,10 @@ export default async function ProposalsPage({
                 Timeline
               </th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
-                Expected revenue
+                Total hours
+              </th>
+              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+                Hrs / week
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Status
@@ -112,10 +116,10 @@ export default async function ProposalsPage({
               const timeline =
                 proposal.proposed_start_date || proposal.proposed_end_date
                   ? `${proposal.proposed_start_date ?? "?"} → ${proposal.proposed_end_date ?? "?"}`
-                  : "-";
+                  : "—";
 
               return (
-                <tr key={proposal.id} className="border-b border-zinc-100">
+                <tr key={proposal.id} className="border-b border-zinc-100 last:border-0">
                   <td className="px-4 py-3">
                     <Link
                       href={`/proposals/${proposal.id}`}
@@ -125,11 +129,14 @@ export default async function ProposalsPage({
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-sm text-zinc-700">
-                    {proposal.client_name ?? "-"}
+                    {proposal.client_name ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-sm text-zinc-700">{timeline}</td>
                   <td className="px-4 py-3 text-right text-sm text-zinc-900">
-                    {formatCurrency(proposal.expected_revenue)}
+                    {fmtHours(proposal.estimated_hours)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm text-zinc-900">
+                    {fmtHours(proposal.estimated_hours_per_week)}
                   </td>
                   <td className="px-4 py-3">
                     <span
