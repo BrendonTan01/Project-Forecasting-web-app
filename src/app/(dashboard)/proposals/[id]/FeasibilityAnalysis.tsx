@@ -62,21 +62,21 @@ function WeekBar({ week, maxHours }: { week: WeekFeasibility; maxHours: number }
 
   return (
     <div
-      className="group relative flex flex-col items-center gap-1"
+      className="group relative flex h-full flex-1 flex-col items-center justify-end gap-1"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Bar */}
       <div
-        className="relative w-full min-w-[28px] rounded-t-sm bg-zinc-100"
-        style={{ height: `${Math.max(barHeightPct, 8)}%`, minHeight: "6px" }}
+        className="relative w-full min-w-[18px] rounded-t-sm bg-zinc-100"
+        style={{ height: `${Math.max(barHeightPct, 14)}%`, minHeight: "10px" }}
       >
         <div
           className={`absolute bottom-0 left-0 right-0 rounded-t-sm transition-all ${color}`}
           style={{ height: `${fillPct}%` }}
         />
         {week.overallocatedStaffCount > 0 && (
-          <div className="absolute -top-1 right-0 h-2 w-2 rounded-full bg-amber-400 ring-1 ring-white" title="Some staff would be overallocated" />
+          <div className="absolute -top-1 right-0 h-2 w-2 rounded-full bg-amber-400 ring-1 ring-white" title="Some staff would be above 100% allocation" />
         )}
       </div>
 
@@ -107,8 +107,14 @@ function WeekBar({ week, maxHours }: { week: WeekFeasibility; maxHours: number }
             )}
             {week.overallocatedStaffCount > 0 && (
               <p className="mt-1 rounded bg-amber-50 px-1.5 py-1 text-amber-700">
-                {week.overallocatedStaffCount} staff would be overallocated
+                {week.overallocatedStaffCount} staff would be above 100%
               </p>
+            )}
+            {week.overallocatedStaff.length > 0 && (
+              <div className="mt-1">
+                <p className="mb-0.5 text-zinc-500">Impacted staff</p>
+                <p className="line-clamp-3 text-zinc-700">{week.overallocatedStaff.join(", ")}</p>
+              </div>
             )}
           </div>
         </div>
@@ -147,6 +153,7 @@ function generateInsight(result: FeasibilityResult): string {
 
 export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope, initialResult }: Props) {
   const [allowOverallocation, setAllowOverallocation] = useState(false);
+  const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
     new Set(initialOfficeScope ?? [])
   );
@@ -154,10 +161,10 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
   const [isPending, startTransition] = useTransition();
 
   const runAnalysis = useCallback(
-    (officeIds: Set<string>, overalloc: boolean) => {
+    (officeIds: Set<string>, overalloc: boolean, overallocPct: number) => {
       startTransition(async () => {
         const ids = officeIds.size > 0 ? Array.from(officeIds) : null;
-        const res = await computeFeasibility(proposalId, ids, overalloc);
+        const res = await computeFeasibility(proposalId, ids, overalloc, overallocPct);
         setResult(res);
       });
     },
@@ -169,12 +176,20 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedOffices(next);
-    runAnalysis(next, allowOverallocation);
+    runAnalysis(next, allowOverallocation, maxOverallocationPercent);
   }
 
   function handleOverallocToggle(v: boolean) {
     setAllowOverallocation(v);
-    runAnalysis(selectedOffices, v);
+    runAnalysis(selectedOffices, v, maxOverallocationPercent);
+  }
+
+  function handleOverallocationPercentChange(v: string) {
+    const parsed = Number.parseInt(v, 10);
+    if (!Number.isFinite(parsed)) return;
+    const clamped = Math.min(200, Math.max(100, parsed));
+    setMaxOverallocationPercent(clamped);
+    runAnalysis(selectedOffices, allowOverallocation, clamped);
   }
 
   const hasResult = result && !("error" in result);
@@ -240,8 +255,30 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
       </div>
 
       {allowOverallocation && (
+        <div className="flex items-center gap-2">
+          <label htmlFor="overallocation-limit" className="text-sm text-zinc-700">
+            Max allocation limit
+          </label>
+          <div className="flex items-center gap-1">
+            <input
+              id="overallocation-limit"
+              type="number"
+              min={100}
+              max={200}
+              step={5}
+              value={maxOverallocationPercent}
+              onChange={(e) => handleOverallocationPercentChange(e.target.value)}
+              className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-800 focus:border-zinc-500 focus:outline-none"
+            />
+            <span className="text-sm text-zinc-500">%</span>
+          </div>
+        </div>
+      )}
+
+      {allowOverallocation && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          Overallocation mode: staff can exceed their 100% capacity. This shows the theoretical maximum if workload is redistributed, but will require careful resource management.
+          Overallocation mode: staff can exceed 100% up to {maxOverallocationPercent}% allocation.
+          This reflects a capped over-allocation scenario, not unlimited capacity.
         </p>
       )}
 
@@ -298,7 +335,7 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <h3 className="mb-1 text-sm font-semibold text-zinc-900">Weekly capacity timeline</h3>
               <p className="mb-4 text-xs text-zinc-500">
-                Bar height = required hours. Fill = achievable portion.
+                Bar height = required hours relative to the project&apos;s peak week. Fill = achievable portion.
                 <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" /> ≥90%</span>
                 <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" /> 50–89%</span>
                 <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-400" /> &lt;50%</span>
@@ -308,7 +345,7 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
               <div className="relative">
                 <div
                   className="flex items-end gap-1"
-                  style={{ height: "160px" }}
+                  style={{ height: "220px" }}
                 >
                   {feasResult.weeks.map((week) => (
                     <WeekBar

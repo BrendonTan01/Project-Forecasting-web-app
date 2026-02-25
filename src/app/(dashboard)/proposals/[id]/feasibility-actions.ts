@@ -10,6 +10,7 @@ export type WeekFeasibility = {
   achievableHours: number;
   totalFreeCapacity: number;
   overallocatedStaffCount: number;
+  overallocatedStaff: string[];
   activeProjectCount: number;
 };
 
@@ -86,7 +87,8 @@ function leaveHoursInWeek(
 export async function computeFeasibility(
   proposalId: string,
   officeIds: string[] | null,
-  allowOverallocation: boolean
+  allowOverallocation: boolean,
+  maxOverallocationPercent = 120
 ): Promise<FeasibilityResult | FeasibilityError> {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
@@ -127,7 +129,7 @@ export async function computeFeasibility(
   // 2. Fetch staff in selected offices (or all tenant staff)
   let staffQuery = supabase
     .from("staff_profiles")
-    .select("id, weekly_capacity_hours, user_id, users!inner(office_id, offices(id, name))")
+    .select("id, weekly_capacity_hours, user_id, users!inner(email, office_id, offices(id, name))")
     .eq("tenant_id", user.tenantId);
 
   if (officeIds && officeIds.length > 0) {
@@ -136,6 +138,7 @@ export async function computeFeasibility(
 
   const { data: staffRows } = await staffQuery;
   const staff = staffRows ?? [];
+  const safeOverallocationPct = Math.max(100, maxOverallocationPercent);
 
   if (staff.length === 0) {
     return { error: "No staff found for the selected offices" };
@@ -216,7 +219,9 @@ export async function computeFeasibility(
     const requiredHours = hoursPerWeek * weekFraction;
 
     let totalFreeCapacity = 0;
-    let overallocatedCount = 0;
+    let freeCapacityAt100 = 0;
+    const overallocatedStaffNames = new Set<string>();
+    const over100Candidates: Array<{ name: string; roomHours: number }> = [];
 
     for (const sp of staff) {
       const weeklyCapacity = Number(sp.weekly_capacity_hours);
@@ -237,23 +242,43 @@ export async function computeFeasibility(
       // Subtract leave
       const leaveHrs = leaveHoursInWeek(leaves, sp.id, weekStart, weekEnd, dailyCapacity);
       const committedHours = allocatedHours + leaveHrs;
+      const freeAt100 = Math.max(0, effectiveCapacity - committedHours);
+      const maxAllowedHours = effectiveCapacity * (allowOverallocation ? safeOverallocationPct / 100 : 1);
+      const freeAtCap = Math.max(0, maxAllowedHours - committedHours);
 
-      const rawFree = effectiveCapacity - committedHours;
+      const staffUser = sp.users as { email?: string } | null;
+      const staffLabel = staffUser?.email ?? "Unknown staff";
 
-      if (allowOverallocation) {
-        // Allow staff to go over; still pool whatever capacity they have
-        totalFreeCapacity += effectiveCapacity;
-        if (committedHours > effectiveCapacity) overallocatedCount++;
-      } else {
-        const free = Math.max(0, rawFree);
-        totalFreeCapacity += free;
-        if (committedHours > effectiveCapacity) overallocatedCount++;
+      freeCapacityAt100 += freeAt100;
+      totalFreeCapacity += allowOverallocation ? freeAtCap : freeAt100;
+
+      if (committedHours > effectiveCapacity) {
+        overallocatedStaffNames.add(staffLabel);
+      }
+
+      const over100Room = Math.max(0, maxAllowedHours - Math.max(effectiveCapacity, committedHours));
+      if (allowOverallocation && over100Room > 0) {
+        over100Candidates.push({ name: staffLabel, roomHours: over100Room });
       }
     }
 
-    const achievableHours = allowOverallocation
-      ? requiredHours // Can always achieve with overallocation
-      : Math.min(requiredHours, totalFreeCapacity);
+    const achievableHours = Math.min(requiredHours, totalFreeCapacity);
+
+    if (allowOverallocation) {
+      // If this week needs hours beyond 100% capacity, identify likely staff impacted.
+      let over100HoursNeeded = Math.max(0, achievableHours - freeCapacityAt100);
+      if (over100HoursNeeded > 0) {
+        const sortedCandidates = [...over100Candidates].sort((a, b) => b.roomHours - a.roomHours);
+        for (const candidate of sortedCandidates) {
+          if (over100HoursNeeded <= 0) break;
+          const assigned = Math.min(candidate.roomHours, over100HoursNeeded);
+          if (assigned > 0) {
+            overallocatedStaffNames.add(candidate.name);
+            over100HoursNeeded -= assigned;
+          }
+        }
+      }
+    }
 
     // Count distinct active projects overlapping this week
     const activeProjectCount = (overlappingProjects ?? []).filter((p) => {
@@ -267,7 +292,8 @@ export async function computeFeasibility(
       requiredHours: Math.round(requiredHours * 10) / 10,
       achievableHours: Math.round(achievableHours * 10) / 10,
       totalFreeCapacity: Math.round(totalFreeCapacity * 10) / 10,
-      overallocatedStaffCount: overallocatedCount,
+      overallocatedStaffCount: overallocatedStaffNames.size,
+      overallocatedStaff: Array.from(overallocatedStaffNames).sort(),
       activeProjectCount,
     });
 
