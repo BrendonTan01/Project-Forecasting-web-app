@@ -150,49 +150,53 @@ export default async function DashboardPage({
   const supabase = await createClient();
   const { start, end } = getPeriodDates();
 
-  // Staff and their capacity
-  const { data: staffProfiles } = await supabase
-    .from("staff_profiles")
-    .select("id, user_id, weekly_capacity_hours, cost_rate, users(email, office_id, offices(id, name, country))")
-    .eq("tenant_id", user.tenantId);
+  // Wave 1: fetch independent data in parallel
+  const [
+    { data: staffProfiles },
+    { data: projects },
+    { data: proposals },
+    { data: timeEntries },
+  ] = await Promise.all([
+    supabase
+      .from("staff_profiles")
+      .select("id, user_id, weekly_capacity_hours, cost_rate, users(email, office_id, offices(id, name, country))")
+      .eq("tenant_id", user.tenantId),
+    supabase
+      .from("projects")
+      .select("id, name, estimated_hours")
+      .eq("tenant_id", user.tenantId)
+      .eq("status", "active"),
+    supabase
+      .from("project_proposals")
+      .select("id, name, estimated_hours, estimated_hours_per_week, status")
+      .eq("tenant_id", user.tenantId)
+      .in("status", ["draft", "submitted", "won"]),
+    supabase
+      .from("time_entries")
+      .select("staff_id, hours, billable_flag")
+      .eq("tenant_id", user.tenantId)
+      .gte("date", start)
+      .lte("date", end),
+  ]);
 
   const staffIds = staffProfiles?.map((s) => s.id) ?? [];
-
-  // Time entries for period
-  const { data: timeEntries } = await supabase
-    .from("time_entries")
-    .select("staff_id, hours, billable_flag")
-    .eq("tenant_id", user.tenantId)
-    .gte("date", start)
-    .lte("date", end);
-
-  // Project assignments (allocation %)
-  const { data: assignments } = await supabase
-    .from("project_assignments")
-    .select("staff_id, allocation_percentage")
-    .in("staff_id", staffIds);
-
-  // Projects at risk
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, estimated_hours")
-    .eq("tenant_id", user.tenantId)
-    .eq("status", "active");
-
   const projectIds = projects?.map((p) => p.id) ?? [];
-  const { data: projectHours } = projectIds.length
-    ? await supabase
-        .from("time_entries")
-        .select("project_id, hours")
-        .in("project_id", projectIds)
-    : { data: [] };
 
-  // Proposed future work for bid capacity forecasting
-  const { data: proposals } = await supabase
-    .from("project_proposals")
-    .select("id, name, estimated_hours, estimated_hours_per_week, status")
-    .eq("tenant_id", user.tenantId)
-    .in("status", ["draft", "submitted", "won"]);
+  // Wave 2: fetch data that depends on staffIds / projectIds in parallel
+  const [{ data: assignments }, { data: projectHours }] = await Promise.all([
+    staffIds.length
+      ? supabase
+          .from("project_assignments")
+          .select("staff_id, allocation_percentage")
+          .in("staff_id", staffIds)
+      : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
+    projectIds.length
+      ? supabase
+          .from("time_entries")
+          .select("project_id, hours")
+          .in("project_id", projectIds)
+      : Promise.resolve({ data: [] as { project_id: string; hours: number }[] }),
+  ]);
 
   const actualByProject = (projectHours ?? []).reduce<Record<string, number>>(
     (acc, row) => {

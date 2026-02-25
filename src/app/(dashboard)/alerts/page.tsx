@@ -42,39 +42,47 @@ export default async function AlertsPage() {
 
   const alerts: Alert[] = [];
 
-  // Staff and metrics
-  const { data: staffProfiles } = await supabase
-    .from("staff_profiles")
-    .select("id, weekly_capacity_hours, users(email)")
-    .eq("tenant_id", user.tenantId);
+  // Wave 1: fetch independent data in parallel
+  const [
+    { data: staffProfiles },
+    { data: projects },
+    { data: timeEntries },
+  ] = await Promise.all([
+    supabase
+      .from("staff_profiles")
+      .select("id, weekly_capacity_hours, users(email)")
+      .eq("tenant_id", user.tenantId),
+    supabase
+      .from("projects")
+      .select("id, name, estimated_hours")
+      .eq("tenant_id", user.tenantId)
+      .eq("status", "active"),
+    supabase
+      .from("time_entries")
+      .select("staff_id, date, hours, project_id, billable_flag")
+      .eq("tenant_id", user.tenantId)
+      .gte("date", start)
+      .lte("date", end),
+  ]);
 
   const staffIds = staffProfiles?.map((s) => s.id) ?? [];
-
-  const { data: timeEntries } = await supabase
-    .from("time_entries")
-    .select("staff_id, date, hours, project_id, billable_flag")
-    .eq("tenant_id", user.tenantId)
-    .gte("date", start)
-    .lte("date", end);
-
-  const { data: assignments } = await supabase
-    .from("project_assignments")
-    .select("staff_id, allocation_percentage")
-    .in("staff_id", staffIds);
-
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, estimated_hours")
-    .eq("tenant_id", user.tenantId)
-    .eq("status", "active");
-
   const projectIds = projects?.map((p) => p.id) ?? [];
-  const { data: projectHours } = projectIds.length
-    ? await supabase
-        .from("time_entries")
-        .select("project_id, hours")
-        .in("project_id", projectIds)
-    : { data: [] };
+
+  // Wave 2: fetch data that depends on staffIds / projectIds in parallel
+  const [{ data: assignments }, { data: projectHours }] = await Promise.all([
+    staffIds.length
+      ? supabase
+          .from("project_assignments")
+          .select("staff_id, allocation_percentage")
+          .in("staff_id", staffIds)
+      : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
+    projectIds.length
+      ? supabase
+          .from("time_entries")
+          .select("project_id, hours")
+          .in("project_id", projectIds)
+      : Promise.resolve({ data: [] as { project_id: string; hours: number }[] }),
+  ]);
 
   const actualByProject = (projectHours ?? []).reduce<Record<string, number>>(
     (acc, row) => {

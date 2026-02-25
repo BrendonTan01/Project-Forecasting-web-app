@@ -31,17 +31,22 @@ export default async function StaffPage() {
 
   const staffIds = staffProfiles?.map((s) => s.id) ?? [];
 
-  const { data: timeEntries } = await supabase
-    .from("time_entries")
-    .select("staff_id, hours, billable_flag")
-    .in("staff_id", staffIds)
-    .gte("date", start)
-    .lte("date", end);
-
-  const { data: assignments } = await supabase
-    .from("project_assignments")
-    .select("staff_id, allocation_percentage")
-    .in("staff_id", staffIds);
+  const [{ data: timeEntries }, { data: assignments }] = await Promise.all([
+    staffIds.length
+      ? supabase
+          .from("time_entries")
+          .select("staff_id, hours, billable_flag")
+          .in("staff_id", staffIds)
+          .gte("date", start)
+          .lte("date", end)
+      : Promise.resolve({ data: [] as { staff_id: string; hours: number; billable_flag: boolean }[] }),
+    staffIds.length
+      ? supabase
+          .from("project_assignments")
+          .select("staff_id, allocation_percentage")
+          .in("staff_id", staffIds)
+      : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
+  ]);
 
   const allocationByStaff = (assignments ?? []).reduce<Record<string, number>>(
     (acc, a) => {

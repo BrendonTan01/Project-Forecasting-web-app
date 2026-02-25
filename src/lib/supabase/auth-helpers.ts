@@ -1,10 +1,13 @@
+import { cache } from "react";
 import { createClient } from "./server";
 
 /**
  * Get current user and their tenant_id from the users table.
  * Used for tenant scoping in server components and actions.
+ * Wrapped in React cache() to deduplicate calls within a single render pass
+ * (e.g. layout + page both calling this will only hit Supabase once).
  */
-export async function getCurrentUserWithTenant() {
+export const getCurrentUserWithTenant = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user: authUser },
@@ -27,7 +30,7 @@ export async function getCurrentUserWithTenant() {
     role: dbUser.role as "manager" | "staff" | "administrator",
     officeId: dbUser.office_id,
   };
-}
+});
 
 /**
  * Get current user's staff_profile id (for time entries, etc.)

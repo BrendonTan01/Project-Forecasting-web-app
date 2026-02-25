@@ -27,23 +27,28 @@ export default async function CapacityPage() {
     { label: "90 days", days: 90 },
   ];
 
-  const { data: staffProfiles } = await supabase
-    .from("staff_profiles")
-    .select("id, weekly_capacity_hours, users(email)")
-    .eq("tenant_id", user.tenantId);
+  // Wave 1: staffProfiles and leaveRequests are independent — fetch in parallel
+  const [{ data: staffProfiles }, { data: leaveRequests }] = await Promise.all([
+    supabase
+      .from("staff_profiles")
+      .select("id, weekly_capacity_hours, users(email)")
+      .eq("tenant_id", user.tenantId),
+    supabase
+      .from("leave_requests")
+      .select("staff_id, start_date, end_date")
+      .eq("tenant_id", user.tenantId)
+      .eq("status", "approved"),
+  ]);
 
   const staffIds = staffProfiles?.map((s) => s.id) ?? [];
 
-  const { data: assignments } = await supabase
-    .from("project_assignments")
-    .select("staff_id, allocation_percentage, projects(name)")
-    .in("staff_id", staffIds);
-
-  const { data: leaveRequests } = await supabase
-    .from("leave_requests")
-    .select("staff_id, start_date, end_date")
-    .eq("tenant_id", user.tenantId)
-    .eq("status", "approved");
+  // Wave 2: assignments depend on staffIds
+  const { data: assignments } = staffIds.length
+    ? await supabase
+        .from("project_assignments")
+        .select("staff_id, allocation_percentage, projects(name)")
+        .in("staff_id", staffIds)
+    : { data: [] as { staff_id: string; allocation_percentage: number; projects: { name: string } | { name: string }[] | null }[] };
 
   // Calculate free capacity per staff for each period
   const capacityData = staffProfiles?.map((sp) => {
