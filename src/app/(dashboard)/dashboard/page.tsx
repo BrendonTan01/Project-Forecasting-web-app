@@ -9,8 +9,10 @@ import {
 import {
   getProjectHealthStatus,
   getProjectHealthLabel,
+  getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
+import type { ProjectHealthStatus } from "@/lib/types";
 
 // Period: last 30 days for utilisation
 function getPeriodDates() {
@@ -36,12 +38,48 @@ type BidMetricCard = {
   warning?: string;
 };
 
+type TrackingSortOption = "risk" | "tracking_desc" | "tracking_asc" | "name_asc" | "name_desc";
+
+const trackingSortOptions: { value: TrackingSortOption; label: string }[] = [
+  { value: "risk", label: "Highest risk first" },
+  { value: "tracking_desc", label: "Tracking % high to low" },
+  { value: "tracking_asc", label: "Tracking % low to high" },
+  { value: "name_asc", label: "Project name A-Z" },
+  { value: "name_desc", label: "Project name Z-A" },
+];
+
+const trackingHealthFilterOptions: { value: "all" | ProjectHealthStatus; label: string }[] = [
+  { value: "all", label: "All health statuses" },
+  { value: "on_track", label: "On track" },
+  { value: "at_risk", label: "At risk" },
+  { value: "overrun", label: "Overrun" },
+  { value: "no_estimate", label: "No estimate" },
+];
+
 function formatCurrency(value: number): string {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
 function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`;
+}
+
+function formatTrackingPercentage(actualHours: number, estimatedHours: number | null): string {
+  if (estimatedHours == null || estimatedHours <= 0) return "N/A";
+  return `${((actualHours / estimatedHours) * 100).toFixed(1)}%`;
+}
+
+function getTrackingRatio(actualHours: number, estimatedHours: number | null): number | null {
+  if (estimatedHours == null || estimatedHours <= 0) return null;
+  return actualHours / estimatedHours;
+}
+
+function buildDashboardUrl(health: "all" | ProjectHealthStatus, sort: TrackingSortOption): string {
+  const params = new URLSearchParams();
+  if (health !== "all") params.set("health", health);
+  if (sort !== "risk") params.set("sort", sort);
+  const query = params.toString();
+  return query ? `/dashboard?${query}` : "/dashboard";
 }
 
 function KpiCard({
@@ -95,9 +133,23 @@ function KpiCard({
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ health?: string; sort?: string }>;
+}) {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  const { health: healthParam, sort: sortParam } = await searchParams;
+
+  const selectedHealthFilter: "all" | ProjectHealthStatus = trackingHealthFilterOptions.some(
+    (option) => option.value === healthParam
+  )
+    ? (healthParam as "all" | ProjectHealthStatus)
+    : "all";
+  const selectedSort: TrackingSortOption = trackingSortOptions.some((option) => option.value === sortParam)
+    ? (sortParam as TrackingSortOption)
+    : "risk";
 
   const supabase = await createClient();
   const { start, end } = getPeriodDates();
@@ -173,6 +225,46 @@ export default async function DashboardPage() {
     const health = getProjectHealthStatus(actual, p.estimated_hours);
     return health === "at_risk" || health === "overrun";
   }) ?? [];
+  const allCurrentProjectsTracking = (projects ?? [])
+    .map((project) => {
+      const actual = actualByProject[project.id] ?? 0;
+      const health = getProjectHealthStatus(actual, project.estimated_hours);
+      return {
+        id: project.id,
+        name: project.name,
+        estimatedHours: project.estimated_hours,
+        actualHours: actual,
+        health,
+      };
+    });
+  const filteredProjectsTracking = selectedHealthFilter === "all"
+    ? allCurrentProjectsTracking
+    : allCurrentProjectsTracking.filter((project) => project.health === selectedHealthFilter);
+  const currentProjectsTracking = [...filteredProjectsTracking].sort((a, b) => {
+    const severityRank: Record<ProjectHealthStatus, number> = {
+      overrun: 0,
+      at_risk: 1,
+      no_estimate: 2,
+      on_track: 3,
+    };
+    const ratioA = getTrackingRatio(a.actualHours, a.estimatedHours);
+    const ratioB = getTrackingRatio(b.actualHours, b.estimatedHours);
+
+    switch (selectedSort) {
+      case "tracking_desc":
+        return (ratioB ?? -1) - (ratioA ?? -1);
+      case "tracking_asc":
+        return (ratioA ?? Number.POSITIVE_INFINITY) - (ratioB ?? Number.POSITIVE_INFINITY);
+      case "name_asc":
+        return a.name.localeCompare(b.name);
+      case "name_desc":
+        return b.name.localeCompare(a.name);
+      case "risk":
+      default:
+        return severityRank[a.health] - severityRank[b.health];
+    }
+  });
+  const trackingSortToggleTarget: TrackingSortOption = selectedSort === "tracking_desc" ? "tracking_asc" : "tracking_desc";
 
   // Calculate metrics per staff
   const staffMetrics = staffProfiles?.map((sp) => {
@@ -466,6 +558,119 @@ export default async function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-zinc-900">Current projects tracking</h2>
+              <p className="text-sm text-zinc-600">
+                Active projects with current progress against estimated hours.
+              </p>
+            </div>
+            <Link
+              href="/projects"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              View all projects
+            </Link>
+          </div>
+          <form action="/dashboard" method="GET" className="mb-4 flex flex-wrap items-end gap-3">
+            <div>
+              <label htmlFor="health-filter" className="mb-1 block text-xs font-medium text-zinc-600">
+                Filter
+              </label>
+              <select
+                id="health-filter"
+                name="health"
+                defaultValue={selectedHealthFilter}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800"
+              >
+                {trackingHealthFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="sort-filter" className="mb-1 block text-xs font-medium text-zinc-600">
+                Sort by
+              </label>
+              <select
+                id="sort-filter"
+                name="sort"
+                defaultValue={selectedSort}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800"
+              >
+                {trackingSortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              Apply
+            </button>
+            <Link
+              href={buildDashboardUrl(selectedHealthFilter, trackingSortToggleTarget)}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              Sort by tracking {trackingSortToggleTarget === "tracking_desc" ? "high to low" : "low to high"}
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              Reset
+            </Link>
+          </form>
+          {currentProjectsTracking.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
+                    <th className="pb-2">Project</th>
+                    <th className="pb-2 text-right">Estimated</th>
+                    <th className="pb-2 text-right">Actual</th>
+                    <th className="pb-2 text-right">Tracking</th>
+                    <th className="pb-2 text-right">Health</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentProjectsTracking.map((project) => (
+                    <tr key={project.id} className="border-b border-zinc-100">
+                      <td className="py-2">
+                        <Link href={`/projects/${project.id}`} className="text-zinc-900 hover:underline">
+                          {project.name}
+                        </Link>
+                      </td>
+                      <td className="py-2 text-right text-zinc-800">
+                        {project.estimatedHours && project.estimatedHours > 0 ? `${project.estimatedHours}h` : "-"}
+                      </td>
+                      <td className="py-2 text-right text-zinc-800">{project.actualHours}h</td>
+                      <td className="py-2 text-right text-zinc-800">
+                        {formatTrackingPercentage(project.actualHours, project.estimatedHours)}
+                      </td>
+                      <td className={`py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}>
+                        {getProjectHealthLabel(project.health)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
+              No active projects yet.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Capacity heatmap */}
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
