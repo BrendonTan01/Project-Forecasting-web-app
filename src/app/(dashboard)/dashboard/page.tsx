@@ -496,7 +496,7 @@ export default async function DashboardPage({
           isAdmin={isAdmin}
         />
         <KpiCard
-          title="Staff overallocated"
+          title="Staff over-utilised (billable)"
           value={formatCountWithPercentage(overallocated, staffMetrics.length)}
           valueClassName={overallocated > 0 ? "text-amber-700" : "text-zinc-900"}
           officeRows={officeBreakdown.map((office) => ({
@@ -728,7 +728,7 @@ export default async function DashboardPage({
               href="/alerts"
               className="block rounded bg-amber-50 p-2 text-sm text-amber-800 hover:bg-amber-100"
             >
-              {formatCountWithPercentage(overallocated, staffMetrics.length)} staff overallocated (&gt;110%)
+              {formatCountWithPercentage(overallocated, staffMetrics.length)} staff over-utilised by billable utilisation (&gt;110%)
             </Link>
           )}
           {underutilised > 0 && (
