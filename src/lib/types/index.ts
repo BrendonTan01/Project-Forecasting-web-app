@@ -52,6 +52,38 @@ export interface Project {
   created_at?: string;
 }
 
+export type ProposalStatus = "draft" | "submitted" | "won" | "lost";
+export type ProposalCostSourcePreference = "manual_first" | "derived_first";
+
+export interface ProjectProposal {
+  id: string;
+  tenant_id: string;
+  name: string;
+  client_name: string | null;
+  proposed_start_date: string | null;
+  proposed_end_date: string | null;
+  estimated_hours: number | null;
+  expected_revenue: number | null;
+  manual_estimated_cost: number | null;
+  derived_estimated_cost_override: number | null;
+  risk_allowance_amount: number | null;
+  win_probability_percent: number | null;
+  schedule_confidence_percent: number | null;
+  cross_office_dependency_percent: number | null;
+  client_quality_score: number | null;
+  cost_source_preference: ProposalCostSourcePreference;
+  status: ProposalStatus;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProposalMetricCard {
+  value: number | null;
+  label: string;
+  completenessWarning?: string;
+}
+
 export interface ProjectAssignment {
   id: string;
   project_id: string;

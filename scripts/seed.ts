@@ -32,6 +32,11 @@ const PROJECT_IDS = [
   "c0000000-0000-0000-0000-000000000004",
   "c0000000-0000-0000-0000-000000000005",
 ];
+const PROPOSAL_IDS = [
+  "e0000000-0000-0000-0000-000000000001",
+  "e0000000-0000-0000-0000-000000000002",
+  "e0000000-0000-0000-0000-000000000003",
+];
 
 const STAFF = [
   { email: "ceo@acme.com", role: "administrator" as const, office: 0, title: "CEO", capacity: 40 },
@@ -80,6 +85,70 @@ async function main() {
     { id: PROJECT_IDS[2], tenant_id: TENANT_ID, name: "Structural Assessment", client_name: "Insurance Co", estimated_hours: 80, start_date: "2025-01-15", end_date: "2025-03-15", status: "active" },
     { id: PROJECT_IDS[3], tenant_id: TENANT_ID, name: "MEP Design Package", client_name: "Developer Ltd", estimated_hours: 600, start_date: "2024-11-01", end_date: "2025-08-31", status: "active" },
     { id: PROJECT_IDS[4], tenant_id: TENANT_ID, name: "Feasibility Study", client_name: "New Client Inc", estimated_hours: 50, start_date: "2025-02-10", end_date: "2025-03-10", status: "active" },
+  ], { onConflict: "id" });
+
+  // 3b. Future project proposals for bid metrics
+  await supabase.from("project_proposals").upsert([
+    {
+      id: PROPOSAL_IDS[0],
+      tenant_id: TENANT_ID,
+      name: "Airport Terminal Structural Bid",
+      client_name: "National Airport Authority",
+      proposed_start_date: "2026-07-01",
+      proposed_end_date: "2027-03-31",
+      estimated_hours: 1400,
+      expected_revenue: 1800000,
+      manual_estimated_cost: 1250000,
+      derived_estimated_cost_override: null,
+      risk_allowance_amount: 120000,
+      win_probability_percent: 62,
+      schedule_confidence_percent: 74,
+      cross_office_dependency_percent: 58,
+      client_quality_score: 82,
+      cost_source_preference: "manual_first",
+      status: "submitted",
+      notes: "Cross-office delivery between London and Singapore.",
+    },
+    {
+      id: PROPOSAL_IDS[1],
+      tenant_id: TENANT_ID,
+      name: "Data Center Expansion Proposal",
+      client_name: "CloudScale Partners",
+      proposed_start_date: "2026-09-01",
+      proposed_end_date: "2027-06-30",
+      estimated_hours: 2200,
+      expected_revenue: 2900000,
+      manual_estimated_cost: null,
+      derived_estimated_cost_override: 1680000,
+      risk_allowance_amount: 200000,
+      win_probability_percent: 48,
+      schedule_confidence_percent: 66,
+      cross_office_dependency_percent: 72,
+      client_quality_score: 76,
+      cost_source_preference: "derived_first",
+      status: "draft",
+      notes: "Higher hand-off risk due to Sydney specialist coverage.",
+    },
+    {
+      id: PROPOSAL_IDS[2],
+      tenant_id: TENANT_ID,
+      name: "Transit Corridor Preliminary Design",
+      client_name: "Metro Transport Office",
+      proposed_start_date: "2026-10-15",
+      proposed_end_date: "2027-02-28",
+      estimated_hours: null,
+      expected_revenue: 950000,
+      manual_estimated_cost: null,
+      derived_estimated_cost_override: null,
+      risk_allowance_amount: null,
+      win_probability_percent: null,
+      schedule_confidence_percent: 52,
+      cross_office_dependency_percent: null,
+      client_quality_score: 68,
+      cost_source_preference: "manual_first",
+      status: "draft",
+      notes: "Intentionally partial inputs to test completeness warnings.",
+    },
   ], { onConflict: "id" });
 
   // 4. Create auth users + app users (trigger creates staff_profiles)

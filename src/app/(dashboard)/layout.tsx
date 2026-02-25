@@ -19,6 +19,7 @@ export default async function DashboardLayout({
   const navLinks = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/projects", label: "Projects" },
+    { href: "/proposals", label: "Proposals" },
     { href: "/staff", label: "Staff" },
     { href: "/capacity", label: "Capacity" },
     { href: "/time-entry", label: "Time Entry" },

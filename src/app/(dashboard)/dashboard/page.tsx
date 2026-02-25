@@ -30,6 +30,20 @@ type OfficeBreakdownRow = {
   value: string;
 };
 
+type BidMetricCard = {
+  title: string;
+  value: string;
+  warning?: string;
+};
+
+function formatCurrency(value: number): string {
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function formatPercentage(value: number): string {
+  return `${value.toFixed(1)}%`;
+}
+
 function KpiCard({
   title,
   value,
@@ -91,7 +105,7 @@ export default async function DashboardPage() {
   // Staff and their capacity
   const { data: staffProfiles } = await supabase
     .from("staff_profiles")
-    .select("id, user_id, weekly_capacity_hours, users(email, office_id, offices(id, name, country))")
+    .select("id, user_id, weekly_capacity_hours, cost_rate, users(email, office_id, offices(id, name, country))")
     .eq("tenant_id", user.tenantId);
 
   const staffIds = staffProfiles?.map((s) => s.id) ?? [];
@@ -124,6 +138,27 @@ export default async function DashboardPage() {
         .select("project_id, hours")
         .in("project_id", projectIds)
     : { data: [] };
+
+  // Proposed future work for bid forecasting
+  const { data: proposals } = await supabase
+    .from("project_proposals")
+    .select(`
+      id,
+      name,
+      estimated_hours,
+      expected_revenue,
+      manual_estimated_cost,
+      derived_estimated_cost_override,
+      risk_allowance_amount,
+      win_probability_percent,
+      schedule_confidence_percent,
+      cross_office_dependency_percent,
+      client_quality_score,
+      cost_source_preference,
+      status
+    `)
+    .eq("tenant_id", user.tenantId)
+    .in("status", ["draft", "submitted", "won"]);
 
   const actualByProject = (projectHours ?? []).reduce<Record<string, number>>(
     (acc, row) => {
@@ -222,6 +257,128 @@ export default async function DashboardPage() {
 
   const isAdmin = user.role === "administrator";
 
+  const avgCostRate = (() => {
+    const rates = (staffProfiles ?? [])
+      .map((profile) => Number((profile as { cost_rate?: number | null }).cost_rate))
+      .filter((rate) => Number.isFinite(rate) && rate > 0);
+    if (rates.length === 0) return 0;
+    return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+  })();
+
+  const relevantProposals = proposals ?? [];
+  const proposalCount = relevantProposals.length;
+  const freeCapacityHours = freeCapacity30;
+  const totalProposalHours = relevantProposals.reduce(
+    (sum, proposal) => sum + (proposal.estimated_hours ? Number(proposal.estimated_hours) : 0),
+    0
+  );
+
+  const capacityCoverageRatio = freeCapacityHours > 0 ? totalProposalHours / freeCapacityHours : null;
+  const capacityCoverageWarning = relevantProposals.filter((proposal) => proposal.estimated_hours === null).length;
+
+  const proposalCostRows = relevantProposals.map((proposal) => {
+    const estimatedHours = proposal.estimated_hours ? Number(proposal.estimated_hours) : null;
+    const derivedBaseCost = proposal.derived_estimated_cost_override !== null
+      ? Number(proposal.derived_estimated_cost_override)
+      : estimatedHours !== null
+        ? estimatedHours * avgCostRate
+        : null;
+
+    const manualCost = proposal.manual_estimated_cost !== null ? Number(proposal.manual_estimated_cost) : null;
+    const costUsed = proposal.cost_source_preference === "derived_first"
+      ? (derivedBaseCost ?? manualCost)
+      : (manualCost ?? derivedBaseCost);
+
+    return {
+      id: proposal.id,
+      expectedRevenue: proposal.expected_revenue !== null ? Number(proposal.expected_revenue) : null,
+      riskAllowance: proposal.risk_allowance_amount !== null ? Number(proposal.risk_allowance_amount) : 0,
+      winProbability: proposal.win_probability_percent !== null ? Number(proposal.win_probability_percent) : null,
+      scheduleConfidence: proposal.schedule_confidence_percent !== null ? Number(proposal.schedule_confidence_percent) : null,
+      dependencyPercent: proposal.cross_office_dependency_percent !== null ? Number(proposal.cross_office_dependency_percent) : null,
+      clientQualityScore: proposal.client_quality_score !== null ? Number(proposal.client_quality_score) : null,
+      estimatedHours,
+      costUsed,
+    };
+  });
+
+  const riskAdjustedRows = proposalCostRows.filter(
+    (row) => row.expectedRevenue !== null && row.expectedRevenue > 0 && row.costUsed !== null
+  );
+  const totalRevenue = riskAdjustedRows.reduce((sum, row) => sum + (row.expectedRevenue ?? 0), 0);
+  const totalRiskAdjustedProfit = riskAdjustedRows.reduce(
+    (sum, row) => sum + ((row.expectedRevenue ?? 0) - (row.costUsed ?? 0) - row.riskAllowance),
+    0
+  );
+  const riskAdjustedMargin = totalRevenue > 0 ? totalRiskAdjustedProfit / totalRevenue : null;
+  const riskAdjustedMissingCount = proposalCount - riskAdjustedRows.length;
+
+  const evRows = proposalCostRows.filter(
+    (row) => row.expectedRevenue !== null && row.winProbability !== null && row.scheduleConfidence !== null
+  );
+  const expectedValue = evRows.reduce((sum, row) => {
+    const revenue = row.expectedRevenue ?? 0;
+    const probability = (row.winProbability ?? 0) / 100;
+    const confidence = (row.scheduleConfidence ?? 0) / 100;
+    return sum + (revenue * probability * confidence);
+  }, 0);
+  const evMissingCount = proposalCount - evRows.length;
+
+  const scheduleRows = proposalCostRows.filter((row) => row.scheduleConfidence !== null);
+  const scheduleConfidenceIndex = scheduleRows.length > 0
+    ? scheduleRows.reduce((sum, row) => sum + (row.scheduleConfidence ?? 0), 0) / scheduleRows.length
+    : null;
+  const scheduleMissingCount = proposalCount - scheduleRows.length;
+
+  const dependencyRows = proposalCostRows.filter((row) => row.dependencyPercent !== null && row.estimatedHours !== null);
+  const dependencyWeightedHours = dependencyRows.reduce((sum, row) => sum + (row.estimatedHours ?? 0), 0);
+  const crossOfficeDependencyIndex = dependencyWeightedHours > 0
+    ? dependencyRows.reduce(
+        (sum, row) => sum + ((row.dependencyPercent ?? 0) * (row.estimatedHours ?? 0)),
+        0
+      ) / dependencyWeightedHours
+    : null;
+  const dependencyMissingCount = proposalCount - dependencyRows.length;
+
+  const clientRows = proposalCostRows.filter((row) => row.clientQualityScore !== null);
+  const clientQualityScoreIndex = clientRows.length > 0
+    ? clientRows.reduce((sum, row) => sum + (row.clientQualityScore ?? 0), 0) / clientRows.length
+    : null;
+  const clientMissingCount = proposalCount - clientRows.length;
+
+  const bidMetrics: BidMetricCard[] = [
+    {
+      title: "Capacity coverage ratio",
+      value: capacityCoverageRatio === null ? "N/A" : `${capacityCoverageRatio.toFixed(2)}x`,
+      warning: capacityCoverageWarning > 0 ? `${capacityCoverageWarning} proposal(s) missing estimated hours` : undefined,
+    },
+    {
+      title: "Risk-adjusted margin",
+      value: riskAdjustedMargin === null ? "N/A" : formatPercentage(riskAdjustedMargin * 100),
+      warning: riskAdjustedMissingCount > 0 ? `${riskAdjustedMissingCount} proposal(s) missing revenue or cost` : undefined,
+    },
+    {
+      title: "Expected value (EV)",
+      value: formatCurrency(expectedValue),
+      warning: evMissingCount > 0 ? `${evMissingCount} proposal(s) missing probability or confidence` : undefined,
+    },
+    {
+      title: "Schedule confidence index",
+      value: scheduleConfidenceIndex === null ? "N/A" : formatPercentage(scheduleConfidenceIndex),
+      warning: scheduleMissingCount > 0 ? `${scheduleMissingCount} proposal(s) missing schedule confidence` : undefined,
+    },
+    {
+      title: "Cross-office dependency index",
+      value: crossOfficeDependencyIndex === null ? "N/A" : formatPercentage(crossOfficeDependencyIndex),
+      warning: dependencyMissingCount > 0 ? `${dependencyMissingCount} proposal(s) missing dependency inputs` : undefined,
+    },
+    {
+      title: "Client quality score",
+      value: clientQualityScoreIndex === null ? "N/A" : formatPercentage(clientQualityScoreIndex),
+      warning: clientMissingCount > 0 ? `${clientMissingCount} proposal(s) missing client score` : undefined,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-zinc-900">Executive Dashboard</h1>
@@ -275,6 +432,39 @@ export default async function DashboardPage() {
           }))}
           isAdmin={isAdmin}
         />
+      </div>
+
+      {/* Bid metrics for future proposals */}
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-zinc-900">Bid metrics</h2>
+            <p className="text-sm text-zinc-600">
+              {proposalCount > 0
+                ? `Calculated from ${proposalCount} proposal(s)`
+                : "No proposals yet. Add proposals to activate bid metrics."}
+            </p>
+          </div>
+          {isAdmin && (
+            <Link
+              href="/proposals/new"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              Add proposal
+            </Link>
+          )}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {bidMetrics.map((metric) => (
+            <div key={metric.title} className="rounded-md border border-zinc-200 p-3">
+              <p className="text-sm font-medium text-zinc-500">{metric.title}</p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">{metric.value}</p>
+              {metric.warning && (
+                <p className="mt-1 text-xs text-amber-700">{metric.warning}</p>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Capacity heatmap */}

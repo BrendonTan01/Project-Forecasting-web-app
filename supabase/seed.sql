@@ -248,6 +248,93 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
+-- PROJECT PROPOSALS (future bid pipeline)
+-- Includes complete + partial inputs to test dashboard warnings
+-- ============================================
+INSERT INTO project_proposals (
+  id,
+  tenant_id,
+  name,
+  client_name,
+  proposed_start_date,
+  proposed_end_date,
+  estimated_hours,
+  expected_revenue,
+  manual_estimated_cost,
+  derived_estimated_cost_override,
+  risk_allowance_amount,
+  win_probability_percent,
+  schedule_confidence_percent,
+  cross_office_dependency_percent,
+  client_quality_score,
+  cost_source_preference,
+  status,
+  notes
+)
+VALUES
+  (
+    'e0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
+    'Airport Terminal Structural Bid',
+    'National Airport Authority',
+    '2026-07-01',
+    '2027-03-31',
+    1400,
+    1800000,
+    1250000,
+    NULL,
+    120000,
+    62,
+    74,
+    58,
+    82,
+    'manual_first',
+    'submitted',
+    'Cross-office delivery between London and Singapore.'
+  ),
+  (
+    'e0000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000001',
+    'Data Center Expansion Proposal',
+    'CloudScale Partners',
+    '2026-09-01',
+    '2027-06-30',
+    2200,
+    2900000,
+    NULL,
+    1680000,
+    200000,
+    48,
+    66,
+    72,
+    76,
+    'derived_first',
+    'draft',
+    'Higher hand-off risk due to Sydney specialist coverage.'
+  ),
+  (
+    'e0000000-0000-0000-0000-000000000003',
+    'a0000000-0000-0000-0000-000000000001',
+    'Transit Corridor Preliminary Design',
+    'Metro Transport Office',
+    '2026-10-15',
+    '2027-02-28',
+    NULL,
+    950000,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    52,
+    NULL,
+    68,
+    'manual_first',
+    'draft',
+    'Intentionally partial inputs to test completeness warnings.'
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================
 -- PROJECT ASSIGNMENTS (staff to projects)
 -- ============================================
 INSERT INTO project_assignments (project_id, staff_id, allocation_percentage)
@@ -378,3 +465,4 @@ JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
 --   - Time entries (billable and non-billable)
 --   - Leave requests (pending, approved, rejected)
 --   - Staff with no project assignments (staff.new@acme.com)
+--   - Proposal pipeline with complete and partial bid inputs
