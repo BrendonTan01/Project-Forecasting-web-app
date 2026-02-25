@@ -35,6 +35,9 @@ type OfficeBreakdownRow = {
 type BidMetricCard = {
   title: string;
   value: string;
+  meaning: string;
+  betterDirection: string;
+  formula: string;
   warning?: string;
 };
 
@@ -84,19 +87,47 @@ function KpiCard({
   valueClassName,
   officeRows,
   isAdmin,
+  tooltip,
 }: {
   title: string;
   value: string;
   valueClassName?: string;
   officeRows: OfficeBreakdownRow[];
   isAdmin: boolean;
+  tooltip: {
+    meaning: string;
+    betterDirection: string;
+    formula: string;
+  };
 }) {
   const valueClasses = valueClassName ?? "text-zinc-900";
 
   if (!isAdmin) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <p className="text-sm font-medium text-zinc-500">{title}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-zinc-500">{title}</p>
+          <span className="group relative inline-flex">
+            <span
+              className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold text-zinc-500"
+              aria-label={`How ${title} is calculated`}
+              tabIndex={0}
+            >
+              i
+            </span>
+            <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-72 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-700 shadow-lg group-hover:block group-focus-within:block">
+              <p>
+                <span className="font-semibold text-zinc-900">Meaning:</span> {tooltip.meaning}
+              </p>
+              <p className="mt-1">
+                <span className="font-semibold text-zinc-900">Better:</span> {tooltip.betterDirection}
+              </p>
+              <p className="mt-1">
+                <span className="font-semibold text-zinc-900">Calculated as:</span> {tooltip.formula}
+              </p>
+            </div>
+          </span>
+        </div>
         <p className={`text-2xl font-semibold ${valueClasses}`}>{value}</p>
       </div>
     );
@@ -105,7 +136,29 @@ function KpiCard({
   return (
     <details className="group rounded-lg border border-zinc-200 bg-white">
       <summary className="cursor-pointer list-none p-4 [&::-webkit-details-marker]:hidden">
-        <p className="text-sm font-medium text-zinc-500">{title}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-zinc-500">{title}</p>
+          <span className="group/tooltip relative inline-flex">
+            <span
+              className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold text-zinc-500"
+              aria-label={`How ${title} is calculated`}
+              tabIndex={0}
+            >
+              i
+            </span>
+            <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-72 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-700 shadow-lg group-hover/tooltip:block group-focus-within/tooltip:block">
+              <p>
+                <span className="font-semibold text-zinc-900">Meaning:</span> {tooltip.meaning}
+              </p>
+              <p className="mt-1">
+                <span className="font-semibold text-zinc-900">Better:</span> {tooltip.betterDirection}
+              </p>
+              <p className="mt-1">
+                <span className="font-semibold text-zinc-900">Calculated as:</span> {tooltip.formula}
+              </p>
+            </div>
+          </span>
+        </div>
         <div className="mt-1 flex items-center justify-between gap-2">
           <p className={`text-2xl font-semibold ${valueClasses}`}>{value}</p>
           <span className="text-xs font-medium text-zinc-500 group-open:text-zinc-700">
@@ -356,11 +409,17 @@ export default async function DashboardPage({
     {
       title: "Capacity coverage ratio",
       value: capacityCoverageRatio === null ? "N/A" : `${capacityCoverageRatio.toFixed(2)}x`,
+      meaning: "Compares total proposed work against available free capacity over the next 30 days.",
+      betterDirection: "Closer to 1.0x is better (much above 1.0x means demand exceeds current free capacity).",
+      formula: "Total proposed hours / free capacity (30d).",
       warning: capacityCoverageWarning > 0 ? `${capacityCoverageWarning} proposal(s) missing estimated hours` : undefined,
     },
     {
       title: "Active proposals",
       value: proposalCount > 0 ? String(proposalCount) : "—",
+      meaning: "Shows the number of proposals currently in draft, submitted, or won status.",
+      betterDirection: "Depends on strategy (higher means a larger pipeline, lower means a smaller pipeline).",
+      formula: "Count of project proposals where status is draft, submitted, or won.",
       warning: proposalCount - proposalsWithHours > 0
         ? `${proposalCount - proposalsWithHours} proposal(s) missing hour estimates`
         : undefined,
@@ -368,6 +427,9 @@ export default async function DashboardPage({
     {
       title: "Total proposed hours",
       value: totalProposalHours > 0 ? `${Math.round(totalProposalHours)}h` : "—",
+      meaning: "Totals the estimated hours across active proposals to show expected upcoming workload.",
+      betterDirection: "Depends on strategy and capacity (better when aligned with available capacity).",
+      formula: "Sum of estimated_hours across active proposals (null values treated as 0).",
       warning: undefined,
     },
     {
@@ -375,6 +437,9 @@ export default async function DashboardPage({
       value: relevantProposals.filter((p) => p.estimated_hours_per_week !== null).length > 0
         ? `${Math.round(avgHoursPerWeek)}h`
         : "—",
+      meaning: "Average expected weekly effort required by proposals with a weekly estimate.",
+      betterDirection: "Lower is easier on short-term capacity; higher indicates stronger weekly demand.",
+      formula: "Average of estimated_hours_per_week across proposals where that value is present.",
       warning: undefined,
     },
   ];
@@ -388,6 +453,11 @@ export default async function DashboardPage({
         <KpiCard
           title="Utilisation rate"
           value={formatUtilisation(overallUtilisation)}
+          tooltip={{
+            meaning: "Shows how much of available capacity was spent on billable work in the last 30 days.",
+            betterDirection: "Around the healthy target band is better (very low underuses capacity, very high risks overload).",
+            formula: "Total billable hours / total capacity hours over the last 30 days.",
+          }}
           officeRows={officeBreakdown.map((office) => ({
             officeLabel: office.officeLabel,
             value: formatUtilisation(calculateUtilisation(office.totalBillable, office.totalCapacity)),
@@ -397,6 +467,11 @@ export default async function DashboardPage({
         <KpiCard
           title="Billable ratio"
           value={totalHours > 0 ? `${(billableRatio * 100).toFixed(1)}%` : "N/A"}
+          tooltip={{
+            meaning: "Indicates what share of all logged hours is billable.",
+            betterDirection: "Higher is generally better for revenue efficiency, if quality and sustainability are maintained.",
+            formula: "Total billable hours / total logged hours over the last 30 days.",
+          }}
           officeRows={officeBreakdown.map((office) => ({
             officeLabel: office.officeLabel,
             value: office.totalHours > 0 ? `${((office.totalBillable / office.totalHours) * 100).toFixed(1)}%` : "N/A",
@@ -407,6 +482,11 @@ export default async function DashboardPage({
           title="Staff over-utilised (billable)"
           value={formatCountWithPercentage(overallocated, staffMetrics.length)}
           valueClassName={overallocated > 0 ? "text-amber-700" : "text-zinc-900"}
+          tooltip={{
+            meaning: "Counts staff whose billable utilisation is above the over-allocation threshold.",
+            betterDirection: "Lower is better (fewer people overloaded).",
+            formula: "Count of staff where utilisation status is overallocated, shown with % of total staff.",
+          }}
           officeRows={officeBreakdown.map((office) => ({
             officeLabel: office.officeLabel,
             value: formatCountWithPercentage(office.overallocatedCount, office.staffCount),
@@ -417,6 +497,11 @@ export default async function DashboardPage({
           title="Staff underutilised"
           value={formatCountWithPercentage(underutilised, staffMetrics.length)}
           valueClassName={underutilised > 0 ? "text-amber-700" : "text-zinc-900"}
+          tooltip={{
+            meaning: "Counts staff whose billable utilisation is below the under-utilisation threshold.",
+            betterDirection: "Lower is generally better (less idle billable capacity), while avoiding overloading others.",
+            formula: "Count of staff where utilisation status is underutilised, shown with % of total staff.",
+          }}
           officeRows={officeBreakdown.map((office) => ({
             officeLabel: office.officeLabel,
             value: formatCountWithPercentage(office.underutilisedCount, office.staffCount),
@@ -426,6 +511,11 @@ export default async function DashboardPage({
         <KpiCard
           title="Free capacity (30d)"
           value={`${freeCapacity30.toFixed(0)}h`}
+          tooltip={{
+            meaning: "Estimated unallocated hours available across staff over the next 30 days.",
+            betterDirection: "Contextual: too low may limit ability to take work, too high may indicate unused capacity.",
+            formula: "Sum across staff of max(0, capacity hours - allocated hours) for a 30-day period.",
+          }}
           officeRows={officeBreakdown.map((office) => ({
             officeLabel: office.officeLabel,
             value: `${office.freeCapacity30.toFixed(0)}h`,
@@ -457,7 +547,29 @@ export default async function DashboardPage({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {bidMetrics.map((metric) => (
             <div key={metric.title} className="rounded-md border border-zinc-200 p-3">
-              <p className="text-sm font-medium text-zinc-500">{metric.title}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-zinc-500">{metric.title}</p>
+                <span className="group relative inline-flex">
+                  <span
+                    className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold text-zinc-500"
+                    aria-label={`How ${metric.title} is calculated`}
+                    tabIndex={0}
+                  >
+                    i
+                  </span>
+                  <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-72 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-700 shadow-lg group-hover:block group-focus-within:block">
+                    <p>
+                      <span className="font-semibold text-zinc-900">Meaning:</span> {metric.meaning}
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-semibold text-zinc-900">Better:</span> {metric.betterDirection}
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-semibold text-zinc-900">Calculated as:</span> {metric.formula}
+                    </p>
+                  </div>
+                </span>
+              </div>
               <p className="mt-1 text-2xl font-semibold text-zinc-900">{metric.value}</p>
               {metric.warning && (
                 <p className="mt-1 text-xs text-amber-700">{metric.warning}</p>
