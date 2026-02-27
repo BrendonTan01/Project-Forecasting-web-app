@@ -27,7 +27,7 @@ WITH duplicate_groups AS (
     staff_id,
     project_id,
     date,
-    MIN(id) AS keep_id,
+    (ARRAY_AGG(id ORDER BY created_at, id))[1] AS keep_id,
     SUM(hours)::NUMERIC(5,2) AS merged_hours,
     BOOL_OR(billable_flag) AS merged_billable
   FROM public.time_entries
