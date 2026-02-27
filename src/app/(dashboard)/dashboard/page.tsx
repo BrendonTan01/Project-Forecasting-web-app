@@ -54,6 +54,7 @@ const trackingSortOptions: { value: TrackingSortOption; label: string }[] = [
 
 const trackingHealthFilterOptions: { value: "all" | ProjectHealthStatus; label: string }[] = [
   { value: "all", label: "All health statuses" },
+  { value: "not_started", label: "Not started" },
   { value: "on_track", label: "On track" },
   { value: "at_risk", label: "At risk" },
   { value: "overrun", label: "Overrun" },
@@ -64,7 +65,14 @@ function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-function formatTrackingPercentage(actualHours: number, estimatedHours: number | null): string {
+function formatTrackingPercentage(
+  actualHours: number,
+  estimatedHours: number | null,
+  startDate: string | null
+): string {
+  if (startDate && getProjectHealthStatus(actualHours, estimatedHours, startDate) === "not_started") {
+    return "Not started";
+  }
   if (estimatedHours == null || estimatedHours <= 0) return "N/A";
   return `${((actualHours / estimatedHours) * 100).toFixed(1)}%`;
 }
@@ -72,6 +80,15 @@ function formatTrackingPercentage(actualHours: number, estimatedHours: number | 
 function getTrackingRatio(actualHours: number, estimatedHours: number | null): number | null {
   if (estimatedHours == null || estimatedHours <= 0) return null;
   return actualHours / estimatedHours;
+}
+
+function formatProjectDate(value: string | null): string {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
 }
 
 function buildDashboardUrl(health: "all" | ProjectHealthStatus, sort: TrackingSortOption): string {
@@ -220,7 +237,7 @@ export default async function DashboardPage({
       .eq("tenant_id", user.tenantId),
     supabase
       .from("projects")
-      .select("id, name, estimated_hours")
+      .select("id, name, estimated_hours, start_date, end_date")
       .eq("tenant_id", user.tenantId)
       .eq("status", "active"),
     supabase
@@ -265,17 +282,19 @@ export default async function DashboardPage({
 
   const projectsAtRisk = projects?.filter((p) => {
     const actual = actualByProject[p.id] ?? 0;
-    const health = getProjectHealthStatus(actual, p.estimated_hours);
+    const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date);
     return health === "at_risk" || health === "overrun";
   }) ?? [];
   const allCurrentProjectsTracking = (projects ?? [])
     .map((project) => {
       const actual = actualByProject[project.id] ?? 0;
-      const health = getProjectHealthStatus(actual, project.estimated_hours);
+      const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date);
       return {
         id: project.id,
         name: project.name,
         estimatedHours: project.estimated_hours,
+        startDate: project.start_date,
+        endDate: project.end_date,
         actualHours: actual,
         health,
       };
@@ -289,6 +308,7 @@ export default async function DashboardPage({
       at_risk: 1,
       no_estimate: 2,
       on_track: 3,
+      not_started: 4,
     };
     const ratioA = getTrackingRatio(a.actualHours, a.estimatedHours);
     const ratioB = getTrackingRatio(b.actualHours, b.estimatedHours);
@@ -661,6 +681,8 @@ export default async function DashboardPage({
                     <th className="pb-2">Project</th>
                     <th className="pb-2 text-right">Estimated</th>
                     <th className="pb-2 text-right">Actual</th>
+                    <th className="pb-2">Start date</th>
+                    <th className="pb-2">End date</th>
                     <th className="pb-2 text-right">Tracking</th>
                     <th className="pb-2 text-right">Health</th>
                   </tr>
@@ -677,8 +699,10 @@ export default async function DashboardPage({
                         {project.estimatedHours && project.estimatedHours > 0 ? `${project.estimatedHours}h` : "-"}
                       </td>
                       <td className="py-2 text-right text-zinc-800">{project.actualHours}h</td>
+                      <td className="py-2 text-zinc-800">{formatProjectDate(project.startDate)}</td>
+                      <td className="py-2 text-zinc-800">{formatProjectDate(project.endDate)}</td>
                       <td className="py-2 text-right text-zinc-800">
-                        {formatTrackingPercentage(project.actualHours, project.estimatedHours)}
+                        {formatTrackingPercentage(project.actualHours, project.estimatedHours, project.startDate)}
                       </td>
                       <td className={`py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}>
                         {getProjectHealthLabel(project.health)}
@@ -765,7 +789,7 @@ export default async function DashboardPage({
           )}
           {projectsAtRisk.map((p) => {
             const actual = actualByProject[p.id] ?? 0;
-            const health = getProjectHealthStatus(actual, p.estimated_hours);
+            const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date);
             return (
               <Link
                 key={p.id}

@@ -9,6 +9,15 @@ import {
 } from "@/lib/utils/projectHealth";
 import { DeleteProjectButton } from "./DeleteProjectButton";
 
+function formatProjectDate(value: string | null): string {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
 export default async function ProjectDetailPage({
   params,
 }: {
@@ -38,12 +47,17 @@ export default async function ProjectDetailPage({
   const actualHours = timeEntries?.reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;
   const billableHours = timeEntries?.filter((e) => e.billable_flag).reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;
   const estimated = project.estimated_hours ?? 0;
-  const health = getProjectHealthStatus(actualHours, project.estimated_hours);
+  const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date);
 
-  // Burn rate: hours per week (simplified - assume project started)
-  const startDate = project.start_date ? new Date(project.start_date) : new Date();
-  const weeksElapsed = Math.max(1, (Date.now() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  const burnRate = actualHours / weeksElapsed;
+  // Burn rate: use project schedule when available to avoid runtime-dependent calculations.
+  const scheduleWeeks = project.start_date && project.end_date
+    ? Math.max(
+        1,
+        (new Date(project.end_date).getTime() - new Date(project.start_date).getTime()) /
+          (7 * 24 * 60 * 60 * 1000)
+      )
+    : 1;
+  const burnRate = actualHours / scheduleWeeks;
 
   // Assignments
   const { data: assignments } = await supabase
@@ -83,7 +97,7 @@ export default async function ProjectDetailPage({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-sm font-medium text-zinc-500">Client</p>
           <p className="font-semibold text-zinc-900">{project.client_name ?? "-"}</p>
@@ -101,6 +115,14 @@ export default async function ProjectDetailPage({
           <p className={`font-medium ${getProjectHealthColour(health)}`}>
             {getProjectHealthLabel(health)}
           </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-sm font-medium text-zinc-500">Start date</p>
+          <p className="font-semibold text-zinc-900">{formatProjectDate(project.start_date)}</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-sm font-medium text-zinc-500">End date</p>
+          <p className="font-semibold text-zinc-900">{formatProjectDate(project.end_date)}</p>
         </div>
       </div>
 

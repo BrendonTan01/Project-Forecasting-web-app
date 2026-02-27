@@ -106,4 +106,4 @@ export interface LeaveRequest {
   created_at?: string;
 }
 
-export type ProjectHealthStatus = "on_track" | "at_risk" | "overrun" | "no_estimate";
+export type ProjectHealthStatus = "not_started" | "on_track" | "at_risk" | "overrun" | "no_estimate";

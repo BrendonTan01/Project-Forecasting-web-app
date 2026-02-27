@@ -2,6 +2,7 @@ import type { ProjectHealthStatus } from "@/lib/types";
 
 /**
  * Project health status logic:
+ * - not_started: start_date is in the future
  * - overrun: actual_hours > estimated_hours
  * - at_risk: actual_hours > 90% of estimated (i.e. >10% over)
  * - on_track: otherwise
@@ -9,8 +10,19 @@ import type { ProjectHealthStatus } from "@/lib/types";
  */
 export function getProjectHealthStatus(
   actualHours: number,
-  estimatedHours: number | null
+  estimatedHours: number | null,
+  startDate?: string | null
 ): ProjectHealthStatus {
+  if (startDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const projectStart = new Date(startDate);
+    projectStart.setHours(0, 0, 0, 0);
+    if (projectStart > today) {
+      return "not_started";
+    }
+  }
+
   if (estimatedHours == null || estimatedHours <= 0) {
     return "no_estimate";
   }
@@ -27,6 +39,8 @@ export function getProjectHealthStatus(
  */
 export function getProjectHealthLabel(status: ProjectHealthStatus): string {
   switch (status) {
+    case "not_started":
+      return "Not started";
     case "on_track":
       return "On track";
     case "at_risk":
@@ -45,6 +59,8 @@ export function getProjectHealthLabel(status: ProjectHealthStatus): string {
  */
 export function getProjectHealthColour(status: ProjectHealthStatus): string {
   switch (status) {
+    case "not_started":
+      return "text-sky-700";
     case "on_track":
       return "text-emerald-700";
     case "at_risk":

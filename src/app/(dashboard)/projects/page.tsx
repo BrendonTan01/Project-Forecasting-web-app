@@ -15,6 +15,15 @@ const statusConfig: Record<string, { label: string; colour: string }> = {
   cancelled: { label: "Cancelled", colour: "bg-zinc-100 text-zinc-500" },
 };
 
+function formatProjectDate(value: string | null): string {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -79,6 +88,10 @@ export default async function ProjectsPage({
 
       <div className="mb-4">
         <ProjectStatusFilter />
+        <p className="mt-2 text-sm text-zinc-600">
+          Showing {projects?.length ?? 0} project{(projects?.length ?? 0) === 1 ? "" : "s"}
+          {status ? ` (${statusConfig[status]?.label ?? status})` : ""}
+        </p>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
@@ -98,6 +111,12 @@ export default async function ProjectsPage({
                 Actual
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                Start date
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                End date
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Health
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -109,7 +128,7 @@ export default async function ProjectsPage({
             {projects?.map((project) => {
               const actual = actualByProject[project.id] ?? 0;
               const estimated = project.estimated_hours ?? 0;
-              const health = getProjectHealthStatus(actual, project.estimated_hours);
+              const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date);
               const badge = statusConfig[project.status] ?? {
                 label: project.status,
                 colour: "bg-zinc-100 text-zinc-500",
@@ -133,6 +152,12 @@ export default async function ProjectsPage({
                   </td>
                   <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {actual}h
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {formatProjectDate(project.start_date)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {formatProjectDate(project.end_date)}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-sm font-medium ${getProjectHealthColour(health)}`}>
