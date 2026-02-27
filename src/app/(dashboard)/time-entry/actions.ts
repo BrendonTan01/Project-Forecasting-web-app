@@ -44,6 +44,7 @@ export async function createTimeEntry(data: TimeEntryFormData) {
     .eq("staff_id", staffId)
     .eq("project_id", data.project_id)
     .eq("date", data.date)
+    .eq("billable_flag", data.billable_flag)
     .maybeSingle();
 
   if (existingError) return { error: existingError.message };
@@ -56,13 +57,10 @@ export async function createTimeEntry(data: TimeEntryFormData) {
       return { error: "Total hours for this project/day must be 24 or less" };
     }
 
-    // Preserve billable if either the existing or new submission is billable.
-    const mergedBillable = Boolean(existingEntry.billable_flag) || data.billable_flag;
     const result = await supabase
       .from("time_entries")
       .update({
         hours: mergedHours,
-        billable_flag: mergedBillable,
       })
       .eq("id", existingEntry.id)
       .eq("tenant_id", user.tenantId);
@@ -86,6 +84,7 @@ export async function createTimeEntry(data: TimeEntryFormData) {
         .eq("staff_id", staffId)
         .eq("project_id", data.project_id)
         .eq("date", data.date)
+        .eq("billable_flag", data.billable_flag)
         .maybeSingle();
 
       if (concurrentError) return { error: concurrentError.message };
@@ -96,12 +95,10 @@ export async function createTimeEntry(data: TimeEntryFormData) {
         return { error: "Total hours for this project/day must be 24 or less" };
       }
 
-      const mergedBillable = Boolean(concurrentEntry.billable_flag) || data.billable_flag;
       const retryResult = await supabase
         .from("time_entries")
         .update({
           hours: mergedHours,
-          billable_flag: mergedBillable,
         })
         .eq("id", concurrentEntry.id)
         .eq("tenant_id", user.tenantId);

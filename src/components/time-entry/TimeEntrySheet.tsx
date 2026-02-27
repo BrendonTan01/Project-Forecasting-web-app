@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createTimeEntry, deleteTimeEntry } from "@/app/(dashboard)/time-entry/actions";
+import { createTimeEntry, deleteTimeEntry, updateTimeEntry } from "@/app/(dashboard)/time-entry/actions";
 
 interface TimeEntry {
   id: string;
@@ -30,6 +30,11 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
+function isWeekendDate(dateStr: string) {
+  const day = new Date(dateStr + "T12:00:00").getDay();
+  return day === 0 || day === 6;
+}
+
 export function TimeEntrySheet({
   dates,
   timeEntries,
@@ -38,6 +43,9 @@ export function TimeEntrySheet({
 }: TimeEntrySheetProps) {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editHours, setEditHours] = useState<string>("");
+  const [editBillable, setEditBillable] = useState(true);
 
   const prevWeek = new Date(weekStart);
   prevWeek.setDate(prevWeek.getDate() - 7);
@@ -88,9 +96,18 @@ export function TimeEntrySheet({
     setError(null);
     const form = e.currentTarget;
     const formData = new FormData(form);
+    const selectedDate = formData.get("date") as string;
+
+    if (isWeekendDate(selectedDate)) {
+      const accepted = window.confirm(
+        "This time entry is for a weekend (Saturday/Sunday). Do you want to continue?",
+      );
+      if (!accepted) return;
+    }
+
     const result = await createTimeEntry({
       project_id: formData.get("project_id") as string,
-      date: formData.get("date") as string,
+      date: selectedDate,
       hours: parseFloat(formData.get("hours") as string) || 0,
       billable_flag: formData.get("billable_flag") === "on",
     });
@@ -106,6 +123,40 @@ export function TimeEntrySheet({
     setError(null);
     const result = await deleteTimeEntry(id);
     if (result.error) setError(result.error);
+  }
+
+  function startEdit(entry: TimeEntry) {
+    setError(null);
+    setEditingEntryId(entry.id);
+    setEditHours(String(entry.hours));
+    setEditBillable(entry.billable_flag);
+  }
+
+  function cancelEdit() {
+    setEditingEntryId(null);
+    setEditHours("");
+    setEditBillable(true);
+  }
+
+  async function saveEdit(id: string) {
+    setError(null);
+    const parsedHours = parseFloat(editHours);
+    if (!Number.isFinite(parsedHours)) {
+      setError("Please enter a valid hour value");
+      return;
+    }
+
+    const result = await updateTimeEntry(id, {
+      hours: parsedHours,
+      billable_flag: editBillable,
+    });
+
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+
+    cancelEdit();
   }
 
   return (
@@ -173,18 +224,67 @@ export function TimeEntrySheet({
                       <div className="inline-flex flex-col items-center gap-1">
                         {(row.entriesByDate[d] ?? []).map((entry) => (
                           <span key={entry.id} className="inline-flex items-center gap-1 font-medium">
-                            {entry.hours}h
-                            {entry.billable_flag && (
-                              <span className="text-xs text-zinc-600">(B)</span>
+                            {editingEntryId === entry.id ? (
+                              <span className="inline-flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  step="0.25"
+                                  min="0.25"
+                                  max="24"
+                                  value={editHours}
+                                  onChange={(e) => setEditHours(e.target.value)}
+                                  className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
+                                />
+                                <label className="inline-flex items-center gap-1 text-xs text-zinc-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={editBillable}
+                                    onChange={(e) => setEditBillable(e.target.checked)}
+                                    className="rounded"
+                                  />
+                                  Billable
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => saveEdit(entry.id)}
+                                  className="rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-700 hover:bg-zinc-100"
+                                  title="Save"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEdit}
+                                  className="rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-700 hover:bg-zinc-100"
+                                  title="Cancel"
+                                >
+                                  Cancel
+                                </button>
+                              </span>
+                            ) : (
+                              <>
+                                {entry.hours}h
+                                <span className="text-xs text-zinc-600">
+                                  ({entry.billable_flag ? "Billable" : "Non-billable"})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(entry)}
+                                  className="text-zinc-600 hover:text-zinc-800"
+                                  title="Edit"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(entry.id)}
+                                  className="text-red-600 hover:text-red-800"
+                                  title="Delete"
+                                >
+                                  ×
+                                </button>
+                              </>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(entry.id)}
-                              className="text-red-600 hover:text-red-800"
-                              title="Delete"
-                            >
-                              ×
-                            </button>
                           </span>
                         ))}
                       </div>
