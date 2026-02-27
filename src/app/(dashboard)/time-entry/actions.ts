@@ -11,6 +11,14 @@ export type TimeEntryFormData = {
   billable_flag: boolean;
 };
 
+function isUniqueViolation(error: { code?: string } | null | undefined) {
+  return error?.code === "23505";
+}
+
+function isOldProjectDayConstraint(message: string | undefined) {
+  return /constraint "time_entries_unique_staff_project_date"/.test(message ?? "");
+}
+
 export async function createTimeEntry(data: TimeEntryFormData) {
   const user = await getCurrentUserWithTenant();
   const staffId = user ? await getStaffIdByUserId(user.id) : null;
@@ -35,6 +43,20 @@ export async function createTimeEntry(data: TimeEntryFormData) {
   // Validate hours
   if (data.hours <= 0 || data.hours > 24) {
     return { error: "Hours must be between 0 and 24" };
+  }
+
+  const { data: dayEntries, error: dayEntriesError } = await supabase
+    .from("time_entries")
+    .select("hours")
+    .eq("tenant_id", user.tenantId)
+    .eq("staff_id", staffId)
+    .eq("project_id", data.project_id)
+    .eq("date", data.date);
+  if (dayEntriesError) return { error: dayEntriesError.message };
+
+  const dayTotalHours = (dayEntries ?? []).reduce((sum, entry) => sum + Number(entry.hours), 0);
+  if (dayTotalHours + data.hours > 24) {
+    return { error: "Combined billable and non-billable hours for this project/day must be 24 or less" };
   }
 
   const { data: existingEntry, error: existingError } = await supabase
@@ -75,7 +97,14 @@ export async function createTimeEntry(data: TimeEntryFormData) {
       billable_flag: data.billable_flag,
     });
 
-    if ((result.error as { code?: string } | null)?.code === "23505") {
+    if (isUniqueViolation(result.error as { code?: string } | null)) {
+      if (isOldProjectDayConstraint(result.error?.message)) {
+        return {
+          error:
+            "Your database still has the old unique constraint for project/day. Run the latest migration to allow separate billable and non-billable entries on the same day.",
+        };
+      }
+
       // If another request inserted concurrently, merge into that row.
       const { data: concurrentEntry, error: concurrentError } = await supabase
         .from("time_entries")
@@ -127,7 +156,7 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
   // Staff can only update own entries
   const { data: existing } = await supabase
     .from("time_entries")
-    .select("staff_id")
+    .select("id, staff_id, project_id, date, hours, billable_flag")
     .eq("id", id)
     .single();
 
@@ -135,21 +164,87 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
   if (user.role === "staff" && existing.staff_id !== staffId) {
     return { error: "Unauthorized" };
   }
-  if (data.hours !== undefined && (data.hours <= 0 || data.hours > 24)) {
+  const targetHours = data.hours ?? Number(existing.hours);
+  const targetProjectId = data.project_id ?? existing.project_id;
+  const targetDate = data.date ?? existing.date;
+  const targetBillableFlag = data.billable_flag ?? existing.billable_flag;
+
+  if (targetHours <= 0 || targetHours > 24) {
     return { error: "Hours must be between 0 and 24" };
   }
 
-  const updateData: Record<string, unknown> = {};
-  if (data.project_id !== undefined) updateData.project_id = data.project_id;
-  if (data.date !== undefined) updateData.date = data.date;
-  if (data.hours !== undefined) updateData.hours = data.hours;
-  if (data.billable_flag !== undefined) updateData.billable_flag = data.billable_flag;
-
-  const { error } = await supabase
+  const { data: otherDayEntries, error: otherDayEntriesError } = await supabase
     .from("time_entries")
-    .update(updateData)
-    .eq("id", id)
-    .eq("tenant_id", user.tenantId);
+    .select("hours")
+    .eq("tenant_id", user.tenantId)
+    .eq("staff_id", staffId)
+    .eq("project_id", targetProjectId)
+    .eq("date", targetDate)
+    .neq("id", id);
+
+  if (otherDayEntriesError) return { error: otherDayEntriesError.message };
+
+  const otherTotalHours = (otherDayEntries ?? []).reduce((sum, entry) => sum + Number(entry.hours), 0);
+  if (otherTotalHours + targetHours > 24) {
+    return { error: "Combined billable and non-billable hours for this project/day must be 24 or less" };
+  }
+
+  const { data: matchingBucketEntry, error: matchingBucketError } = await supabase
+    .from("time_entries")
+    .select("id, hours")
+    .eq("tenant_id", user.tenantId)
+    .eq("staff_id", staffId)
+    .eq("project_id", targetProjectId)
+    .eq("date", targetDate)
+    .eq("billable_flag", targetBillableFlag)
+    .neq("id", id)
+    .maybeSingle();
+  if (matchingBucketError) return { error: matchingBucketError.message };
+
+  let error: { message: string } | null = null;
+
+  if (matchingBucketEntry) {
+    const mergedHours = Number(matchingBucketEntry.hours) + targetHours;
+    if (mergedHours > 24) {
+      return { error: "Total hours for this billable bucket must be 24 or less" };
+    }
+
+    const mergeResult = await supabase
+      .from("time_entries")
+      .update({ hours: mergedHours })
+      .eq("id", matchingBucketEntry.id)
+      .eq("tenant_id", user.tenantId);
+    if (mergeResult.error) return { error: mergeResult.error.message };
+
+    const deleteCurrentResult = await supabase
+      .from("time_entries")
+      .delete()
+      .eq("id", id)
+      .eq("tenant_id", user.tenantId);
+    error = deleteCurrentResult.error;
+  } else {
+    const updateData: Record<string, unknown> = {
+      project_id: targetProjectId,
+      date: targetDate,
+      hours: targetHours,
+      billable_flag: targetBillableFlag,
+    };
+
+    const result = await supabase
+      .from("time_entries")
+      .update(updateData)
+      .eq("id", id)
+      .eq("tenant_id", user.tenantId);
+
+    if (isUniqueViolation(result.error as { code?: string } | null) && isOldProjectDayConstraint(result.error?.message)) {
+      return {
+        error:
+          "Your database still has the old unique constraint for project/day. Run the latest migration to allow separate billable and non-billable entries on the same day.",
+      };
+    }
+
+    error = result.error;
+  }
 
   if (error) return { error: error.message };
   revalidatePath("/time-entry");
