@@ -675,36 +675,36 @@ export default async function DashboardPage({
           </form>
           {currentProjectsTracking.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full">
+              <table className="min-w-full whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
-                    <th className="pb-2">Project</th>
-                    <th className="pb-2 text-right">Estimated</th>
-                    <th className="pb-2 text-right">Actual</th>
-                    <th className="pb-2">Start date</th>
-                    <th className="pb-2">End date</th>
-                    <th className="pb-2 text-right">Tracking</th>
-                    <th className="pb-2 text-right">Health</th>
+                    <th className="px-3 pb-2">Project</th>
+                    <th className="px-3 pb-2 text-right">Estimated</th>
+                    <th className="px-3 pb-2 text-right">Actual</th>
+                    <th className="px-3 pb-2">Start date</th>
+                    <th className="px-3 pb-2">End date</th>
+                    <th className="px-3 pb-2 text-right">Tracking</th>
+                    <th className="px-3 pb-2 text-right">Health</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentProjectsTracking.map((project) => (
                     <tr key={project.id} className="border-b border-zinc-100">
-                      <td className="py-2">
+                      <td className="px-3 py-2">
                         <Link href={`/projects/${project.id}`} className="text-zinc-900 hover:underline">
                           {project.name}
                         </Link>
                       </td>
-                      <td className="py-2 text-right text-zinc-800">
+                      <td className="px-3 py-2 text-right text-zinc-800">
                         {project.estimatedHours && project.estimatedHours > 0 ? `${project.estimatedHours}h` : "-"}
                       </td>
-                      <td className="py-2 text-right text-zinc-800">{project.actualHours}h</td>
-                      <td className="py-2 text-zinc-800">{formatProjectDate(project.startDate)}</td>
-                      <td className="py-2 text-zinc-800">{formatProjectDate(project.endDate)}</td>
-                      <td className="py-2 text-right text-zinc-800">
+                      <td className="px-3 py-2 text-right text-zinc-800">{project.actualHours}h</td>
+                      <td className="px-3 py-2 text-zinc-800">{formatProjectDate(project.startDate)}</td>
+                      <td className="px-3 py-2 text-zinc-800">{formatProjectDate(project.endDate)}</td>
+                      <td className="px-3 py-2 text-right text-zinc-800">
                         {formatTrackingPercentage(project.actualHours, project.estimatedHours, project.startDate)}
                       </td>
-                      <td className={`py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}>
+                      <td className={`px-3 py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}>
                         {getProjectHealthLabel(project.health)}
                       </td>
                     </tr>
