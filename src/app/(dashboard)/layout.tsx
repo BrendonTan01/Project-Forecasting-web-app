@@ -1,30 +1,35 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUserWithTenant();
 
   if (!user) {
     redirect("/login");
   }
 
-  const navLinks = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/projects", label: "Projects" },
-    { href: "/proposals", label: "Proposals" },
-    { href: "/staff", label: "Staff" },
-    { href: "/capacity", label: "Capacity" },
-    { href: "/time-entry", label: "Time Entry" },
-    { href: "/alerts", label: "Alerts" },
-  ];
+  const isStaff = user.role === "staff";
+  const navLinks = isStaff
+    ? [
+        { href: "/dashboard", label: "Dashboard" },
+        { href: "/staff", label: "Staff" },
+        { href: "/time-entry", label: "Time Entry" },
+        { href: "/alerts", label: "Alerts" },
+      ]
+    : [
+        { href: "/dashboard", label: "Dashboard" },
+        { href: "/projects", label: "Projects" },
+        { href: "/proposals", label: "Proposals" },
+        { href: "/staff", label: "Staff" },
+        { href: "/capacity", label: "Capacity" },
+        { href: "/time-entry", label: "Time Entry" },
+        { href: "/alerts", label: "Alerts" },
+      ];
 
   return (
     <div className="min-h-screen bg-zinc-50">

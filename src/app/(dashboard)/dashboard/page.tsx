@@ -13,6 +13,7 @@ import {
 } from "@/lib/utils/projectHealth";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import type { ProjectHealthStatus } from "@/lib/types";
+import StaffDashboard from "./StaffDashboard";
 
 // Period: last 30 days for utilisation
 function getPeriodDates() {
@@ -189,6 +190,9 @@ export default async function DashboardPage({
 }) {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  if (user.role === "staff") {
+    return <StaffDashboard />;
+  }
   const { health: healthParam, sort: sortParam } = await searchParams;
 
   const selectedHealthFilter: "all" | ProjectHealthStatus = trackingHealthFilterOptions.some(

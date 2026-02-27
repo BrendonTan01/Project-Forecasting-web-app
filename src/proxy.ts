@@ -5,6 +5,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 const protectedPaths = [
   "/dashboard",
   "/projects",
+  "/proposals",
   "/staff",
   "/capacity",
   "/time-entry",
