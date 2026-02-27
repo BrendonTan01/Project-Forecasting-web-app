@@ -37,14 +37,80 @@ export async function createTimeEntry(data: TimeEntryFormData) {
     return { error: "Hours must be between 0 and 24" };
   }
 
-  const { error } = await supabase.from("time_entries").insert({
-    tenant_id: user.tenantId,
-    staff_id: staffId,
-    project_id: data.project_id,
-    date: data.date,
-    hours: data.hours,
-    billable_flag: data.billable_flag,
-  });
+  const { data: existingEntry, error: existingError } = await supabase
+    .from("time_entries")
+    .select("id, hours, billable_flag")
+    .eq("tenant_id", user.tenantId)
+    .eq("staff_id", staffId)
+    .eq("project_id", data.project_id)
+    .eq("date", data.date)
+    .maybeSingle();
+
+  if (existingError) return { error: existingError.message };
+
+  let error: { message: string } | null = null;
+
+  if (existingEntry) {
+    const mergedHours = Number(existingEntry.hours) + data.hours;
+    if (mergedHours > 24) {
+      return { error: "Total hours for this project/day must be 24 or less" };
+    }
+
+    // Preserve billable if either the existing or new submission is billable.
+    const mergedBillable = Boolean(existingEntry.billable_flag) || data.billable_flag;
+    const result = await supabase
+      .from("time_entries")
+      .update({
+        hours: mergedHours,
+        billable_flag: mergedBillable,
+      })
+      .eq("id", existingEntry.id)
+      .eq("tenant_id", user.tenantId);
+    error = result.error;
+  } else {
+    const result = await supabase.from("time_entries").insert({
+      tenant_id: user.tenantId,
+      staff_id: staffId,
+      project_id: data.project_id,
+      date: data.date,
+      hours: data.hours,
+      billable_flag: data.billable_flag,
+    });
+
+    if ((result.error as { code?: string } | null)?.code === "23505") {
+      // If another request inserted concurrently, merge into that row.
+      const { data: concurrentEntry, error: concurrentError } = await supabase
+        .from("time_entries")
+        .select("id, hours, billable_flag")
+        .eq("tenant_id", user.tenantId)
+        .eq("staff_id", staffId)
+        .eq("project_id", data.project_id)
+        .eq("date", data.date)
+        .maybeSingle();
+
+      if (concurrentError) return { error: concurrentError.message };
+      if (!concurrentEntry) return { error: result.error?.message ?? "Failed to save time entry" };
+
+      const mergedHours = Number(concurrentEntry.hours) + data.hours;
+      if (mergedHours > 24) {
+        return { error: "Total hours for this project/day must be 24 or less" };
+      }
+
+      const mergedBillable = Boolean(concurrentEntry.billable_flag) || data.billable_flag;
+      const retryResult = await supabase
+        .from("time_entries")
+        .update({
+          hours: mergedHours,
+          billable_flag: mergedBillable,
+        })
+        .eq("id", concurrentEntry.id)
+        .eq("tenant_id", user.tenantId);
+
+      error = retryResult.error;
+    } else {
+      error = result.error;
+    }
+  }
 
   if (error) return { error: error.message };
   revalidatePath("/time-entry");

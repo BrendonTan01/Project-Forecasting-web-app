@@ -55,6 +55,34 @@ export function TimeEntrySheet({
     return acc;
   }, {});
 
+  const projectRows = Object.values(
+    timeEntries.reduce<
+      Record<
+        string,
+        {
+          project_id: string;
+          project_name: string;
+          entriesByDate: Record<string, TimeEntry[]>;
+        }
+      >
+    >((acc, entry) => {
+      if (!acc[entry.project_id]) {
+        acc[entry.project_id] = {
+          project_id: entry.project_id,
+          project_name: entry.projects?.name ?? "Unknown",
+          entriesByDate: {},
+        };
+      }
+
+      if (!acc[entry.project_id].entriesByDate[entry.date]) {
+        acc[entry.project_id].entriesByDate[entry.date] = [];
+      }
+
+      acc[entry.project_id].entriesByDate[entry.date].push(entry);
+      return acc;
+    }, {}),
+  ).sort((a, b) => a.project_name.localeCompare(b.project_name));
+
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -127,35 +155,39 @@ export function TimeEntrySheet({
             </tr>
           </thead>
           <tbody>
-            {timeEntries.length === 0 && !adding && (
+            {projectRows.length === 0 && !adding && (
               <tr>
                 <td colSpan={dates.length + 2} className="px-4 py-8 text-center text-sm text-zinc-600">
                   No time entries this week. Click &quot;Add time entry&quot; to log time.
                 </td>
               </tr>
             )}
-            {timeEntries.map((entry) => (
-              <tr key={entry.id} className="border-b border-zinc-100">
+            {projectRows.map((row) => (
+              <tr key={row.project_id} className="border-b border-zinc-100">
                 <td className="px-4 py-2 text-sm font-medium text-zinc-900">
-                  {entry.projects?.name ?? "Unknown"}
+                  {row.project_name}
                 </td>
                 {dates.map((d) => (
                   <td key={d} className="px-4 py-2 text-center text-zinc-800">
-                    {entry.date === d ? (
-                      <span className="inline-flex items-center gap-1 font-medium">
-                        {entry.hours}h
-                        {entry.billable_flag && (
-                          <span className="text-xs text-zinc-600">(B)</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(entry.id)}
-                          className="text-red-600 hover:text-red-800"
-                          title="Delete"
-                        >
-                          ×
-                        </button>
-                      </span>
+                    {(row.entriesByDate[d] ?? []).length > 0 ? (
+                      <div className="inline-flex flex-col items-center gap-1">
+                        {(row.entriesByDate[d] ?? []).map((entry) => (
+                          <span key={entry.id} className="inline-flex items-center gap-1 font-medium">
+                            {entry.hours}h
+                            {entry.billable_flag && (
+                              <span className="text-xs text-zinc-600">(B)</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(entry.id)}
+                              className="text-red-600 hover:text-red-800"
+                              title="Delete"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       "-"
                     )}
