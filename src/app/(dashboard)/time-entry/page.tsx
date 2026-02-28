@@ -25,20 +25,46 @@ function getWeekDates(date: Date): { start: string; end: string; dates: string[]
 export default async function TimeEntryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; staff?: string }>;
 }) {
   const params = await searchParams;
   const user = await getCurrentUserWithTenant();
   const staffId = await getCurrentStaffId();
   if (!user || !staffId) return null;
+  const canSelectStaff = user.role === "manager" || user.role === "administrator";
 
   const weekParam = params.week;
   const baseDate = weekParam ? new Date(weekParam) : new Date();
   const { start, end, dates } = getWeekDates(baseDate);
 
   const supabase = await createClient();
+  let selectedStaffId = staffId;
 
-  // Fetch time entries for current user's staff profile for this week
+  type StaffOption = { id: string; email: string };
+  let staffOptions: StaffOption[] = [];
+
+  if (canSelectStaff) {
+    const { data: staffRows } = await supabase
+      .from("staff_profiles")
+      .select("id, users(email)")
+      .eq("tenant_id", user.tenantId);
+
+    staffOptions = (staffRows ?? [])
+      .map((row) => {
+        const relatedUser = getRelationOne((row as { users?: unknown }).users) as { email?: string } | null;
+        return {
+          id: row.id,
+          email: relatedUser?.email ?? "Unknown",
+        };
+      })
+      .sort((a, b) => a.email.localeCompare(b.email));
+
+    if (params.staff && staffOptions.some((option) => option.id === params.staff)) {
+      selectedStaffId = params.staff;
+    }
+  }
+
+  // Fetch time entries for selected staff profile for this week
   const { data: rawTimeEntries } = await supabase
     .from("time_entries")
     .select(`
@@ -49,7 +75,7 @@ export default async function TimeEntryPage({
       billable_flag,
       projects (id, name)
     `)
-    .eq("staff_id", staffId)
+    .eq("staff_id", selectedStaffId)
     .gte("date", start)
     .lte("date", end)
     .order("date");
@@ -90,6 +116,10 @@ export default async function TimeEntryPage({
         timeEntries={timeEntries ?? []}
         projects={projects ?? []}
         weekStart={start}
+        ownStaffId={staffId}
+        selectedStaffId={selectedStaffId}
+        canSelectStaff={canSelectStaff}
+        staffOptions={staffOptions}
       />
     </div>
   );

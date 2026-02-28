@@ -18,11 +18,20 @@ interface Project {
   name: string;
 }
 
+interface StaffOption {
+  id: string;
+  email: string;
+}
+
 interface TimeEntrySheetProps {
   dates: string[];
   timeEntries: TimeEntry[];
   projects: Project[];
   weekStart: string;
+  ownStaffId: string;
+  selectedStaffId: string;
+  canSelectStaff: boolean;
+  staffOptions: StaffOption[];
 }
 
 function formatDate(dateStr: string) {
@@ -40,17 +49,31 @@ export function TimeEntrySheet({
   timeEntries,
   projects,
   weekStart,
+  ownStaffId,
+  selectedStaffId,
+  canSelectStaff,
+  staffOptions,
 }: TimeEntrySheetProps) {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editHours, setEditHours] = useState<string>("");
   const [editBillable, setEditBillable] = useState(true);
+  const isViewingOwnEntries = selectedStaffId === ownStaffId;
 
   const prevWeek = new Date(weekStart);
   prevWeek.setDate(prevWeek.getDate() - 7);
   const nextWeek = new Date(weekStart);
   nextWeek.setDate(nextWeek.getDate() + 7);
+  const prevWeekDate = prevWeek.toISOString().split("T")[0];
+  const nextWeekDate = nextWeek.toISOString().split("T")[0];
+
+  function buildWeekHref(week: string) {
+    const params = new URLSearchParams();
+    params.set("week", week);
+    if (canSelectStaff) params.set("staff", selectedStaffId);
+    return `/time-entry?${params.toString()}`;
+  }
 
   const entriesByDate = timeEntries.reduce<Record<string, TimeEntry[]>>((acc, e) => {
     if (!acc[e.date]) acc[e.date] = [];
@@ -162,21 +185,52 @@ export function TimeEntrySheet({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={`/time-entry?week=${prevWeek.toISOString().split("T")[0]}`}
+            href={buildWeekHref(prevWeekDate)}
             className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
           >
             Previous week
           </Link>
           <Link
-            href={`/time-entry?week=${nextWeek.toISOString().split("T")[0]}`}
+            href={buildWeekHref(nextWeekDate)}
             className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
           >
             Next week
           </Link>
         </div>
+        {canSelectStaff && (
+          <form method="get" className="flex items-end gap-2">
+            <input type="hidden" name="week" value={weekStart} />
+            <label htmlFor="staffFilter" className="text-xs font-medium text-zinc-600">
+              Staff
+            </label>
+            <select
+              id="staffFilter"
+              name="staff"
+              defaultValue={selectedStaffId}
+              className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
+            >
+              {staffOptions.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.email}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              View
+            </button>
+          </form>
+        )}
       </div>
+      {!isViewingOwnEntries && (
+        <p className="rounded border border-zinc-200 bg-zinc-50 p-2 text-sm text-zinc-700">
+          Viewing selected staff time entries. Editing is only available on your own timesheet.
+        </p>
+      )}
 
       {error && (
         <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
@@ -209,7 +263,8 @@ export function TimeEntrySheet({
             {projectRows.length === 0 && !adding && (
               <tr>
                 <td colSpan={dates.length + 2} className="px-4 py-8 text-center text-sm text-zinc-600">
-                  No time entries this week. Click &quot;Add time entry&quot; to log time.
+                  No time entries this week.
+                  {isViewingOwnEntries && " Click \"Add time entry\" to log time."}
                 </td>
               </tr>
             )}
@@ -267,22 +322,26 @@ export function TimeEntrySheet({
                                 <span className="text-xs text-zinc-600">
                                   ({entry.billable_flag ? "Billable" : "Non-billable"})
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => startEdit(entry)}
-                                  className="text-zinc-600 hover:text-zinc-800"
-                                  title="Edit"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(entry.id)}
-                                  className="text-red-600 hover:text-red-800"
-                                  title="Delete"
-                                >
-                                  ×
-                                </button>
+                                {isViewingOwnEntries && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEdit(entry)}
+                                      className="text-zinc-600 hover:text-zinc-800"
+                                      title="Edit"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(entry.id)}
+                                      className="text-red-600 hover:text-red-800"
+                                      title="Delete"
+                                    >
+                                      ×
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
                           </span>
@@ -296,7 +355,7 @@ export function TimeEntrySheet({
                 <td></td>
               </tr>
             ))}
-            {adding && (
+            {adding && isViewingOwnEntries && (
               <tr className="border-b border-zinc-100 bg-zinc-50">
                 <td colSpan={dates.length + 2} className="px-4 py-3">
                   <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-4">
@@ -378,7 +437,7 @@ export function TimeEntrySheet({
         </table>
       </div>
 
-      {!adding && (
+      {!adding && isViewingOwnEntries && (
         <button
           type="button"
           onClick={() => setAdding(true)}
