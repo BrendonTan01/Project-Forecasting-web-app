@@ -287,7 +287,6 @@ export async function computeFeasibility(
       totalFreeCapacity += freeAtCap;
       weekStaffCapacity.push({
         id: sp.id,
-        label: staffLabel,
         officeId: (sp.users as { office_id?: string | null } | null)?.office_id ?? null,
         freeAt100,
         freeAtCap,
