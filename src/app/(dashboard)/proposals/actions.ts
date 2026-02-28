@@ -22,6 +22,9 @@ export async function createProposal(data: ProposalFormData) {
   if (user.role !== "administrator") {
     return { error: "Only administrators can create proposals" };
   }
+  if (data.status !== "draft" && (!data.proposed_start_date || !data.proposed_end_date)) {
+    return { error: "Set both timeline dates before changing status from draft" };
+  }
 
   const supabase = await createClient();
   const { data: proposal, error } = await supabase
@@ -53,6 +56,28 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
   if (!user) return { error: "Unauthorized" };
   if (user.role !== "administrator") {
     return { error: "Only administrators can edit proposals" };
+  }
+
+  if (data.status !== undefined) {
+    const supabase = await createClient();
+    const { data: existing, error: existingError } = await supabase
+      .from("project_proposals")
+      .select("status, proposed_start_date, proposed_end_date")
+      .eq("id", id)
+      .eq("tenant_id", user.tenantId)
+      .single();
+
+    if (existingError) return { error: existingError.message };
+
+    const nextStatus = data.status;
+    const isLeavingDraft = existing?.status === "draft" && nextStatus !== "draft";
+    if (isLeavingDraft) {
+      const nextStart = data.proposed_start_date ?? existing?.proposed_start_date ?? null;
+      const nextEnd = data.proposed_end_date ?? existing?.proposed_end_date ?? null;
+      if (!nextStart || !nextEnd) {
+        return { error: "Set both timeline dates before changing status from draft" };
+      }
+    }
   }
 
   const updateData: Record<string, unknown> = {};

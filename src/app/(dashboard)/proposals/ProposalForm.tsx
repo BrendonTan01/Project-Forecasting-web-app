@@ -29,12 +29,38 @@ function parseOptionalNumber(value: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function parseIsoDate(value: string): Date | null {
+  const parts = value.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+  const [year, month, day] = parts;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function countWorkingDays(startDate: string, endDate: string): number {
+  const start = parseIsoDate(startDate);
+  const end = parseIsoDate(endDate);
+  if (!start || !end || end < start) return 0;
+
+  let count = 0;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const day = cursor.getUTCDay();
+    if (day >= 1 && day <= 5) count += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
 function countProjectWeeks(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diffMs = end.getTime() - start.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  return Math.max(diffDays / 7, 0);
+  return countWorkingDays(startDate, endDate) / 5;
+}
+
+function roundToSingleDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function formatForInput(value: number): string {
+  return `${roundToSingleDecimal(value)}`;
 }
 
 function fmtHours(h: number): string {
@@ -47,45 +73,45 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!proposal;
 
-  // Hours input mode: "total" or "per_week"
-  const [hoursMode, setHoursMode] = useState<"total" | "per_week">(() => {
-    if (proposal?.estimated_hours_per_week && !proposal?.estimated_hours) return "per_week";
-    return "total";
-  });
-
   const [totalHours, setTotalHours] = useState(proposal?.estimated_hours?.toString() ?? "");
   const [hoursPerWeek, setHoursPerWeek] = useState(proposal?.estimated_hours_per_week?.toString() ?? "");
   const [startDate, setStartDate] = useState(proposal?.proposed_start_date ?? "");
   const [endDate, setEndDate] = useState(proposal?.proposed_end_date ?? "");
+  const [lastEditedHoursField, setLastEditedHoursField] = useState<"total" | "per_week">(() => {
+    if (proposal?.estimated_hours_per_week && !proposal?.estimated_hours) return "per_week";
+    return "total";
+  });
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
     new Set(proposal?.office_scope ?? [])
   );
 
-  // Derived values shown read-only
-  const [derivedTotal, setDerivedTotal] = useState<number | null>(null);
-  const [derivedPerWeek, setDerivedPerWeek] = useState<number | null>(null);
-
   useEffect(() => {
-    const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+    const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : 0;
+    if (weeks <= 0) return;
 
-    if (hoursMode === "total") {
+    if (lastEditedHoursField === "total") {
       const total = parseOptionalNumber(totalHours);
-      setDerivedTotal(null);
-      if (total !== undefined && weeks && weeks > 0) {
-        setDerivedPerWeek(total / weeks);
-      } else {
-        setDerivedPerWeek(null);
+      if (total === undefined) {
+        if (hoursPerWeek) setHoursPerWeek("");
+        return;
       }
-    } else {
-      const perWeek = parseOptionalNumber(hoursPerWeek);
-      setDerivedPerWeek(null);
-      if (perWeek !== undefined && weeks && weeks > 0) {
-        setDerivedTotal(perWeek * weeks);
-      } else {
-        setDerivedTotal(null);
+      const nextPerWeek = formatForInput(total / weeks);
+      if (nextPerWeek !== hoursPerWeek) {
+        setHoursPerWeek(nextPerWeek);
       }
+      return;
     }
-  }, [hoursMode, totalHours, hoursPerWeek, startDate, endDate]);
+
+    const perWeek = parseOptionalNumber(hoursPerWeek);
+    if (perWeek === undefined) {
+      if (totalHours) setTotalHours("");
+      return;
+    }
+    const nextTotal = formatForInput(perWeek * weeks);
+    if (nextTotal !== totalHours) {
+      setTotalHours(nextTotal);
+    }
+  }, [lastEditedHoursField, totalHours, hoursPerWeek, startDate, endDate]);
 
   function toggleOffice(id: string) {
     setSelectedOffices((prev) => {
@@ -104,19 +130,8 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    const finalTotalHours =
-      hoursMode === "total"
-        ? parseOptionalNumber(totalHours)
-        : derivedTotal !== null
-          ? Math.round(derivedTotal * 10) / 10
-          : undefined;
-
-    const finalPerWeek =
-      hoursMode === "per_week"
-        ? parseOptionalNumber(hoursPerWeek)
-        : derivedPerWeek !== null
-          ? Math.round(derivedPerWeek * 10) / 10
-          : undefined;
+    const finalTotalHours = parseOptionalNumber(totalHours);
+    const finalPerWeek = parseOptionalNumber(hoursPerWeek);
 
     const data: ProposalFormData = {
       name: (formData.get("name") as string)?.trim() ?? "",
@@ -142,6 +157,12 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       return;
     }
 
+    if (data.status !== "draft" && (!data.proposed_start_date || !data.proposed_end_date)) {
+      setError("Set both timeline dates before changing status from draft");
+      setSubmitting(false);
+      return;
+    }
+
     const result = isEdit ? await updateProposal(proposal.id, data) : await createProposal(data);
     if (result.error) {
       setError(result.error);
@@ -162,8 +183,8 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
   const inputClass =
     "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500";
 
-  const weeks =
-    startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+  const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+  const timelineComplete = Boolean(startDate && endDate);
 
   return (
     <form
@@ -241,67 +262,43 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       <div className="rounded-md border border-zinc-200 p-4">
         <h2 className="mb-3 font-medium text-zinc-900">Labour estimate</h2>
 
-        {/* Toggle */}
-        <div className="mb-4 inline-flex rounded-md border border-zinc-300 p-0.5 text-sm">
-          <button
-            type="button"
-            onClick={() => setHoursMode("total")}
-            className={`rounded px-3 py-1.5 font-medium transition-colors ${
-              hoursMode === "total"
-                ? "bg-zinc-900 text-white"
-                : "text-zinc-600 hover:text-zinc-900"
-            }`}
-          >
-            Total project hours
-          </button>
-          <button
-            type="button"
-            onClick={() => setHoursMode("per_week")}
-            className={`rounded px-3 py-1.5 font-medium transition-colors ${
-              hoursMode === "per_week"
-                ? "bg-zinc-900 text-white"
-                : "text-zinc-600 hover:text-zinc-900"
-            }`}
-          >
-            Hours per week
-          </button>
-        </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* Primary input */}
-          {hoursMode === "total" ? (
-            <div>
-              <label htmlFor="estimated_hours" className="mb-1 block text-sm font-medium text-zinc-700">
-                Total project hours
-              </label>
-              <input
-                id="estimated_hours"
-                type="number"
-                min="0"
-                step="0.5"
-                value={totalHours}
-                onChange={(e) => setTotalHours(e.target.value)}
-                className={inputClass}
-                placeholder="e.g. 1200"
-              />
-            </div>
-          ) : (
-            <div>
-              <label htmlFor="hours_per_week" className="mb-1 block text-sm font-medium text-zinc-700">
-                Hours per week (team total)
-              </label>
-              <input
-                id="hours_per_week"
-                type="number"
-                min="0"
-                step="0.5"
-                value={hoursPerWeek}
-                onChange={(e) => setHoursPerWeek(e.target.value)}
-                className={inputClass}
-                placeholder="e.g. 80"
-              />
-            </div>
-          )}
+          <div>
+            <label htmlFor="estimated_hours" className="mb-1 block text-sm font-medium text-zinc-700">
+              Total project hours
+            </label>
+            <input
+              id="estimated_hours"
+              type="number"
+              min="0"
+              step="0.5"
+              value={totalHours}
+              onChange={(e) => {
+                setLastEditedHoursField("total");
+                setTotalHours(e.target.value);
+              }}
+              className={inputClass}
+              placeholder="e.g. 1200"
+            />
+          </div>
+          <div>
+            <label htmlFor="hours_per_week" className="mb-1 block text-sm font-medium text-zinc-700">
+              Hours per week (team total)
+            </label>
+            <input
+              id="hours_per_week"
+              type="number"
+              min="0"
+              step="0.5"
+              value={hoursPerWeek}
+              onChange={(e) => {
+                setLastEditedHoursField("per_week");
+                setHoursPerWeek(e.target.value);
+              }}
+              className={inputClass}
+              placeholder="e.g. 80"
+            />
+          </div>
 
           {/* Derived summary */}
           <div className="flex flex-col justify-end">
@@ -309,31 +306,21 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
               {weeks !== null && weeks > 0 ? (
                 <div className="space-y-1 text-zinc-700">
                   <div className="flex justify-between">
-                    <span>Duration</span>
-                    <span className="font-medium">{Math.round(weeks * 10) / 10} weeks</span>
+                    <span>Duration (working weeks)</span>
+                    <span className="font-medium">{roundToSingleDecimal(weeks)} weeks</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total hours</span>
                     <span className="font-medium">
-                      {hoursMode === "total"
-                        ? parseOptionalNumber(totalHours) !== undefined
-                          ? fmtHours(parseOptionalNumber(totalHours)!)
-                          : "—"
-                        : derivedTotal !== null
-                          ? fmtHours(derivedTotal)
-                          : "—"}
+                      {parseOptionalNumber(totalHours) !== undefined ? fmtHours(parseOptionalNumber(totalHours)!) : "—"}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Hours / week</span>
                     <span className="font-medium">
-                      {hoursMode === "per_week"
-                        ? parseOptionalNumber(hoursPerWeek) !== undefined
-                          ? fmtHours(parseOptionalNumber(hoursPerWeek)!)
-                          : "—"
-                        : derivedPerWeek !== null
-                          ? fmtHours(derivedPerWeek)
-                          : "—"}
+                      {parseOptionalNumber(hoursPerWeek) !== undefined
+                        ? fmtHours(parseOptionalNumber(hoursPerWeek)!)
+                        : "—"}
                     </span>
                   </div>
                 </div>
@@ -392,10 +379,21 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             className={inputClass}
           >
             <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
+            <option value="submitted" disabled={!timelineComplete}>
+              Submitted
+            </option>
+            <option value="won" disabled={!timelineComplete}>
+              Won
+            </option>
+            <option value="lost" disabled={!timelineComplete}>
+              Lost
+            </option>
           </select>
+          {!timelineComplete && (
+            <p className="mt-1 text-xs text-amber-600">
+              Set both timeline dates before moving status out of draft.
+            </p>
+          )}
         </div>
       </div>
 
