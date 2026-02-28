@@ -82,6 +82,10 @@ export default async function ProposalsPage({
           </Link>
         ))}
       </div>
+      <p className="mb-4 text-sm text-zinc-600">
+        Showing {proposals?.length ?? 0} proposal{(proposals?.length ?? 0) === 1 ? "" : "s"}
+        {status ? ` (${proposalStatusConfig[status]?.label ?? status})` : ""}
+      </p>
 
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
         <table className="min-w-full">
