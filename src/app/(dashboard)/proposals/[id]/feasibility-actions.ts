@@ -20,6 +20,7 @@ export type FeasibilityResult = {
   totalAchievable: number;
   feasibilityPercent: number;
   staffCount: number;
+  staffInScope: Array<{ id: string; label: string }>;
   officeNames: string[];
   error?: never;
 };
@@ -311,6 +312,15 @@ export async function computeFeasibility(
     totalAchievable: Math.round(totalAchievable * 10) / 10,
     feasibilityPercent,
     staffCount: staff.length,
+    staffInScope: staff
+      .map((sp) => {
+        const staffUser = sp.users as { email?: string } | null;
+        return {
+          id: sp.id,
+          label: staffUser?.email ?? "Unknown staff",
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label)),
     officeNames: Array.from(officeNameSet).sort(),
   };
 }

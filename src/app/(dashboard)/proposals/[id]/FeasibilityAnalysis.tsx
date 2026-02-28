@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
+import Link from "next/link";
 import { computeFeasibility, type FeasibilityResult, type WeekFeasibility } from "./feasibility-actions";
 
 type Office = { id: string; name: string };
@@ -154,6 +155,7 @@ function generateInsight(result: FeasibilityResult): string {
 export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope, initialResult }: Props) {
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
+  const [showStaffInScope, setShowStaffInScope] = useState(false);
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
     new Set(initialOfficeScope ?? [])
   );
@@ -320,13 +322,41 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
               </p>
             </div>
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-medium text-zinc-500">Staff in scope</p>
-              <p className="mt-1 text-2xl font-bold text-zinc-900">{feasResult.staffCount}</p>
-              <p className="text-xs text-zinc-400">
-                {feasResult.officeNames.length > 0
-                  ? feasResult.officeNames.join(", ")
-                  : "All offices"}
-              </p>
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => setShowStaffInScope((prev) => !prev)}
+                aria-expanded={showStaffInScope}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500">Staff in scope</p>
+                    <p className="mt-1 text-2xl font-bold text-zinc-900">{feasResult.staffCount}</p>
+                    <p className="text-xs text-zinc-400">
+                      {feasResult.officeNames.length > 0
+                        ? feasResult.officeNames.join(", ")
+                        : "All offices"}
+                    </p>
+                  </div>
+                  <span className="pt-1 text-xs font-medium text-zinc-500">
+                    {showStaffInScope ? "Hide" : "Show"}
+                  </span>
+                </div>
+              </button>
+              {showStaffInScope && (
+                <ul className="mt-3 space-y-1 border-t border-zinc-100 pt-3">
+                  {feasResult.staffInScope.map((staff) => (
+                    <li key={staff.id}>
+                      <Link
+                        href={`/staff/${staff.id}`}
+                        className="text-sm text-zinc-700 hover:text-zinc-900 hover:underline"
+                      >
+                        {staff.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
