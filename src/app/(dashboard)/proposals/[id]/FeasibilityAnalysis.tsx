@@ -3,6 +3,11 @@
 import { useState, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { computeFeasibility, type FeasibilityResult, type WeekFeasibility } from "./feasibility-actions";
+import {
+  PROPOSAL_OPTIMIZATION_MODE_LABELS,
+  PROPOSAL_OPTIMIZATION_MODES,
+  type ProposalOptimizationMode,
+} from "../optimization-modes";
 
 type Office = { id: string; name: string };
 
@@ -10,6 +15,7 @@ type Props = {
   proposalId: string;
   allOffices: Office[];
   initialOfficeScope: string[] | null;
+  initialOptimizationMode: ProposalOptimizationMode;
   initialResult: FeasibilityResult | { error: string } | null;
 };
 
@@ -152,10 +158,17 @@ function generateInsight(result: FeasibilityResult): string {
   return parts.join(" ");
 }
 
-export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope, initialResult }: Props) {
+export function FeasibilityAnalysis({
+  proposalId,
+  allOffices,
+  initialOfficeScope,
+  initialOptimizationMode,
+  initialResult,
+}: Props) {
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
   const [showStaffInScope, setShowStaffInScope] = useState(false);
+  const [optimizationMode, setOptimizationMode] = useState<ProposalOptimizationMode>(initialOptimizationMode);
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
     new Set(initialOfficeScope ?? [])
   );
@@ -163,10 +176,10 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
   const [isPending, startTransition] = useTransition();
 
   const runAnalysis = useCallback(
-    (officeIds: Set<string>, overalloc: boolean, overallocPct: number) => {
+    (officeIds: Set<string>, overalloc: boolean, overallocPct: number, mode: ProposalOptimizationMode) => {
       startTransition(async () => {
         const ids = officeIds.size > 0 ? Array.from(officeIds) : null;
-        const res = await computeFeasibility(proposalId, ids, overalloc, overallocPct);
+        const res = await computeFeasibility(proposalId, ids, overalloc, overallocPct, mode, true);
         setResult(res);
       });
     },
@@ -178,12 +191,12 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedOffices(next);
-    runAnalysis(next, allowOverallocation, maxOverallocationPercent);
+    runAnalysis(next, allowOverallocation, maxOverallocationPercent, optimizationMode);
   }
 
   function handleOverallocToggle(v: boolean) {
     setAllowOverallocation(v);
-    runAnalysis(selectedOffices, v, maxOverallocationPercent);
+    runAnalysis(selectedOffices, v, maxOverallocationPercent, optimizationMode);
   }
 
   function handleOverallocationPercentChange(v: string) {
@@ -191,7 +204,12 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
     if (!Number.isFinite(parsed)) return;
     const clamped = Math.min(200, Math.max(100, parsed));
     setMaxOverallocationPercent(clamped);
-    runAnalysis(selectedOffices, allowOverallocation, clamped);
+    runAnalysis(selectedOffices, allowOverallocation, clamped, optimizationMode);
+  }
+
+  function handleModeChange(nextMode: ProposalOptimizationMode) {
+    setOptimizationMode(nextMode);
+    runAnalysis(selectedOffices, allowOverallocation, maxOverallocationPercent, nextMode);
   }
 
   const hasResult = result && !("error" in result);
@@ -277,6 +295,24 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
         </div>
       )}
 
+      <div className="flex items-center gap-2">
+        <label htmlFor="analysis-mode" className="text-sm text-zinc-700">
+          Optimization mode
+        </label>
+        <select
+          id="analysis-mode"
+          value={optimizationMode}
+          onChange={(e) => handleModeChange(e.target.value as ProposalOptimizationMode)}
+          className="rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-800 focus:border-zinc-500 focus:outline-none"
+        >
+          {PROPOSAL_OPTIMIZATION_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {allowOverallocation && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
           Overallocation mode: staff can exceed 100% up to {maxOverallocationPercent}% allocation.
@@ -359,6 +395,36 @@ export function FeasibilityAnalysis({ proposalId, allOffices, initialOfficeScope
               )}
             </div>
           </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <p className="text-xs font-medium text-zinc-500">Selected objective</p>
+            <p className="mt-1 text-sm font-medium text-zinc-800">{feasResult.optimizationLabel}</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Uses {feasResult.staffUsedCount} staff and {feasResult.totalOverallocatedHours}h of overallocated time.
+            </p>
+          </div>
+
+          {feasResult.comparisons && feasResult.comparisons.length > 0 && (
+            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-semibold text-zinc-900">Scenario comparison</h3>
+              <div className="grid gap-3 md:grid-cols-3">
+                {feasResult.comparisons.map((comparison) => (
+                  <div key={comparison.mode} className="rounded-md border border-zinc-200 p-3">
+                    <p className="text-xs font-medium text-zinc-500">{comparison.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-zinc-900">
+                      {comparison.feasibilityPercent.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {comparison.totalAchievable}h / {comparison.totalRequired}h
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Staff used: {comparison.staffUsedCount} · Overallocated: {comparison.overallocatedHours}h
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Timeline */}
           {feasResult.weeks.length > 0 && (

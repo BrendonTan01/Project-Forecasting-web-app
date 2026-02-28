@@ -20,7 +20,7 @@ export default async function EditProposalPage({
   const [{ data: proposal }, { data: offices }] = await Promise.all([
     supabase
       .from("project_proposals")
-      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, status, notes")
+      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, optimization_mode, status, notes")
       .eq("id", id)
       .eq("tenant_id", user.tenantId)
       .single(),
@@ -52,6 +52,7 @@ export default async function EditProposalPage({
           estimated_hours: proposal.estimated_hours,
           estimated_hours_per_week: proposal.estimated_hours_per_week,
           office_scope: proposal.office_scope as string[] | null,
+          optimization_mode: proposal.optimization_mode,
           status: proposal.status,
           notes: proposal.notes,
         }}

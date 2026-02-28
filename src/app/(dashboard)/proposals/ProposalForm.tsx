@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProposal, updateProposal, type ProposalFormData } from "./actions";
+import {
+  DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
+  PROPOSAL_OPTIMIZATION_MODE_LABELS,
+  PROPOSAL_OPTIMIZATION_MODES,
+  normalizeProposalOptimizationMode,
+} from "./optimization-modes";
 
 type Office = { id: string; name: string };
 
@@ -18,6 +24,7 @@ type ProposalFormProps = {
     estimated_hours?: number | null;
     estimated_hours_per_week?: number | null;
     office_scope?: string[] | null;
+    optimization_mode?: string | null;
     status: "draft" | "submitted" | "won" | "lost";
     notes?: string | null;
   };
@@ -84,34 +91,36 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
     new Set(proposal?.office_scope ?? [])
   );
+  const [optimizationMode, setOptimizationMode] = useState(
+    normalizeProposalOptimizationMode(proposal?.optimization_mode ?? DEFAULT_PROPOSAL_OPTIMIZATION_MODE)
+  );
 
-  useEffect(() => {
-    const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : 0;
-    if (weeks <= 0) return;
+  function syncLinkedHours(
+    nextStartDate: string,
+    nextEndDate: string,
+    nextTotalHours: string,
+    nextHoursPerWeek: string,
+    source: "total" | "per_week"
+  ) {
+    const weeks = nextStartDate && nextEndDate ? countProjectWeeks(nextStartDate, nextEndDate) : 0;
+    if (weeks <= 0) return { total: nextTotalHours, perWeek: nextHoursPerWeek };
 
-    if (lastEditedHoursField === "total") {
-      const total = parseOptionalNumber(totalHours);
-      if (total === undefined) {
-        if (hoursPerWeek) setHoursPerWeek("");
-        return;
-      }
-      const nextPerWeek = formatForInput(total / weeks);
-      if (nextPerWeek !== hoursPerWeek) {
-        setHoursPerWeek(nextPerWeek);
-      }
-      return;
+    if (source === "total") {
+      const total = parseOptionalNumber(nextTotalHours);
+      if (total === undefined) return { total: nextTotalHours, perWeek: nextHoursPerWeek };
+      return {
+        total: nextTotalHours,
+        perWeek: formatForInput(total / weeks),
+      };
     }
 
-    const perWeek = parseOptionalNumber(hoursPerWeek);
-    if (perWeek === undefined) {
-      if (totalHours) setTotalHours("");
-      return;
-    }
-    const nextTotal = formatForInput(perWeek * weeks);
-    if (nextTotal !== totalHours) {
-      setTotalHours(nextTotal);
-    }
-  }, [lastEditedHoursField, totalHours, hoursPerWeek, startDate, endDate]);
+    const perWeek = parseOptionalNumber(nextHoursPerWeek);
+    if (perWeek === undefined) return { total: nextTotalHours, perWeek: nextHoursPerWeek };
+    return {
+      total: formatForInput(perWeek * weeks),
+      perWeek: nextHoursPerWeek,
+    };
+  }
 
   function toggleOffice(id: string) {
     setSelectedOffices((prev) => {
@@ -141,6 +150,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       estimated_hours: finalTotalHours,
       estimated_hours_per_week: finalPerWeek,
       office_scope: selectedOffices.size > 0 ? Array.from(selectedOffices) : null,
+      optimization_mode: optimizationMode,
       status: ((formData.get("status") as string) || "draft") as ProposalFormData["status"],
       notes: (formData.get("notes") as string)?.trim() || undefined,
     };
@@ -239,7 +249,19 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             name="proposed_start_date"
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => {
+              const nextStart = e.target.value;
+              const nextLinked = syncLinkedHours(
+                nextStart,
+                endDate,
+                totalHours,
+                hoursPerWeek,
+                lastEditedHoursField === "total" ? "total" : "per_week"
+              );
+              setStartDate(nextStart);
+              setTotalHours(nextLinked.total);
+              setHoursPerWeek(nextLinked.perWeek);
+            }}
             className={inputClass}
           />
         </div>
@@ -252,7 +274,19 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             name="proposed_end_date"
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => {
+              const nextEnd = e.target.value;
+              const nextLinked = syncLinkedHours(
+                startDate,
+                nextEnd,
+                totalHours,
+                hoursPerWeek,
+                lastEditedHoursField === "total" ? "total" : "per_week"
+              );
+              setEndDate(nextEnd);
+              setTotalHours(nextLinked.total);
+              setHoursPerWeek(nextLinked.perWeek);
+            }}
             className={inputClass}
           />
         </div>
@@ -274,8 +308,17 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
               step="0.5"
               value={totalHours}
               onChange={(e) => {
+                const nextTotal = e.target.value;
+                const nextLinked = syncLinkedHours(
+                  startDate,
+                  endDate,
+                  nextTotal,
+                  hoursPerWeek,
+                  "total"
+                );
                 setLastEditedHoursField("total");
-                setTotalHours(e.target.value);
+                setTotalHours(nextLinked.total);
+                setHoursPerWeek(nextLinked.perWeek);
               }}
               className={inputClass}
               placeholder="e.g. 1200"
@@ -292,8 +335,17 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
               step="0.5"
               value={hoursPerWeek}
               onChange={(e) => {
+                const nextPerWeek = e.target.value;
+                const nextLinked = syncLinkedHours(
+                  startDate,
+                  endDate,
+                  totalHours,
+                  nextPerWeek,
+                  "per_week"
+                );
                 setLastEditedHoursField("per_week");
-                setHoursPerWeek(e.target.value);
+                setTotalHours(nextLinked.total);
+                setHoursPerWeek(nextLinked.perWeek);
               }}
               className={inputClass}
               placeholder="e.g. 80"
@@ -332,6 +384,27 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Optimization mode */}
+      <div className="rounded-md border border-zinc-200 p-4">
+        <h2 className="mb-1 font-medium text-zinc-900">Optimization mode</h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          Choose how the feasibility engine should prioritize allocation tradeoffs.
+        </p>
+        <select
+          id="optimization_mode"
+          name="optimization_mode"
+          value={optimizationMode}
+          onChange={(e) => setOptimizationMode(normalizeProposalOptimizationMode(e.target.value))}
+          className={inputClass}
+        >
+          {PROPOSAL_OPTIMIZATION_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Office scope */}

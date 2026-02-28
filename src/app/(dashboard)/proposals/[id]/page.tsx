@@ -5,6 +5,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { DeleteProposalButton } from "./DeleteProposalButton";
 import { FeasibilityAnalysis } from "./FeasibilityAnalysis";
 import { computeFeasibility } from "./feasibility-actions";
+import { normalizeProposalOptimizationMode } from "../optimization-modes";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   draft: { label: "Draft", colour: "bg-zinc-100 text-zinc-700" },
@@ -40,7 +41,7 @@ export default async function ProposalDetailPage({
   const [{ data: proposal }, { data: offices }] = await Promise.all([
     supabase
       .from("project_proposals")
-      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, status, notes")
+      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, optimization_mode, status, notes")
       .eq("id", id)
       .eq("tenant_id", user.tenantId)
       .single(),
@@ -59,9 +60,10 @@ export default async function ProposalDetailPage({
   };
 
   const officeScope = proposal.office_scope as string[] | null;
+  const optimizationMode = normalizeProposalOptimizationMode(proposal.optimization_mode);
 
   // Run initial feasibility computation server-side
-  const initialFeasibility = await computeFeasibility(id, officeScope, false);
+  const initialFeasibility = await computeFeasibility(id, officeScope, false, 120, optimizationMode);
 
   return (
     <div className="space-y-6">
@@ -138,6 +140,7 @@ export default async function ProposalDetailPage({
           proposalId={id}
           allOffices={offices ?? []}
           initialOfficeScope={officeScope}
+          initialOptimizationMode={optimizationMode}
           initialResult={initialFeasibility}
         />
       </div>

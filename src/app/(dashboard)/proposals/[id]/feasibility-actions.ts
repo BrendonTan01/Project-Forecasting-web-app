@@ -2,6 +2,13 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import {
+  PROPOSAL_OPTIMIZATION_COMPARISON_MODES,
+  PROPOSAL_OPTIMIZATION_MODE_LABELS,
+  normalizeProposalOptimizationMode,
+  type ProposalOptimizationMode,
+} from "../optimization-modes";
+import { allocateForMode, type StaffCapacitySlice } from "../feasibility-optimizer";
 
 export type WeekFeasibility = {
   weekStart: string; // ISO date (Monday)
@@ -9,19 +16,37 @@ export type WeekFeasibility = {
   requiredHours: number;
   achievableHours: number;
   totalFreeCapacity: number;
+  allocatedStaffCount: number;
   overallocatedStaffCount: number;
   overallocatedStaff: string[];
+  overallocatedHours: number;
   activeProjectCount: number;
 };
 
+export type FeasibilityComparison = {
+  mode: ProposalOptimizationMode;
+  label: string;
+  feasibilityPercent: number;
+  totalRequired: number;
+  totalAchievable: number;
+  staffUsedCount: number;
+  overallocatedStaffCount: number;
+  overallocatedHours: number;
+};
+
 export type FeasibilityResult = {
+  optimizationMode: ProposalOptimizationMode;
+  optimizationLabel: string;
   weeks: WeekFeasibility[];
   totalRequired: number;
   totalAchievable: number;
   feasibilityPercent: number;
+  staffUsedCount: number;
+  totalOverallocatedHours: number;
   staffCount: number;
   staffInScope: Array<{ id: string; label: string }>;
   officeNames: string[];
+  comparisons?: FeasibilityComparison[];
   error?: never;
 };
 
@@ -85,26 +110,34 @@ function leaveHoursInWeek(
   return leaveDays * dailyCapacity;
 }
 
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 export async function computeFeasibility(
   proposalId: string,
   officeIds: string[] | null,
   allowOverallocation: boolean,
-  maxOverallocationPercent = 120
+  maxOverallocationPercent = 120,
+  optimizationModeInput?: ProposalOptimizationMode,
+  includeComparisons = false
 ): Promise<FeasibilityResult | FeasibilityError> {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
 
   const supabase = await createClient();
-
   // 1. Fetch the proposal
   const { data: proposal, error: proposalError } = await supabase
     .from("project_proposals")
-    .select("proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week")
+    .select("proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, optimization_mode")
     .eq("id", proposalId)
     .eq("tenant_id", user.tenantId)
     .single();
 
   if (proposalError || !proposal) return { error: "Proposal not found" };
+  const optimizationMode = normalizeProposalOptimizationMode(
+    optimizationModeInput ?? proposal.optimization_mode
+  );
   if (!proposal.proposed_start_date || !proposal.proposed_end_date) {
     return { error: "Proposal must have a start and end date for feasibility analysis" };
   }
@@ -201,8 +234,9 @@ export async function computeFeasibility(
 
   // 6. Generate week-by-week analysis
   const weeks: WeekFeasibility[] = [];
+  const staffUsedById = new Set<string>();
   const firstMonday = getMondayOf(propStart);
-  let weekCursor = new Date(firstMonday);
+  const weekCursor = new Date(firstMonday);
 
   while (weekCursor <= propEnd) {
     const weekStart = new Date(weekCursor);
@@ -219,10 +253,9 @@ export async function computeFeasibility(
 
     const requiredHours = hoursPerWeek * weekFraction;
 
+    const weekStaffCapacity: StaffCapacitySlice[] = [];
+    const staffLabelsById = new Map<string, string>();
     let totalFreeCapacity = 0;
-    let freeCapacityAt100 = 0;
-    const overallocatedStaffNames = new Set<string>();
-    const over100Candidates: Array<{ name: string; roomHours: number }> = [];
 
     for (const sp of staff) {
       const weeklyCapacity = Number(sp.weekly_capacity_hours);
@@ -249,37 +282,38 @@ export async function computeFeasibility(
 
       const staffUser = sp.users as { email?: string } | null;
       const staffLabel = staffUser?.email ?? "Unknown staff";
+      staffLabelsById.set(sp.id, staffLabel);
 
-      freeCapacityAt100 += freeAt100;
-      totalFreeCapacity += allowOverallocation ? freeAtCap : freeAt100;
-
-      if (committedHours > effectiveCapacity) {
-        overallocatedStaffNames.add(staffLabel);
-      }
-
-      const over100Room = Math.max(0, maxAllowedHours - Math.max(effectiveCapacity, committedHours));
-      if (allowOverallocation && over100Room > 0) {
-        over100Candidates.push({ name: staffLabel, roomHours: over100Room });
-      }
+      totalFreeCapacity += freeAtCap;
+      weekStaffCapacity.push({
+        id: sp.id,
+        label: staffLabel,
+        officeId: (sp.users as { office_id?: string | null } | null)?.office_id ?? null,
+        freeAt100,
+        freeAtCap,
+        effectiveCapacity,
+        committedHours,
+      });
     }
 
-    const achievableHours = Math.min(requiredHours, totalFreeCapacity);
-
-    if (allowOverallocation) {
-      // If this week needs hours beyond 100% capacity, identify likely staff impacted.
-      let over100HoursNeeded = Math.max(0, achievableHours - freeCapacityAt100);
-      if (over100HoursNeeded > 0) {
-        const sortedCandidates = [...over100Candidates].sort((a, b) => b.roomHours - a.roomHours);
-        for (const candidate of sortedCandidates) {
-          if (over100HoursNeeded <= 0) break;
-          const assigned = Math.min(candidate.roomHours, over100HoursNeeded);
-          if (assigned > 0) {
-            overallocatedStaffNames.add(candidate.name);
-            over100HoursNeeded -= assigned;
-          }
-        }
-      }
+    const freeCapacityAt100 = weekStaffCapacity.reduce((sum, member) => sum + member.freeAt100, 0);
+    const cappedTotalCapacity = allowOverallocation ? totalFreeCapacity : freeCapacityAt100;
+    const targetHours = Math.min(requiredHours, cappedTotalCapacity);
+    const allocation = allocateForMode(
+      optimizationMode,
+      weekStaffCapacity,
+      targetHours,
+      allowOverallocation
+    );
+    const achievableHours = allocation.achievableHours;
+    const overallocatedStaffNames = new Set<string>(
+      allocation.overallocatedStaffIds.map((id) => staffLabelsById.get(id) ?? "Unknown staff")
+    );
+    for (const staffId of allocation.allocatedStaffIds) {
+      staffUsedById.add(staffId);
     }
+    const allocatedStaffCount = allocation.allocatedStaffCount;
+    const overallocatedHours = allocation.overallocatedHours;
 
     // Count distinct active projects overlapping this week
     const activeProjectCount = (overlappingProjects ?? []).filter((p) => {
@@ -291,10 +325,12 @@ export async function computeFeasibility(
       weekStart: toISODate(weekStart),
       weekEnd: toISODate(weekEnd),
       requiredHours: Math.round(requiredHours * 10) / 10,
-      achievableHours: Math.round(achievableHours * 10) / 10,
-      totalFreeCapacity: Math.round(totalFreeCapacity * 10) / 10,
+      achievableHours: round1(achievableHours),
+      totalFreeCapacity: round1(cappedTotalCapacity),
+      allocatedStaffCount,
       overallocatedStaffCount: overallocatedStaffNames.size,
       overallocatedStaff: Array.from(overallocatedStaffNames).sort(),
+      overallocatedHours: round1(overallocatedHours),
       activeProjectCount,
     });
 
@@ -305,12 +341,58 @@ export async function computeFeasibility(
   const totalAchievable = weeks.reduce((s, w) => s + w.achievableHours, 0);
   const feasibilityPercent =
     totalRequired > 0 ? Math.round((totalAchievable / totalRequired) * 1000) / 10 : 100;
+  const staffUsedCount = staffUsedById.size;
+  const totalOverallocatedHours = weeks.reduce((sum, week) => sum + week.overallocatedHours, 0);
+
+  let comparisons: FeasibilityComparison[] | undefined;
+  if (includeComparisons) {
+    const modes = PROPOSAL_OPTIMIZATION_COMPARISON_MODES.filter((mode) => mode !== optimizationMode);
+    const scenarioResults = await Promise.all(
+      modes.map((mode) =>
+        computeFeasibility(
+          proposalId,
+          officeIds,
+          allowOverallocation,
+          maxOverallocationPercent,
+          mode,
+          false
+        )
+      )
+    );
+    comparisons = scenarioResults
+      .map((scenario, index) => ({ scenario, mode: modes[index] }))
+      .filter(
+        (
+          item
+        ): item is {
+          scenario: FeasibilityResult;
+          mode: ProposalOptimizationMode;
+        } => !("error" in item.scenario)
+      )
+      .map(({ scenario, mode }) => ({
+        mode,
+        label: PROPOSAL_OPTIMIZATION_MODE_LABELS[mode],
+        feasibilityPercent: scenario.feasibilityPercent,
+        totalRequired: scenario.totalRequired,
+        totalAchievable: scenario.totalAchievable,
+        staffUsedCount: scenario.staffUsedCount,
+        overallocatedStaffCount: scenario.weeks.reduce(
+          (sum, week) => sum + week.overallocatedStaffCount,
+          0
+        ),
+        overallocatedHours: scenario.totalOverallocatedHours,
+      }));
+  }
 
   return {
+    optimizationMode,
+    optimizationLabel: PROPOSAL_OPTIMIZATION_MODE_LABELS[optimizationMode],
     weeks,
-    totalRequired: Math.round(totalRequired * 10) / 10,
-    totalAchievable: Math.round(totalAchievable * 10) / 10,
+    totalRequired: round1(totalRequired),
+    totalAchievable: round1(totalAchievable),
     feasibilityPercent,
+    staffUsedCount,
+    totalOverallocatedHours: round1(totalOverallocatedHours),
     staffCount: staff.length,
     staffInScope: staff
       .map((sp) => {
@@ -322,5 +404,6 @@ export async function computeFeasibility(
       })
       .sort((a, b) => a.label.localeCompare(b.label)),
     officeNames: Array.from(officeNameSet).sort(),
+    comparisons,
   };
 }

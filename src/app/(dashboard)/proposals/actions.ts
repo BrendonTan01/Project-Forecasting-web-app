@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { createClient } from "@/lib/supabase/server";
+import {
+  DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
+  normalizeProposalOptimizationMode,
+  type ProposalOptimizationMode,
+} from "./optimization-modes";
 
 export type ProposalFormData = {
   name: string;
@@ -12,6 +17,7 @@ export type ProposalFormData = {
   estimated_hours?: number;
   estimated_hours_per_week?: number;
   office_scope?: string[] | null;
+  optimization_mode?: ProposalOptimizationMode;
   status: "draft" | "submitted" | "won" | "lost";
   notes?: string;
 };
@@ -38,6 +44,7 @@ export async function createProposal(data: ProposalFormData) {
       estimated_hours: data.estimated_hours ?? null,
       estimated_hours_per_week: data.estimated_hours_per_week ?? null,
       office_scope: data.office_scope?.length ? data.office_scope : null,
+      optimization_mode: normalizeProposalOptimizationMode(data.optimization_mode ?? DEFAULT_PROPOSAL_OPTIMIZATION_MODE),
       status: data.status,
       notes: data.notes?.trim() || null,
     })
@@ -89,6 +96,9 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
   if (data.estimated_hours !== undefined) updateData.estimated_hours = data.estimated_hours ?? null;
   if (data.estimated_hours_per_week !== undefined) updateData.estimated_hours_per_week = data.estimated_hours_per_week ?? null;
   if ("office_scope" in data) updateData.office_scope = data.office_scope?.length ? data.office_scope : null;
+  if (data.optimization_mode !== undefined) {
+    updateData.optimization_mode = normalizeProposalOptimizationMode(data.optimization_mode);
+  }
   if (data.status !== undefined) updateData.status = data.status;
   if (data.notes !== undefined) updateData.notes = data.notes?.trim() || null;
 
