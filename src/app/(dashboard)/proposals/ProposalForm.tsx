@@ -62,6 +62,16 @@ function countProjectWeeks(startDate: string, endDate: string): number {
   return countWorkingDays(startDate, endDate) / 5;
 }
 
+function getLinkedHoursWeeks(startDate: string, endDate: string): number {
+  if (!startDate || !endDate) {
+    // Assume one full work week (5 working days) when timeline is incomplete.
+    return 1;
+  }
+
+  const projectWeeks = countProjectWeeks(startDate, endDate);
+  return projectWeeks > 0 ? projectWeeks : 0;
+}
+
 function roundToSingleDecimal(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -102,7 +112,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     nextHoursPerWeek: string,
     source: "total" | "per_week"
   ) {
-    const weeks = nextStartDate && nextEndDate ? countProjectWeeks(nextStartDate, nextEndDate) : 0;
+    const weeks = getLinkedHoursWeeks(nextStartDate, nextEndDate);
     if (weeks <= 0) return { total: nextTotalHours, perWeek: nextHoursPerWeek };
 
     if (source === "total") {
