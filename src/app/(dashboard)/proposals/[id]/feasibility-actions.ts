@@ -239,6 +239,8 @@ export async function computeFeasibility(
   // 6. Generate week-by-week analysis
   const weeks: WeekFeasibility[] = [];
   const staffUsedById = new Set<string>();
+  let rawTotalAchievable = 0;
+  let rawTotalOverallocatedHours = 0;
   const firstMonday = getMondayOf(propStart);
   const weekCursor = new Date(firstMonday);
 
@@ -320,6 +322,8 @@ export async function computeFeasibility(
     }
     const allocatedStaffCount = allocation.allocatedStaffCount;
     const overallocatedHours = allocation.overallocatedHours;
+    rawTotalAchievable += achievableHours;
+    rawTotalOverallocatedHours += overallocatedHours;
 
     // Count distinct active projects overlapping this week
     const activeProjectCount = (overlappingProjects ?? []).filter((p) => {
@@ -346,11 +350,11 @@ export async function computeFeasibility(
   const roundedWeeklyTotalRequired = weeks.reduce((s, w) => s + w.requiredHours, 0);
   const totalRequired =
     estimatedHoursPerWeek !== null ? roundedWeeklyTotalRequired : (estimatedTotalHours ?? roundedWeeklyTotalRequired);
-  const totalAchievable = weeks.reduce((s, w) => s + w.achievableHours, 0);
+  const totalAchievable = rawTotalAchievable;
   const feasibilityPercent =
     totalRequired > 0 ? Math.round((totalAchievable / totalRequired) * 1000) / 10 : 100;
   const staffUsedCount = staffUsedById.size;
-  const totalOverallocatedHours = weeks.reduce((sum, week) => sum + week.overallocatedHours, 0);
+  const totalOverallocatedHours = rawTotalOverallocatedHours;
 
   let comparisons: FeasibilityComparison[] | undefined;
   if (includeComparisons) {
