@@ -4,6 +4,7 @@ import { useState, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { computeFeasibility, type FeasibilityResult, type WeekFeasibility } from "./feasibility-actions";
 import {
+  PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
   PROPOSAL_OPTIMIZATION_MODES,
   type ProposalOptimizationMode,
@@ -168,9 +169,9 @@ export function FeasibilityAnalysis({
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
   const [optimizationMode, setOptimizationMode] = useState<ProposalOptimizationMode>(initialOptimizationMode);
-  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
-    new Set(initialOfficeScope ?? [])
-  );
+  const initialSelectedOffices = initialOfficeScope ?? [];
+  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(() => new Set(initialSelectedOffices));
+  const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(initialSelectedOffices.length > 0);
   const [result, setResult] = useState<FeasibilityResult | { error: string } | null>(initialResult);
   const [isPending, startTransition] = useTransition();
 
@@ -187,15 +188,32 @@ export function FeasibilityAnalysis({
 
   function toggleOffice(id: string) {
     const next = new Set(selectedOffices);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (next.has(id)) {
+      if (next.size === 1) return;
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
     setSelectedOffices(next);
     runAnalysis(next, allowOverallocation, maxOverallocationPercent, optimizationMode);
   }
 
+  function handleOfficeScopeToggle(nextValue: boolean) {
+    setLimitToSelectedOffices(nextValue);
+    const officeSet = nextValue
+      ? selectedOffices.size > 0
+        ? selectedOffices
+        : new Set(allOffices.length > 0 ? [allOffices[0].id] : [])
+      : new Set<string>();
+    if (nextValue && selectedOffices.size === 0 && officeSet.size > 0) {
+      setSelectedOffices(new Set(officeSet));
+    }
+    runAnalysis(officeSet, allowOverallocation, maxOverallocationPercent, optimizationMode);
+  }
+
   function handleOverallocToggle(v: boolean) {
     setAllowOverallocation(v);
-    runAnalysis(selectedOffices, v, maxOverallocationPercent, optimizationMode);
+    runAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), v, maxOverallocationPercent, optimizationMode);
   }
 
   function handleOverallocationPercentChange(v: string) {
@@ -203,12 +221,12 @@ export function FeasibilityAnalysis({
     if (!Number.isFinite(parsed)) return;
     const clamped = Math.min(200, Math.max(100, parsed));
     setMaxOverallocationPercent(clamped);
-    runAnalysis(selectedOffices, allowOverallocation, clamped, optimizationMode);
+    runAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), allowOverallocation, clamped, optimizationMode);
   }
 
   function handleModeChange(nextMode: ProposalOptimizationMode) {
     setOptimizationMode(nextMode);
-    runAnalysis(selectedOffices, allowOverallocation, maxOverallocationPercent, nextMode);
+    runAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), allowOverallocation, maxOverallocationPercent, nextMode);
   }
 
   const hasResult = result && !("error" in result);
@@ -220,6 +238,9 @@ export function FeasibilityAnalysis({
     : 1;
 
   const overallRatio = feasResult ? feasResult.feasibilityPercent / 100 : 0;
+  const optimizationModesTooltip = PROPOSAL_OPTIMIZATION_MODES.map(
+    (mode) => `${PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}: ${PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[mode]}`
+  ).join("\n");
 
   return (
     <div className="space-y-4">
@@ -227,27 +248,46 @@ export function FeasibilityAnalysis({
       <div className="flex flex-wrap items-center gap-4">
         {/* Office filter */}
         {allOffices.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-zinc-700">Offices:</span>
-            {allOffices.map((o) => {
-              const active = selectedOffices.has(o.id);
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => toggleOffice(o.id)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    active
-                      ? "border-zinc-900 bg-zinc-900 text-white"
-                      : "border-zinc-300 text-zinc-600 hover:border-zinc-500"
-                  }`}
-                >
-                  {o.name}
-                </button>
-              );
-            })}
-            {selectedOffices.size === 0 && (
-              <span className="text-xs text-zinc-400">All offices</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-zinc-700">Office scope:</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={limitToSelectedOffices}
+              onClick={() => handleOfficeScopeToggle(!limitToSelectedOffices)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                limitToSelectedOffices ? "bg-zinc-900" : "bg-zinc-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  limitToSelectedOffices ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+            <span className="text-xs text-zinc-500">
+              {limitToSelectedOffices ? "Selected offices only" : "All offices"}
+            </span>
+            {limitToSelectedOffices && (
+              <div className="flex flex-wrap items-center gap-2">
+                {allOffices.map((o) => {
+                  const active = selectedOffices.has(o.id);
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => toggleOffice(o.id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        active
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-300 text-zinc-600 hover:border-zinc-500"
+                      }`}
+                    >
+                      {o.name}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -296,8 +336,15 @@ export function FeasibilityAnalysis({
 
       <div className="flex items-center gap-2">
         <label htmlFor="analysis-mode" className="text-sm text-zinc-700">
-          Optimization mode
+          Allocation objective
         </label>
+        <span
+          className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-zinc-300 text-xs text-zinc-500"
+          title={optimizationModesTooltip}
+          aria-label="Show allocation objective descriptions"
+        >
+          ?
+        </span>
         <select
           id="analysis-mode"
           value={optimizationMode}
@@ -311,6 +358,9 @@ export function FeasibilityAnalysis({
           ))}
         </select>
       </div>
+      <p className="text-xs text-zinc-500">
+        {PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[optimizationMode]}
+      </p>
 
       {allowOverallocation && (
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -376,7 +426,7 @@ export function FeasibilityAnalysis({
               Recommended staff ({feasResult.recommendedStaff.length})
             </h3>
             <p className="mt-1 text-xs text-zinc-500">
-              Suggested from the selected optimization mode: {feasResult.optimizationLabel}.
+              Suggested from the selected allocation objective: {feasResult.optimizationLabel}.
             </p>
             {feasResult.recommendedStaff.length > 0 ? (
               <ul className="mt-3 divide-y divide-zinc-100">

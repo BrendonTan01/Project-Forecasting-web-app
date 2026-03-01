@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createProposal, updateProposal, type ProposalFormData } from "./actions";
 import {
   DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
+  PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
   PROPOSAL_OPTIMIZATION_MODES,
   normalizeProposalOptimizationMode,
@@ -98,9 +99,9 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     if (proposal?.estimated_hours_per_week && !proposal?.estimated_hours) return "per_week";
     return "total";
   });
-  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
-    new Set(proposal?.office_scope ?? [])
-  );
+  const initialOfficeScope = proposal?.office_scope ?? [];
+  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(() => new Set(initialOfficeScope));
+  const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(initialOfficeScope.length > 0);
   const [optimizationMode, setOptimizationMode] = useState(
     normalizeProposalOptimizationMode(proposal?.optimization_mode ?? DEFAULT_PROPOSAL_OPTIMIZATION_MODE)
   );
@@ -159,7 +160,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       proposed_end_date: endDate || undefined,
       estimated_hours: finalTotalHours,
       estimated_hours_per_week: finalPerWeek,
-      office_scope: selectedOffices.size > 0 ? Array.from(selectedOffices) : null,
+      office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
       optimization_mode: optimizationMode,
       status: ((formData.get("status") as string) || "draft") as ProposalFormData["status"],
       notes: (formData.get("notes") as string)?.trim() || undefined,
@@ -167,6 +168,12 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
     if (!data.name) {
       setError("Proposal name is required");
+      setSubmitting(false);
+      return;
+    }
+
+    if (limitToSelectedOffices && selectedOffices.size === 0) {
+      setError("Choose at least one office, or switch office scope to all offices.");
       setSubmitting(false);
       return;
     }
@@ -205,6 +212,15 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
   const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
   const timelineComplete = Boolean(startDate && endDate);
+  const optimizationModesTooltip = PROPOSAL_OPTIMIZATION_MODES.map(
+    (mode) => `${PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}: ${PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[mode]}`
+  ).join("\n");
+  const officeScopeHint =
+    optimizationMode === "single_office_preferred"
+      ? "Single office preferred will concentrate work in one office within this scope."
+      : optimizationMode === "multi_office_balanced"
+        ? "Multi-office balanced will spread work across offices within this scope."
+        : "Office scope limits which offices are considered before optimization is applied.";
 
   return (
     <form
@@ -396,11 +412,20 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
         </div>
       </div>
 
-      {/* Optimization mode */}
+      {/* Allocation objective */}
       <div className="rounded-md border border-zinc-200 p-4">
-        <h2 className="mb-1 font-medium text-zinc-900">Optimization mode</h2>
+        <div className="mb-1 flex items-center gap-2">
+          <h2 className="font-medium text-zinc-900">Allocation objective</h2>
+          <span
+            className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-zinc-300 text-xs text-zinc-500"
+            title={optimizationModesTooltip}
+            aria-label="Show allocation objective descriptions"
+          >
+            ?
+          </span>
+        </div>
         <p className="mb-3 text-xs text-zinc-500">
-          Choose how the feasibility engine should prioritize allocation tradeoffs.
+          Choose what the feasibility engine should optimize for.
         </p>
         <select
           id="optimization_mode"
@@ -415,37 +440,70 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             </option>
           ))}
         </select>
+        <p className="mt-2 text-xs text-zinc-500">
+          {PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[optimizationMode]}
+        </p>
       </div>
 
       {/* Office scope */}
       {offices.length > 0 && (
         <div className="rounded-md border border-zinc-200 p-4">
-          <h2 className="mb-1 font-medium text-zinc-900">Staff scope</h2>
+          <h2 className="mb-1 font-medium text-zinc-900">Office scope</h2>
           <p className="mb-3 text-xs text-zinc-500">
-            Select which offices to include in feasibility analysis. Leave all unchecked to include all offices.
+            Set where staffing can be sourced from.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {offices.map((office) => {
-              const checked = selectedOffices.has(office.id);
-              return (
-                <button
-                  key={office.id}
-                  type="button"
-                  onClick={() => toggleOffice(office.id)}
-                  className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
-                    checked
-                      ? "border-zinc-900 bg-zinc-900 text-white"
-                      : "border-zinc-300 text-zinc-600 hover:border-zinc-500 hover:text-zinc-900"
-                  }`}
-                >
-                  {office.name}
-                </button>
-              );
-            })}
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={limitToSelectedOffices}
+              onClick={() =>
+                setLimitToSelectedOffices((prev) => {
+                  const next = !prev;
+                  if (next && selectedOffices.size === 0 && offices.length > 0) {
+                    setSelectedOffices(new Set([offices[0].id]));
+                  }
+                  return next;
+                })
+              }
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                limitToSelectedOffices ? "bg-zinc-900" : "bg-zinc-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  limitToSelectedOffices ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+            <span className="text-sm text-zinc-700">
+              {limitToSelectedOffices ? "Selected offices only" : "All offices"}
+            </span>
           </div>
-          {selectedOffices.size === 0 && (
-            <p className="mt-2 text-xs text-zinc-400">All offices will be included.</p>
+          {limitToSelectedOffices ? (
+            <div className="flex flex-wrap gap-2">
+              {offices.map((office) => {
+                const checked = selectedOffices.has(office.id);
+                return (
+                  <button
+                    key={office.id}
+                    type="button"
+                    onClick={() => toggleOffice(office.id)}
+                    className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                      checked
+                        ? "border-zinc-900 bg-zinc-900 text-white"
+                        : "border-zinc-300 text-zinc-600 hover:border-zinc-500 hover:text-zinc-900"
+                    }`}
+                  >
+                    {office.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400">Every office is in scope for feasibility analysis.</p>
           )}
+          <p className="mt-2 text-xs text-zinc-500">{officeScopeHint}</p>
         </div>
       )}
 

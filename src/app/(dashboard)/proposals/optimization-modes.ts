@@ -20,6 +20,15 @@ export const PROPOSAL_OPTIMIZATION_MODE_LABELS: Record<ProposalOptimizationMode,
   worst_week_robust: "Worst-week robust",
 };
 
+export const PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS: Record<ProposalOptimizationMode, string> = {
+  max_feasibility: "Maximizes achievable hours from the available team capacity.",
+  min_staff_count: "Covers the workload with as few staff members as possible.",
+  single_office_preferred: "Keeps allocation concentrated in one office where feasible.",
+  multi_office_balanced: "Spreads allocation across offices in proportion to capacity.",
+  min_overallocation: "Prioritizes staff with headroom to reduce work above 100% allocation.",
+  worst_week_robust: "Protects the most constrained weeks by favoring safer capacity first.",
+};
+
 export const PROPOSAL_OPTIMIZATION_COMPARISON_MODES: ProposalOptimizationMode[] = [
   "max_feasibility",
   "min_staff_count",
