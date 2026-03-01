@@ -61,6 +61,7 @@ export default async function ProjectsPage({
     ? await supabase
         .from("time_entries")
         .select("project_id, hours")
+        .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { computeFeasibility, type FeasibilityResult, type WeekFeasibility } from "./feasibility-actions";
 import {
@@ -174,17 +174,31 @@ export function FeasibilityAnalysis({
   const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(initialSelectedOffices.length > 0);
   const [result, setResult] = useState<FeasibilityResult | { error: string } | null>(initialResult);
   const [isPending, startTransition] = useTransition();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const runAnalysis = useCallback(
+  const scheduleAnalysis = useCallback(
     (officeIds: Set<string>, overalloc: boolean, overallocPct: number, mode: ProposalOptimizationMode) => {
-      startTransition(async () => {
-        const ids = officeIds.size > 0 ? Array.from(officeIds) : null;
-        const res = await computeFeasibility(proposalId, ids, overalloc, overallocPct, mode, true);
-        setResult(res);
-      });
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+      debounceRef.current = setTimeout(() => {
+        startTransition(async () => {
+          const ids = officeIds.size > 0 ? Array.from(officeIds) : null;
+          const res = await computeFeasibility(proposalId, ids, overalloc, overallocPct, mode, true);
+          setResult(res);
+        });
+      }, 300);
     },
     [proposalId]
   );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   function toggleOffice(id: string) {
     const next = new Set(selectedOffices);
@@ -195,7 +209,7 @@ export function FeasibilityAnalysis({
       next.add(id);
     }
     setSelectedOffices(next);
-    runAnalysis(next, allowOverallocation, maxOverallocationPercent, optimizationMode);
+    scheduleAnalysis(next, allowOverallocation, maxOverallocationPercent, optimizationMode);
   }
 
   function handleOfficeScopeToggle(nextValue: boolean) {
@@ -208,12 +222,12 @@ export function FeasibilityAnalysis({
     if (nextValue && selectedOffices.size === 0 && officeSet.size > 0) {
       setSelectedOffices(new Set(officeSet));
     }
-    runAnalysis(officeSet, allowOverallocation, maxOverallocationPercent, optimizationMode);
+    scheduleAnalysis(officeSet, allowOverallocation, maxOverallocationPercent, optimizationMode);
   }
 
   function handleOverallocToggle(v: boolean) {
     setAllowOverallocation(v);
-    runAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), v, maxOverallocationPercent, optimizationMode);
+    scheduleAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), v, maxOverallocationPercent, optimizationMode);
   }
 
   function handleOverallocationPercentChange(v: string) {
@@ -221,12 +235,12 @@ export function FeasibilityAnalysis({
     if (!Number.isFinite(parsed)) return;
     const clamped = Math.min(200, Math.max(100, parsed));
     setMaxOverallocationPercent(clamped);
-    runAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), allowOverallocation, clamped, optimizationMode);
+    scheduleAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), allowOverallocation, clamped, optimizationMode);
   }
 
   function handleModeChange(nextMode: ProposalOptimizationMode) {
     setOptimizationMode(nextMode);
-    runAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), allowOverallocation, maxOverallocationPercent, nextMode);
+    scheduleAnalysis(limitToSelectedOffices ? selectedOffices : new Set<string>(), allowOverallocation, maxOverallocationPercent, nextMode);
   }
 
   const hasResult = result && !("error" in result);

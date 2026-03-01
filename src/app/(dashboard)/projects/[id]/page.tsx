@@ -31,7 +31,7 @@ export default async function ProjectDetailPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("*")
+    .select("id, name, client_name, estimated_hours, start_date, end_date, status")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
@@ -42,7 +42,8 @@ export default async function ProjectDetailPage({
   const { data: timeEntries } = await supabase
     .from("time_entries")
     .select("hours, billable_flag")
-    .eq("project_id", id);
+    .eq("project_id", id)
+    .eq("tenant_id", user.tenantId);
 
   const actualHours = timeEntries?.reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;
   const billableHours = timeEntries?.filter((e) => e.billable_flag).reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;

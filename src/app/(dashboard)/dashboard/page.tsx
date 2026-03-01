@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import {
@@ -14,6 +13,7 @@ import {
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import type { ProjectHealthStatus } from "@/lib/types";
 import StaffDashboard from "./StaffDashboard";
+import { getDashboardWindowData } from "@/lib/dashboard/data";
 
 // Period: last 30 days for utilisation
 function getPeriodDates() {
@@ -221,58 +221,11 @@ export default async function DashboardPage({
     ? (sortParam as TrackingSortOption)
     : "risk";
 
-  const supabase = await createClient();
   const { start, end } = getPeriodDates();
+  const { staffProfiles, projects, proposals, timeEntries, assignments, projectHours } =
+    await getDashboardWindowData(user.tenantId, start, end, user.id);
 
-  // Wave 1: fetch independent data in parallel
-  const [
-    { data: staffProfiles },
-    { data: projects },
-    { data: proposals },
-    { data: timeEntries },
-  ] = await Promise.all([
-    supabase
-      .from("staff_profiles")
-      .select("id, user_id, weekly_capacity_hours, cost_rate, users(email, office_id, offices(id, name, country))")
-      .eq("tenant_id", user.tenantId),
-    supabase
-      .from("projects")
-      .select("id, name, estimated_hours, start_date, end_date")
-      .eq("tenant_id", user.tenantId)
-      .eq("status", "active"),
-    supabase
-      .from("project_proposals")
-      .select("id, name, estimated_hours, estimated_hours_per_week, status")
-      .eq("tenant_id", user.tenantId)
-      .in("status", ["draft", "submitted", "won"]),
-    supabase
-      .from("time_entries")
-      .select("staff_id, hours, billable_flag")
-      .eq("tenant_id", user.tenantId)
-      .gte("date", start)
-      .lte("date", end),
-  ]);
-
-  const staffIds = staffProfiles?.map((s) => s.id) ?? [];
-  const projectIds = projects?.map((p) => p.id) ?? [];
-
-  // Wave 2: fetch data that depends on staffIds / projectIds in parallel
-  const [{ data: assignments }, { data: projectHours }] = await Promise.all([
-    staffIds.length
-      ? supabase
-          .from("project_assignments")
-          .select("staff_id, allocation_percentage")
-          .in("staff_id", staffIds)
-      : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
-    projectIds.length
-      ? supabase
-          .from("time_entries")
-          .select("project_id, hours")
-          .in("project_id", projectIds)
-      : Promise.resolve({ data: [] as { project_id: string; hours: number }[] }),
-  ]);
-
-  const actualByProject = (projectHours ?? []).reduce<Record<string, number>>(
+  const actualByProject = projectHours.reduce<Record<string, number>>(
     (acc, row) => {
       acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours);
       return acc;
@@ -280,12 +233,12 @@ export default async function DashboardPage({
     {}
   );
 
-  const projectsAtRisk = projects?.filter((p) => {
+  const projectsAtRisk = projects.filter((p) => {
     const actual = actualByProject[p.id] ?? 0;
     const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date);
     return health === "at_risk" || health === "overrun";
   }) ?? [];
-  const allCurrentProjectsTracking = (projects ?? [])
+  const allCurrentProjectsTracking = projects
     .map((project) => {
       const actual = actualByProject[project.id] ?? 0;
       const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date);
@@ -330,16 +283,16 @@ export default async function DashboardPage({
   const trackingSortToggleTarget: TrackingSortOption = selectedSort === "tracking_desc" ? "tracking_asc" : "tracking_desc";
 
   // Calculate metrics per staff
-  const staffMetrics = staffProfiles?.map((sp) => {
+  const staffMetrics = staffProfiles.map((sp) => {
     const userRelation = getRelationOne((sp as { users?: unknown }).users) as {
       email?: string | null;
       office_id?: string | null;
       offices?: { id: string; name: string; country: string } | { id: string; name: string; country: string }[] | null;
     } | null;
     const officeRelation = getRelationOne(userRelation?.offices) as { id: string; name: string; country: string } | null;
-    const hoursLogged = timeEntries?.filter((e) => e.staff_id === sp.id).reduce((s, e) => s + Number(e.hours), 0) ?? 0;
-    const billableHours = timeEntries?.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0) ?? 0;
-    const allocationSum = assignments?.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0) ?? 0;
+    const hoursLogged = timeEntries.filter((e) => e.staff_id === sp.id).reduce((s, e) => s + Number(e.hours), 0);
+    const billableHours = timeEntries.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0);
+    const allocationSum = assignments.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0);
 
     // Capacity for 30 days: weekly_capacity * 4.3 weeks
     const capacityHours = sp.weekly_capacity_hours * (30 / 7);
@@ -358,7 +311,7 @@ export default async function DashboardPage({
       utilisation,
       status,
     };
-  }) ?? [];
+  });
 
   const underutilised = staffMetrics.filter((s) => s.status === "underutilised").length;
   const overallocated = staffMetrics.filter((s) => s.status === "overallocated").length;
@@ -412,7 +365,7 @@ export default async function DashboardPage({
 
   const isAdmin = user.role === "administrator";
 
-  const relevantProposals = proposals ?? [];
+  const relevantProposals = proposals;
   const proposalCount = relevantProposals.length;
   const freeCapacityHours = freeCapacity30;
   const totalProposalHours = relevantProposals.reduce(

@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import {
@@ -11,6 +10,7 @@ import {
   getProjectHealthLabel,
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
+import { getDashboardWindowData } from "@/lib/dashboard/data";
 
 interface Alert {
   type: string;
@@ -37,54 +37,13 @@ export default async function AlertsPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
 
-  const supabase = await createClient();
   const { start, end } = getPeriodDates();
 
   const alerts: Alert[] = [];
+  const { staffProfiles, projects, timeEntries, assignments, projectHours } =
+    await getDashboardWindowData(user.tenantId, start, end, user.id);
 
-  // Wave 1: fetch independent data in parallel
-  const [
-    { data: staffProfiles },
-    { data: projects },
-    { data: timeEntries },
-  ] = await Promise.all([
-    supabase
-      .from("staff_profiles")
-      .select("id, weekly_capacity_hours, users(email)")
-      .eq("tenant_id", user.tenantId),
-    supabase
-      .from("projects")
-      .select("id, name, estimated_hours")
-      .eq("tenant_id", user.tenantId)
-      .eq("status", "active"),
-    supabase
-      .from("time_entries")
-      .select("staff_id, date, hours, project_id, billable_flag")
-      .eq("tenant_id", user.tenantId)
-      .gte("date", start)
-      .lte("date", end),
-  ]);
-
-  const staffIds = staffProfiles?.map((s) => s.id) ?? [];
-  const projectIds = projects?.map((p) => p.id) ?? [];
-
-  // Wave 2: fetch data that depends on staffIds / projectIds in parallel
-  const [{ data: assignments }, { data: projectHours }] = await Promise.all([
-    staffIds.length
-      ? supabase
-          .from("project_assignments")
-          .select("staff_id, allocation_percentage")
-          .in("staff_id", staffIds)
-      : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
-    projectIds.length
-      ? supabase
-          .from("time_entries")
-          .select("project_id, hours")
-          .in("project_id", projectIds)
-      : Promise.resolve({ data: [] as { project_id: string; hours: number }[] }),
-  ]);
-
-  const actualByProject = (projectHours ?? []).reduce<Record<string, number>>(
+  const actualByProject = projectHours.reduce<Record<string, number>>(
     (acc, row) => {
       acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours);
       return acc;
@@ -93,12 +52,12 @@ export default async function AlertsPage() {
   );
 
   // Utilisation alerts: underutilised (<60%), overallocated (>110%)
-  staffProfiles?.forEach((sp) => {
+  staffProfiles.forEach((sp) => {
     const capacity = sp.weekly_capacity_hours * (30 / 7);
-    const billable = timeEntries?.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0) ?? 0;
+    const billable = timeEntries.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0);
     const utilisation = calculateUtilisation(billable, capacity);
     const status = getUtilisationStatus(utilisation);
-    const allocationSum = assignments?.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0) ?? 0;
+    const allocationSum = assignments.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0);
     const email = getStaffEmail(sp);
 
     if (status === "underutilised") {
@@ -128,8 +87,8 @@ export default async function AlertsPage() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const recentStart = sevenDaysAgo.toISOString().split("T")[0];
 
-  staffProfiles?.forEach((sp) => {
-    const hasRecentEntry = timeEntries?.some(
+  staffProfiles.forEach((sp) => {
+    const hasRecentEntry = timeEntries.some(
       (e) => e.staff_id === sp.id && e.date >= recentStart
     );
     if (!hasRecentEntry) {
@@ -146,7 +105,7 @@ export default async function AlertsPage() {
   });
 
   // Unrealistic daily hours (>12h)
-  const dailyTotals = (timeEntries ?? []).reduce<Record<string, number>>((acc, e) => {
+  const dailyTotals = timeEntries.reduce<Record<string, number>>((acc, e) => {
     const key = `${e.staff_id}-${e.date}`;
     acc[key] = (acc[key] ?? 0) + Number(e.hours);
     return acc;
@@ -155,7 +114,7 @@ export default async function AlertsPage() {
   Object.entries(dailyTotals).forEach(([key, hours]) => {
     if (hours > 12) {
       const [staffId, date] = key.split("-");
-      const staff = staffProfiles?.find((s) => s.id === staffId);
+      const staff = staffProfiles.find((s) => s.id === staffId);
       const email = staff ? getStaffEmail(staff) : "Unknown";
       alerts.push({
         type: "data_quality",
@@ -169,7 +128,7 @@ export default async function AlertsPage() {
   });
 
   // All time to one project (suspicious)
-  const projectCountByStaff = (timeEntries ?? []).reduce<Record<string, Set<string>>>(
+  const projectCountByStaff = timeEntries.reduce<Record<string, Set<string>>>(
     (acc, e) => {
       if (!acc[e.staff_id]) acc[e.staff_id] = new Set();
       acc[e.staff_id].add(e.project_id);
@@ -179,8 +138,8 @@ export default async function AlertsPage() {
   );
 
   Object.entries(projectCountByStaff).forEach(([staffId, projectSet]) => {
-    if (projectSet.size === 1 && (timeEntries?.filter((e) => e.staff_id === staffId).length ?? 0) > 5) {
-      const staff = staffProfiles?.find((s) => s.id === staffId);
+    if (projectSet.size === 1 && timeEntries.filter((e) => e.staff_id === staffId).length > 5) {
+      const staff = staffProfiles.find((s) => s.id === staffId);
       const email = staff ? getStaffEmail(staff) : "Unknown";
       alerts.push({
         type: "data_quality",
@@ -194,7 +153,7 @@ export default async function AlertsPage() {
   });
 
   // Projects at risk / overrun
-  projects?.forEach((p) => {
+  projects.forEach((p) => {
     const actual = actualByProject[p.id] ?? 0;
     const health = getProjectHealthStatus(actual, p.estimated_hours);
     if (health === "at_risk" || health === "overrun") {

@@ -19,7 +19,7 @@ export default async function EditProjectPage({
   const supabase = await createClient();
   const { data: project } = await supabase
     .from("projects")
-    .select("*")
+    .select("id, name, client_name, estimated_hours, start_date, end_date, status")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();

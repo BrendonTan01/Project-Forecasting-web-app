@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { unstable_cache } from "next/cache";
 import {
   PROPOSAL_OPTIMIZATION_COMPARISON_MODES,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
@@ -119,46 +120,171 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-export async function computeFeasibility(
-  proposalId: string,
-  officeIds: string[] | null,
+type FeasibilityBaseData = {
+  proposal: {
+    proposed_start_date: string;
+    proposed_end_date: string;
+    estimated_hours: number | null;
+    estimated_hours_per_week: number | null;
+    optimization_mode: ProposalOptimizationMode | null;
+  };
+  staff: Array<{
+    id: string;
+    weeklyCapacityHours: number;
+    email: string;
+    role: string;
+    office: string;
+    officeId: string | null;
+  }>;
+  overlappingProjects: Array<{ id: string; start_date: string | null; end_date: string | null }>;
+  assignments: Array<{ staff_id: string; allocation_percentage: number; project_id: string }>;
+  leaves: Array<{ staff_id: string; start_date: string; end_date: string }>;
+  officeNames: string[];
+};
+
+function parseOfficeIdsKey(officeIdsKey: string): string[] {
+  if (!officeIdsKey) return [];
+  return officeIdsKey.split(",").filter(Boolean);
+}
+
+const getFeasibilityBaseData = unstable_cache(
+  async (
+    tenantId: string,
+    proposalId: string,
+    officeIdsKey: string,
+    cacheScopeKey: string
+  ): Promise<FeasibilityBaseData | FeasibilityError> => {
+    void cacheScopeKey;
+    const supabase = await createClient();
+    const officeIds = parseOfficeIdsKey(officeIdsKey);
+
+    const { data: proposal, error: proposalError } = await supabase
+      .from("project_proposals")
+      .select("proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, optimization_mode")
+      .eq("id", proposalId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (proposalError || !proposal) {
+      return { error: "Proposal not found" };
+    }
+
+    let staffQuery = supabase
+      .from("staff_profiles")
+      .select("id, weekly_capacity_hours, users!inner(email, role, office_id, offices(name))")
+      .eq("tenant_id", tenantId);
+
+    if (officeIds.length > 0) {
+      staffQuery = staffQuery.in("users.office_id", officeIds);
+    }
+
+    const { data: staffRows } = await staffQuery;
+    const staff = (staffRows ?? []).map((row) => {
+      const userRecord = row.users as
+        | {
+            email?: string;
+            role?: string;
+            office_id?: string | null;
+            offices?: { name?: string } | { name?: string }[] | null;
+          }
+        | {
+            email?: string;
+            role?: string;
+            office_id?: string | null;
+            offices?: { name?: string } | { name?: string }[] | null;
+          }[]
+        | null;
+      const user = Array.isArray(userRecord) ? userRecord[0] : userRecord;
+      const officeRecord = Array.isArray(user?.offices) ? user?.offices[0] : user?.offices;
+      return {
+        id: row.id,
+        weeklyCapacityHours: Number(row.weekly_capacity_hours),
+        email: user?.email ?? "Unknown staff",
+        role: user?.role ?? "staff",
+        office: officeRecord?.name ?? "No office",
+        officeId: user?.office_id ?? null,
+      };
+    });
+
+    if (staff.length === 0) {
+      return { error: "No staff found for the selected offices" };
+    }
+
+    const officeNames = Array.from(new Set(staff.map((member) => member.office).filter(Boolean))).sort();
+    const staffIds = staff.map((member) => member.id);
+
+    const { data: overlappingProjects } = await supabase
+      .from("projects")
+      .select("id, start_date, end_date")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .lte("start_date", proposal.proposed_end_date)
+      .gte("end_date", proposal.proposed_start_date);
+
+    const projectIds = (overlappingProjects ?? []).map((project) => project.id);
+    const { data: assignmentRows } = projectIds.length > 0
+      ? await supabase
+          .from("project_assignments")
+          .select("staff_id, allocation_percentage, project_id")
+          .in("project_id", projectIds)
+          .in("staff_id", staffIds)
+      : { data: [] };
+
+    const { data: leaveRows } = await supabase
+      .from("leave_requests")
+      .select("staff_id, start_date, end_date")
+      .eq("tenant_id", tenantId)
+      .eq("status", "approved")
+      .in("staff_id", staffIds)
+      .lte("start_date", proposal.proposed_end_date)
+      .gte("end_date", proposal.proposed_start_date);
+
+    return {
+      proposal: {
+        proposed_start_date: proposal.proposed_start_date,
+        proposed_end_date: proposal.proposed_end_date,
+        estimated_hours: proposal.estimated_hours,
+        estimated_hours_per_week: proposal.estimated_hours_per_week,
+        optimization_mode: proposal.optimization_mode,
+      },
+      staff,
+      overlappingProjects: overlappingProjects ?? [],
+      assignments: (assignmentRows ?? []).map((assignment) => ({
+        staff_id: assignment.staff_id,
+        allocation_percentage: Number(assignment.allocation_percentage),
+        project_id: assignment.project_id,
+      })),
+      leaves: leaveRows ?? [],
+      officeNames,
+    };
+  },
+  ["proposal-feasibility-base-v1"],
+  { revalidate: 45 }
+);
+
+type ComputedFeasibilityCore = Omit<FeasibilityResult, "optimizationMode" | "optimizationLabel" | "comparisons" | "officeNames">;
+
+function computeFeasibilityCore(
+  baseData: FeasibilityBaseData,
+  optimizationMode: ProposalOptimizationMode,
   allowOverallocation: boolean,
-  maxOverallocationPercent = 120,
-  optimizationModeInput?: ProposalOptimizationMode,
-  includeComparisons = false
-): Promise<FeasibilityResult | FeasibilityError> {
-  const user = await getCurrentUserWithTenant();
-  if (!user) return { error: "Unauthorized" };
-
-  const supabase = await createClient();
-  // 1. Fetch the proposal
-  const { data: proposal, error: proposalError } = await supabase
-    .from("project_proposals")
-    .select("proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, optimization_mode")
-    .eq("id", proposalId)
-    .eq("tenant_id", user.tenantId)
-    .single();
-
-  if (proposalError || !proposal) return { error: "Proposal not found" };
-  const optimizationMode = normalizeProposalOptimizationMode(
-    optimizationModeInput ?? proposal.optimization_mode
-  );
-  if (!proposal.proposed_start_date || !proposal.proposed_end_date) {
+  maxOverallocationPercent: number
+): ComputedFeasibilityCore | FeasibilityError {
+  if (!baseData.proposal.proposed_start_date || !baseData.proposal.proposed_end_date) {
     return { error: "Proposal must have a start and end date for feasibility analysis" };
   }
 
-  const propStart = new Date(proposal.proposed_start_date + "T00:00:00Z");
-  const propEnd = new Date(proposal.proposed_end_date + "T00:00:00Z");
-
+  const propStart = new Date(baseData.proposal.proposed_start_date + "T00:00:00Z");
+  const propEnd = new Date(baseData.proposal.proposed_end_date + "T00:00:00Z");
   if (propEnd < propStart) return { error: "End date is before start date" };
 
   const estimatedHoursPerWeek =
-    proposal.estimated_hours_per_week !== null && proposal.estimated_hours_per_week !== undefined
-      ? Number(proposal.estimated_hours_per_week)
+    baseData.proposal.estimated_hours_per_week !== null && baseData.proposal.estimated_hours_per_week !== undefined
+      ? Number(baseData.proposal.estimated_hours_per_week)
       : null;
   const estimatedTotalHours =
-    proposal.estimated_hours !== null && proposal.estimated_hours !== undefined
-      ? Number(proposal.estimated_hours)
+    baseData.proposal.estimated_hours !== null && baseData.proposal.estimated_hours !== undefined
+      ? Number(baseData.proposal.estimated_hours)
       : null;
   const totalWorkingDays = workingDaysInRange(propStart, propEnd);
 
@@ -169,106 +295,17 @@ export async function computeFeasibility(
     return { error: "Proposal timeline has no working days" };
   }
 
-  // 2. Fetch staff in selected offices (or all tenant staff)
-  let staffQuery = supabase
-    .from("staff_profiles")
-    .select("id, weekly_capacity_hours, user_id, users!inner(email, role, office_id, offices(id, name))")
-    .eq("tenant_id", user.tenantId);
-
-  if (officeIds && officeIds.length > 0) {
-    staffQuery = staffQuery.in("users.office_id", officeIds);
-  }
-
-  const { data: staffRows } = await staffQuery;
-  const staff = staffRows ?? [];
   const safeOverallocationPct = Math.max(100, maxOverallocationPercent);
-
-  if (staff.length === 0) {
-    return { error: "No staff found for the selected offices" };
-  }
-
-  const staffIds = staff.map((s) => s.id);
-  const staffMetaById = new Map<
-    string,
-    {
-      name: string;
-      role: string;
-      office: string;
-    }
-  >();
-
-  // Collect office names for display
-  const officeNameSet = new Set<string>();
-  for (const s of staff) {
-    const userRecord = s.users as
-      | {
-          email?: string;
-          role?: string;
-          offices?: { name?: string } | { name?: string }[] | null;
-        }
-      | {
-          email?: string;
-          role?: string;
-          offices?: { name?: string } | { name?: string }[] | null;
-        }[]
-      | null;
-    const user = Array.isArray(userRecord) ? userRecord[0] : userRecord;
-    const officeRecord = Array.isArray(user?.offices) ? user?.offices[0] : user?.offices;
-    const officeName = officeRecord?.name;
-    if (officeName) officeNameSet.add(officeName);
-    staffMetaById.set(s.id, {
-      name: user?.email ?? "Unknown staff",
-      role: user?.role ?? "staff",
-      office: officeName ?? "No office",
-    });
-  }
-
-  // 3. Fetch all active projects overlapping the proposal period
-  const { data: overlappingProjects } = await supabase
-    .from("projects")
-    .select("id, start_date, end_date")
-    .eq("tenant_id", user.tenantId)
-    .eq("status", "active")
-    .lte("start_date", proposal.proposed_end_date)
-    .gte("end_date", proposal.proposed_start_date);
-
-  const projectIds = (overlappingProjects ?? []).map((p) => p.id);
-
-  // 4. Fetch assignments for those projects that involve our staff
-  const { data: assignmentRows } = projectIds.length > 0
-    ? await supabase
-        .from("project_assignments")
-        .select("staff_id, allocation_percentage, project_id")
-        .in("project_id", projectIds)
-        .in("staff_id", staffIds)
-    : { data: [] };
-
-  const assignments = assignmentRows ?? [];
-
-  // Build lookup: projectId -> { start_date, end_date }
   const projectDates: Record<string, { start: Date; end: Date }> = {};
-  for (const p of overlappingProjects ?? []) {
-    if (p.start_date && p.end_date) {
-      projectDates[p.id] = {
-        start: new Date(p.start_date + "T00:00:00Z"),
-        end: new Date(p.end_date + "T00:00:00Z"),
+  for (const project of baseData.overlappingProjects) {
+    if (project.start_date && project.end_date) {
+      projectDates[project.id] = {
+        start: new Date(project.start_date + "T00:00:00Z"),
+        end: new Date(project.end_date + "T00:00:00Z"),
       };
     }
   }
 
-  // 5. Fetch approved leave for relevant staff during the proposal period
-  const { data: leaveRows } = await supabase
-    .from("leave_requests")
-    .select("staff_id, start_date, end_date")
-    .eq("tenant_id", user.tenantId)
-    .eq("status", "approved")
-    .in("staff_id", staffIds)
-    .lte("start_date", proposal.proposed_end_date)
-    .gte("end_date", proposal.proposed_start_date);
-
-  const leaves = leaveRows ?? [];
-
-  // 6. Generate week-by-week analysis
   const weeks: WeekFeasibility[] = [];
   const staffUsedById = new Set<string>();
   let rawTotalAchievable = 0;
@@ -298,37 +335,36 @@ export async function computeFeasibility(
     const staffLabelsById = new Map<string, string>();
     let totalFreeCapacity = 0;
 
-    for (const sp of staff) {
-      const weeklyCapacity = Number(sp.weekly_capacity_hours);
+    for (const sp of baseData.staff) {
+      const weeklyCapacity = sp.weeklyCapacityHours;
       const dailyCapacity = weeklyCapacity / 5;
       const effectiveCapacity = weeklyCapacity * weekFraction;
 
       // Sum up allocated hours from overlapping projects this week
       let allocatedHours = 0;
-      for (const a of assignments) {
+      for (const a of baseData.assignments) {
         if (a.staff_id !== sp.id) continue;
         const pd = projectDates[a.project_id];
         if (!pd) continue;
         // Check if this project overlaps this week
         if (pd.start > weekEnd || pd.end < weekStart) continue;
-        allocatedHours += (Number(a.allocation_percentage) / 100) * weeklyCapacity * weekFraction;
+        allocatedHours += (a.allocation_percentage / 100) * weeklyCapacity * weekFraction;
       }
 
       // Subtract leave
-      const leaveHrs = leaveHoursInWeek(leaves, sp.id, weekStart, weekEnd, dailyCapacity);
+      const leaveHrs = leaveHoursInWeek(baseData.leaves, sp.id, weekStart, weekEnd, dailyCapacity);
       const committedHours = allocatedHours + leaveHrs;
       const freeAt100 = Math.max(0, effectiveCapacity - committedHours);
       const maxAllowedHours = effectiveCapacity * (allowOverallocation ? safeOverallocationPct / 100 : 1);
       const freeAtCap = Math.max(0, maxAllowedHours - committedHours);
 
-      const staffUser = sp.users as { email?: string } | null;
-      const staffLabel = staffUser?.email ?? "Unknown staff";
+      const staffLabel = sp.email;
       staffLabelsById.set(sp.id, staffLabel);
 
       totalFreeCapacity += freeAtCap;
       weekStaffCapacity.push({
         id: sp.id,
-        officeId: (sp.users as { office_id?: string | null } | null)?.office_id ?? null,
+        officeId: sp.officeId,
         freeAt100,
         freeAtCap,
         effectiveCapacity,
@@ -358,7 +394,7 @@ export async function computeFeasibility(
     rawTotalOverallocatedHours += overallocatedHours;
 
     // Count distinct active projects overlapping this week
-    const activeProjectCount = (overlappingProjects ?? []).filter((p) => {
+    const activeProjectCount = baseData.overlappingProjects.filter((p) => {
       const pd = projectDates[p.id];
       return pd && pd.start <= weekEnd && pd.end >= weekStart;
     }).length;
@@ -388,68 +424,84 @@ export async function computeFeasibility(
   const staffUsedCount = staffUsedById.size;
   const totalOverallocatedHours = rawTotalOverallocatedHours;
 
-  let comparisons: FeasibilityComparison[] | undefined;
-  if (includeComparisons) {
-    const modes = PROPOSAL_OPTIMIZATION_COMPARISON_MODES.filter((mode) => mode !== optimizationMode);
-    const scenarioResults = await Promise.all(
-      modes.map((mode) =>
-        computeFeasibility(
-          proposalId,
-          officeIds,
-          allowOverallocation,
-          maxOverallocationPercent,
-          mode,
-          false
-        )
-      )
-    );
-    comparisons = scenarioResults
-      .map((scenario, index) => ({ scenario, mode: modes[index] }))
-      .filter(
-        (
-          item
-        ): item is {
-          scenario: FeasibilityResult;
-          mode: ProposalOptimizationMode;
-        } => !("error" in item.scenario)
-      )
-      .map(({ scenario, mode }) => ({
-        mode,
-        label: PROPOSAL_OPTIMIZATION_MODE_LABELS[mode],
-        feasibilityPercent: scenario.feasibilityPercent,
-        totalRequired: scenario.totalRequired,
-        totalAchievable: scenario.totalAchievable,
-        staffUsedCount: scenario.staffUsedCount,
-        overallocatedStaffCount: scenario.weeks.reduce(
-          (sum, week) => sum + week.overallocatedStaffCount,
-          0
-        ),
-        overallocatedHours: scenario.totalOverallocatedHours,
-      }));
-  }
-
   return {
-    optimizationMode,
-    optimizationLabel: PROPOSAL_OPTIMIZATION_MODE_LABELS[optimizationMode],
     weeks,
     totalRequired: round1(totalRequired),
     totalAchievable: round1(totalAchievable),
     feasibilityPercent,
     staffUsedCount,
     totalOverallocatedHours: round1(totalOverallocatedHours),
-    staffCount: staff.length,
+    staffCount: baseData.staff.length,
     recommendedStaff: Array.from(staffUsedById)
       .map((staffId) => {
-        const meta = staffMetaById.get(staffId);
+        const meta = baseData.staff.find((staff) => staff.id === staffId);
         return {
           id: staffId,
-          name: meta?.name ?? "Unknown staff",
+          name: meta?.email ?? "Unknown staff",
           role: meta?.role ?? "staff",
           office: meta?.office ?? "No office",
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name)),
-    officeNames: Array.from(officeNameSet).sort(),
+  };
+}
+
+export async function computeFeasibility(
+  proposalId: string,
+  officeIds: string[] | null,
+  allowOverallocation: boolean,
+  maxOverallocationPercent = 120,
+  optimizationModeInput?: ProposalOptimizationMode,
+  includeComparisons = false
+): Promise<FeasibilityResult | FeasibilityError> {
+  const user = await getCurrentUserWithTenant();
+  if (!user) return { error: "Unauthorized" };
+
+  const officeIdsKey = officeIds && officeIds.length > 0 ? [...officeIds].sort().join(",") : "";
+  const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey, user.id);
+  if ("error" in baseDataOrError) return baseDataOrError;
+
+  const baseData = baseDataOrError;
+  const optimizationMode = normalizeProposalOptimizationMode(
+    optimizationModeInput ?? baseData.proposal.optimization_mode
+  );
+
+  const primaryCore = computeFeasibilityCore(
+    baseData,
+    optimizationMode,
+    allowOverallocation,
+    maxOverallocationPercent
+  );
+  if ("error" in primaryCore) {
+    return { error: primaryCore.error ?? "Unable to compute feasibility" };
+  }
+
+  let comparisons: FeasibilityComparison[] | undefined;
+  if (includeComparisons) {
+    const comparisonModes = PROPOSAL_OPTIMIZATION_COMPARISON_MODES.filter((mode) => mode !== optimizationMode);
+    comparisons = comparisonModes
+      .map((mode) => {
+        const scenario = computeFeasibilityCore(baseData, mode, allowOverallocation, maxOverallocationPercent);
+        if ("error" in scenario) return null;
+        return {
+          mode,
+          label: PROPOSAL_OPTIMIZATION_MODE_LABELS[mode],
+          feasibilityPercent: scenario.feasibilityPercent,
+          totalRequired: scenario.totalRequired,
+          totalAchievable: scenario.totalAchievable,
+          staffUsedCount: scenario.staffUsedCount,
+          overallocatedStaffCount: scenario.weeks.reduce((sum, week) => sum + week.overallocatedStaffCount, 0),
+          overallocatedHours: scenario.totalOverallocatedHours,
+        } satisfies FeasibilityComparison;
+      })
+      .filter((item): item is FeasibilityComparison => item !== null);
+  }
+
+  return {
+    optimizationMode,
+    optimizationLabel: PROPOSAL_OPTIMIZATION_MODE_LABELS[optimizationMode],
+    ...primaryCore,
+    officeNames: baseData.officeNames,
     comparisons,
   };
 }

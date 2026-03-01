@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
+import { getCapacityData } from "@/lib/dashboard/data";
 
 function startOfDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -38,54 +38,22 @@ export default async function CapacityPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
 
-  const supabase = await createClient();
-
   const periods = [
     { key: "1m", label: "1 month", workingDays: 20 },
     { key: "2m", label: "2 months", workingDays: 40 },
     { key: "3m", label: "3 months", workingDays: 60 },
   ];
 
-  // Wave 1: staffProfiles and leaveRequests are independent — fetch in parallel
-  const [{ data: staffProfiles }, { data: leaveRequests }] = await Promise.all([
-    supabase
-      .from("staff_profiles")
-      .select("id, weekly_capacity_hours, users(email)")
-      .eq("tenant_id", user.tenantId),
-    supabase
-      .from("leave_requests")
-      .select("staff_id, start_date, end_date")
-      .eq("tenant_id", user.tenantId)
-      .eq("status", "approved"),
-  ]);
-
-  const staffIds = staffProfiles?.map((s) => s.id) ?? [];
-
-  // Wave 2: assignments depend on staffIds
-  const { data: assignments } = staffIds.length
-    ? await supabase
-        .from("project_assignments")
-        .select("staff_id, allocation_percentage, projects(name, start_date, end_date)")
-        .in("staff_id", staffIds)
-    : {
-        data: [] as {
-          staff_id: string;
-          allocation_percentage: number;
-          projects:
-            | { name: string; start_date: string | null; end_date: string | null }
-            | { name: string; start_date: string | null; end_date: string | null }[]
-            | null;
-        }[],
-      };
+  const { staffProfiles, leaveRequests, assignments } = await getCapacityData(user.tenantId, user.id);
 
   // Calculate free capacity per staff for each period
-  const capacityData = staffProfiles?.map((sp) => {
+  const capacityData = staffProfiles.map((sp) => {
     const allocationSum =
       assignments
-        ?.filter((a) => a.staff_id === sp.id)
+        .filter((a) => a.staff_id === sp.id)
         .reduce((sum, a) => sum + Number(a.allocation_percentage), 0) ?? 0;
-    const staffAssignments = assignments?.filter((a) => a.staff_id === sp.id) ?? [];
-    const staffLeaves = leaveRequests?.filter((lr) => lr.staff_id === sp.id) ?? [];
+    const staffAssignments = assignments.filter((a) => a.staff_id === sp.id);
+    const staffLeaves = leaveRequests.filter((lr) => lr.staff_id === sp.id);
     const today = startOfDay(new Date());
 
     const periodFreeHours = periods.reduce<Record<string, number>>((acc, period) => {
@@ -135,7 +103,7 @@ export default async function CapacityPage() {
       overload2m: (periodFreeHours["2m"] ?? 0) < 0,
       overload3m: (periodFreeHours["3m"] ?? 0) < 0,
     };
-  }) ?? [];
+  });
 
   return (
     <div className="space-y-6">
@@ -215,10 +183,10 @@ export default async function CapacityPage() {
       {/* Timeline view - simplified */}
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Project allocations</h2>
-        {assignments && assignments.length > 0 ? (
+        {assignments.length > 0 ? (
           <div className="space-y-2">
             {assignments.map((a) => {
-              const staff = staffProfiles?.find((s) => s.id === a.staff_id);
+              const staff = staffProfiles.find((s) => s.id === a.staff_id);
               const proj = a.projects as
                 | { name: string; start_date: string | null; end_date: string | null }
                 | { name: string; start_date: string | null; end_date: string | null }[]
