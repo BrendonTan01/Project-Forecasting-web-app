@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Button, Card, Input } from "@/components/ui/primitives";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -31,8 +32,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50">
-      <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: "var(--background)" }}>
+      <Card className="w-full max-w-md p-8">
         <h1 className="mb-6 text-2xl font-semibold text-zinc-900">
           Capacity Intelligence Platform
         </h1>
@@ -45,47 +46,45 @@ export default function LoginPage() {
             <label htmlFor="email" className="mb-1 block text-sm font-medium text-zinc-700">
               Email
             </label>
-            <input
+            <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
           </div>
           <div>
             <label htmlFor="password" className="mb-1 block text-sm font-medium text-zinc-700">
               Password
             </label>
-            <input
+            <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
           </div>
           {error && (
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="app-alert app-alert-error">{error}</p>
           )}
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-zinc-900 px-4 py-2 font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+            className="w-full"
           >
             {loading ? "Signing in..." : "Sign in"}
-          </button>
+          </Button>
         </form>
 
         <p className="mt-4 text-center text-sm text-zinc-700">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-medium text-zinc-900 hover:underline">
+          <Link href="/signup" className="app-link font-medium">
             Sign up
           </Link>
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

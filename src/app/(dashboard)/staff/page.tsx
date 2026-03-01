@@ -68,10 +68,10 @@ export default async function StaffPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Staff Directory</h1>
+      <h1 className="app-page-title mb-6">Staff Directory</h1>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-        <table className="min-w-full">
+      <div className="app-card overflow-hidden">
+        <table className="app-table min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -104,7 +104,7 @@ export default async function StaffPage() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/staff/${sp.id}`}
-                      className="font-medium text-zinc-900 hover:underline"
+                      className="app-link font-medium text-zinc-900"
                     >
                       {u?.email ?? "Unknown"}
                     </Link>
@@ -129,7 +129,7 @@ export default async function StaffPage() {
       </div>
 
       {(!staffProfiles || staffProfiles.length === 0) && (
-        <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
+        <p className="app-empty-state p-8 text-center">
           No staff found.
         </p>
       )}

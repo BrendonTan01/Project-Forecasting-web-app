@@ -110,7 +110,7 @@ export default async function TimeEntryPage({
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Time Entry</h1>
+      <h1 className="app-page-title mb-6">Time Entry</h1>
       <TimeEntrySheet
         dates={dates}
         timeEntries={timeEntries ?? []}

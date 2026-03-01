@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { updateProfileSettings } from "./actions";
+import { Button, Card, Input, Select } from "@/components/ui/primitives";
 
 interface Office {
   id: string;
@@ -76,7 +77,7 @@ export function ProfileSettingsForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+      <Card className="p-6">
         <h2 className="mb-4 font-medium text-zinc-900">Account</h2>
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -89,9 +90,9 @@ export function ProfileSettingsForm({
             Your role is set by your administrator and cannot be changed.
           </p>
         </div>
-      </div>
+      </Card>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+      <Card className="p-6">
         <h2 className="mb-4 font-medium text-zinc-900">Profile</h2>
         <div className="space-y-4">
           <div>
@@ -101,13 +102,12 @@ export function ProfileSettingsForm({
             >
               Job title
             </label>
-            <input
+            <Input
               id="jobTitle"
               type="text"
               value={jobTitle}
               onChange={(e) => setJobTitle(e.target.value)}
               placeholder="e.g. Senior Engineer"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
           </div>
           <div>
@@ -117,11 +117,10 @@ export function ProfileSettingsForm({
             >
               Office
             </label>
-            <select
+            <Select
               id="office"
               value={officeId}
               onChange={(e) => setOfficeId(e.target.value)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             >
               <option value="">Select office (optional)</option>
               {offices.map((o) => (
@@ -129,7 +128,7 @@ export function ProfileSettingsForm({
                   {o.name} ({o.country})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label
@@ -138,7 +137,7 @@ export function ProfileSettingsForm({
             >
               Weekly capacity (hours)
             </label>
-            <input
+            <Input
               id="weeklyCapacity"
               type="number"
               min="0.5"
@@ -147,7 +146,6 @@ export function ProfileSettingsForm({
               value={weeklyCapacityHours}
               onChange={(e) => setWeeklyCapacityHours(e.target.value)}
               required
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
           </div>
           {canSeeRates && (
@@ -159,7 +157,7 @@ export function ProfileSettingsForm({
                 >
                   Billable rate
                 </label>
-                <input
+                <Input
                   id="billableRate"
                   type="number"
                   min="0"
@@ -167,7 +165,6 @@ export function ProfileSettingsForm({
                   value={billableRate}
                   onChange={(e) => setBillableRate(e.target.value)}
                   placeholder="Optional"
-                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
                 />
               </div>
               <div>
@@ -177,7 +174,7 @@ export function ProfileSettingsForm({
                 >
                   Cost rate
                 </label>
-                <input
+                <Input
                   id="costRate"
                   type="number"
                   min="0"
@@ -185,32 +182,30 @@ export function ProfileSettingsForm({
                   value={costRate}
                   onChange={(e) => setCostRate(e.target.value)}
                   placeholder="Optional"
-                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
                 />
               </div>
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">
+        <p className="app-alert app-alert-error">
           {error}
         </p>
       )}
       {success && (
-        <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-700">
+        <p className="app-alert app-alert-success">
           Profile updated successfully.
         </p>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
         {loading ? "Saving..." : "Save changes"}
-      </button>
+      </Button>
     </form>
   );
 }

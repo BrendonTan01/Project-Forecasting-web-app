@@ -61,10 +61,6 @@ const trackingHealthFilterOptions: { value: "all" | ProjectHealthStatus; label: 
   { value: "no_estimate", label: "No estimate" },
 ];
 
-function formatPercentage(value: number): string {
-  return `${value.toFixed(1)}%`;
-}
-
 function formatTrackingPercentage(
   actualHours: number,
   estimatedHours: number | null,
@@ -122,7 +118,7 @@ function KpiCard({
 
   if (!isAdmin) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-zinc-500">{title}</p>
           <span className="group relative inline-flex">
@@ -152,7 +148,7 @@ function KpiCard({
   }
 
   return (
-    <details className="group rounded-lg border border-zinc-200 bg-white">
+    <details className="group app-card">
       <summary className="cursor-pointer list-none p-4 [&::-webkit-details-marker]:hidden">
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium text-zinc-500">{title}</p>
@@ -423,7 +419,7 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-zinc-900">Executive Dashboard</h1>
+      <h1 className="app-page-title">Executive Dashboard</h1>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -502,7 +498,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Bid metrics for future proposals */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-zinc-900">Bid metrics</h2>
@@ -515,7 +511,7 @@ export default async function DashboardPage({
           {isAdmin && (
             <Link
               href="/proposals/new"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
             >
               Add proposal
             </Link>
@@ -557,7 +553,7 @@ export default async function DashboardPage({
       </div>
 
       {isAdmin && (
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-zinc-900">Current projects tracking</h2>
@@ -567,7 +563,7 @@ export default async function DashboardPage({
             </div>
             <Link
               href="/projects"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
             >
               View all projects
             </Link>
@@ -581,7 +577,7 @@ export default async function DashboardPage({
                 id="health-filter"
                 name="health"
                 defaultValue={selectedHealthFilter}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800"
+                className="app-select w-auto px-3 py-1.5 text-sm text-zinc-800"
               >
                 {trackingHealthFilterOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -598,7 +594,7 @@ export default async function DashboardPage({
                 id="sort-filter"
                 name="sort"
                 defaultValue={selectedSort}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800"
+                className="app-select w-auto px-3 py-1.5 text-sm text-zinc-800"
               >
                 {trackingSortOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -609,19 +605,19 @@ export default async function DashboardPage({
             </div>
             <button
               type="submit"
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+              className="app-btn app-btn-primary focus-ring px-3 py-1.5 text-sm"
             >
               Apply
             </button>
             <Link
               href={buildDashboardUrl(selectedHealthFilter, trackingSortToggleTarget)}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
             >
               Sort by tracking {trackingSortToggleTarget === "tracking_desc" ? "high to low" : "low to high"}
             </Link>
             <Link
               href="/dashboard"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
             >
               Reset
             </Link>
@@ -644,7 +640,7 @@ export default async function DashboardPage({
                   {currentProjectsTracking.map((project) => (
                     <tr key={project.id} className="border-b border-zinc-100">
                       <td className="px-3 py-2">
-                        <Link href={`/projects/${project.id}`} className="text-zinc-900 hover:underline">
+                        <Link href={`/projects/${project.id}`} className="app-link text-zinc-900">
                           {project.name}
                         </Link>
                       </td>
@@ -674,7 +670,7 @@ export default async function DashboardPage({
       )}
 
       {/* Capacity heatmap */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Capacity heatmap</h2>
         <p className="mb-4 text-sm text-zinc-700">
           Staff utilisation (last 30 days). Green: healthy, Amber: under/over
@@ -701,7 +697,7 @@ export default async function DashboardPage({
                     <td className="py-2">
                       <Link
                         href={`/staff/${m.id}`}
-                        className="text-zinc-900 hover:underline"
+                        className="app-link text-zinc-900"
                       >
                         {m.email}
                       </Link>
@@ -721,7 +717,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Alerts */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Alerts</h2>
         <div className="space-y-2">
           {overallocated > 0 && (

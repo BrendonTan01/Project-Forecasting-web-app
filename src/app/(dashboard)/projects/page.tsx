@@ -76,11 +76,11 @@ export default async function ProjectsPage({
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900">Projects</h1>
+        <h1 className="app-page-title">Projects</h1>
         {user.role === "administrator" && (
           <Link
             href="/projects/new"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"
           >
             Add project
           </Link>
@@ -95,10 +95,10 @@ export default async function ProjectsPage({
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-        <table className="min-w-full">
+      <div className="app-card overflow-hidden">
+        <table className="app-table min-w-full">
           <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50">
+            <tr className="border-b border-zinc-200">
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Project
               </th>
@@ -140,7 +140,7 @@ export default async function ProjectsPage({
                   <td className="px-4 py-3">
                     <Link
                       href={`/projects/${project.id}`}
-                      className="font-medium text-zinc-900 hover:underline"
+                      className="app-link font-medium text-zinc-900"
                     >
                       {project.name}
                     </Link>
@@ -180,7 +180,7 @@ export default async function ProjectsPage({
       </div>
 
       {(!projects || projects.length === 0) && (
-        <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
+        <p className="app-empty-state mt-4 p-8 text-center">
           No projects found{status ? ` with status "${statusConfig[status]?.label ?? status}"` : ""}.
         </p>
       )}

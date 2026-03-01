@@ -66,36 +66,36 @@ export default async function StaffProfilePage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/staff" className="text-sm text-zinc-600 hover:underline">
+        <Link href="/staff" className="app-link text-sm text-zinc-700">
           ← Staff
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-zinc-900">
+        <h1 className="app-page-title mt-2">
           {u?.email ?? "Unknown"}
         </h1>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Job title</p>
           <p className="font-semibold text-zinc-900">{staffProfile.job_title ?? "-"}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Office</p>
           <p className="font-semibold text-zinc-900">
             {office ? `${office.name} (${office.country})` : "-"}
           </p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Utilisation (30d)</p>
           <p className="font-semibold text-zinc-900">{formatUtilisation(utilisation)}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Allocation</p>
           <p className="font-semibold text-zinc-900">{allocationSum}%</p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Current projects</h2>
         {assignments && assignments.length > 0 ? (
           <ul className="space-y-2">
@@ -104,10 +104,7 @@ export default async function StaffProfilePage({
               const project = Array.isArray(proj) ? proj[0] : proj;
               return (
                 <li key={project?.id ?? ""} className="flex justify-between">
-                  <Link
-                    href={`/projects/${project?.id}`}
-                    className="text-zinc-900 hover:underline"
-                  >
+                  <Link href={`/projects/${project?.id}`} className="app-link text-zinc-900">
                     {project?.name ?? "Unknown"}
                   </Link>
                   <span className="font-medium text-zinc-800">{a.allocation_percentage}%</span>
@@ -120,7 +117,7 @@ export default async function StaffProfilePage({
         )}
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Forecast availability</h2>
         <p className="text-sm text-zinc-700">
           Weekly capacity: <span className="font-medium text-zinc-900">{staffProfile.weekly_capacity_hours}h</span>
@@ -133,7 +130,7 @@ export default async function StaffProfilePage({
         </p>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Upcoming leave</h2>
         {leaveRequests && leaveRequests.length > 0 ? (
           <ul className="space-y-2">

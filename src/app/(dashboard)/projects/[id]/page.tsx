@@ -80,16 +80,16 @@ export default async function ProjectDetailPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/projects" className="text-sm text-zinc-600 hover:underline">
+          <Link href="/projects" className="app-link text-sm text-zinc-700">
             ← Projects
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-zinc-900">{project.name}</h1>
+          <h1 className="app-page-title mt-2">{project.name}</h1>
         </div>
         {user.role === "administrator" && (
           <div className="flex gap-2">
             <Link
               href={`/projects/${id}/edit`}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
             >
               Edit
             </Link>
@@ -99,40 +99,40 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Client</p>
           <p className="font-semibold text-zinc-900">{project.client_name ?? "-"}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Estimated hours</p>
           <p className="font-semibold text-zinc-900">{estimated > 0 ? `${estimated}h` : "-"}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Actual hours</p>
           <p className="font-semibold text-zinc-900">{actualHours}h</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Health</p>
           <p className={`font-medium ${getProjectHealthColour(health)}`}>
             {getProjectHealthLabel(health)}
           </p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Start date</p>
           <p className="font-semibold text-zinc-900">{formatProjectDate(project.start_date)}</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">End date</p>
           <p className="font-semibold text-zinc-900">{formatProjectDate(project.end_date)}</p>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Burn rate</p>
           <p className="font-semibold text-zinc-900">{burnRate.toFixed(1)}h/week</p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Billable ratio</p>
           <p className="font-semibold text-zinc-900">
             {actualHours > 0 ? `${((billableHours / actualHours) * 100).toFixed(0)}%` : "-"}
@@ -161,10 +161,7 @@ export default async function ProjectDetailPage({
                 return (
                   <tr key={a.id} className="border-b border-zinc-100">
                     <td className="py-2">
-                      <Link
-                        href={`/staff/${staff?.id}`}
-                        className="text-zinc-900 hover:underline"
-                      >
+                      <Link href={`/staff/${staff?.id}`} className="app-link text-zinc-900">
                         {email}
                       </Link>
                     </td>

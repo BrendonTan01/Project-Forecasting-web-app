@@ -21,10 +21,10 @@ export default async function NewProposalPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/proposals" className="text-sm text-zinc-600 hover:underline">
+        <Link href="/proposals" className="app-link text-sm text-zinc-700">
           ← Proposals
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-zinc-900">Add new proposal</h1>
+        <h1 className="app-page-title mt-2">Add new proposal</h1>
       </div>
       <ProposalForm offices={offices ?? []} />
     </div>

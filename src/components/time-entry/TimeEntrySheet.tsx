@@ -188,13 +188,13 @@ export function TimeEntrySheet({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={buildWeekHref(prevWeekDate)}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            className="app-btn app-btn-secondary focus-ring px-3 py-1 text-sm"
           >
             Previous week
           </Link>
           <Link
             href={buildWeekHref(nextWeekDate)}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            className="app-btn app-btn-secondary focus-ring px-3 py-1 text-sm"
           >
             Next week
           </Link>
@@ -209,7 +209,7 @@ export function TimeEntrySheet({
               id="staffFilter"
               name="staff"
               defaultValue={selectedStaffId}
-              className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
+              className="app-select w-auto px-2 py-1 text-sm"
             >
               {staffOptions.map((staff) => (
                 <option key={staff.id} value={staff.id}>
@@ -219,7 +219,7 @@ export function TimeEntrySheet({
             </select>
             <button
               type="submit"
-              className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+              className="app-btn app-btn-secondary focus-ring px-3 py-1 text-sm"
             >
               View
             </button>
@@ -227,17 +227,17 @@ export function TimeEntrySheet({
         )}
       </div>
       {!isViewingOwnEntries && (
-        <p className="rounded border border-zinc-200 bg-zinc-50 p-2 text-sm text-zinc-700">
+        <p className="app-alert app-alert-info">
           Viewing selected staff time entries. Editing is only available on your own timesheet.
         </p>
       )}
 
       {error && (
-        <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
+        <p className="app-alert app-alert-error">{error}</p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <table className="min-w-full">
+      <div className="app-card overflow-x-auto">
+        <table className="app-table min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -288,7 +288,7 @@ export function TimeEntrySheet({
                                   max="24"
                                   value={editHours}
                                   onChange={(e) => setEditHours(e.target.value)}
-                                  className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
+                                  className="app-input w-20 px-2 py-1 text-sm"
                                 />
                                 <label className="inline-flex items-center gap-1 text-xs text-zinc-700">
                                   <input
@@ -302,7 +302,7 @@ export function TimeEntrySheet({
                                 <button
                                   type="button"
                                   onClick={() => saveEdit(entry.id)}
-                                  className="rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-700 hover:bg-zinc-100"
+                                  className="app-btn app-btn-secondary focus-ring px-2 py-0.5 text-xs"
                                   title="Save"
                                 >
                                   Save
@@ -310,7 +310,7 @@ export function TimeEntrySheet({
                                 <button
                                   type="button"
                                   onClick={cancelEdit}
-                                  className="rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-700 hover:bg-zinc-100"
+                                  className="app-btn app-btn-secondary focus-ring px-2 py-0.5 text-xs"
                                   title="Cancel"
                                 >
                                   Cancel
@@ -366,7 +366,7 @@ export function TimeEntrySheet({
                       <select
                         name="project_id"
                         required
-                        className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
+                        className="app-select w-auto px-2 py-1 text-sm"
                       >
                         <option value="">Select project</option>
                         {projects.map((p) => (
@@ -380,7 +380,7 @@ export function TimeEntrySheet({
                       <label className="mb-1 block text-xs font-medium text-zinc-600">
                         Date
                       </label>
-                      <select name="date" required className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900">
+                      <select name="date" required className="app-select w-auto px-2 py-1 text-sm">
                         {dates.map((d) => (
                           <option key={d} value={d}>
                             {formatDate(d)}
@@ -399,7 +399,7 @@ export function TimeEntrySheet({
                         min="0.25"
                         max="24"
                         required
-                        className="w-20 rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-900"
+                        className="app-input w-20 px-2 py-1 text-sm"
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -417,14 +417,14 @@ export function TimeEntrySheet({
                     <div className="flex gap-2">
                       <button
                         type="submit"
-                        className="rounded bg-zinc-900 px-3 py-1 text-sm text-white hover:bg-zinc-800"
+                        className="app-btn app-btn-primary focus-ring px-3 py-1 text-sm"
                       >
                         Add
                       </button>
                       <button
                         type="button"
                         onClick={() => setAdding(false)}
-                        className="rounded border border-zinc-300 px-3 py-1 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+                        className="app-btn app-btn-secondary focus-ring px-3 py-1 text-sm"
                       >
                         Cancel
                       </button>
@@ -441,7 +441,7 @@ export function TimeEntrySheet({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded border border-dashed border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50"
+          className="app-btn app-btn-secondary focus-ring border-dashed px-4 py-2 text-sm"
         >
           + Add time entry
         </button>

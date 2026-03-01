@@ -50,15 +50,15 @@ export default async function ProposalsPage({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">Project Proposals</h1>
-          <p className="text-sm text-zinc-600">
+          <h1 className="app-page-title">Project Proposals</h1>
+          <p className="app-page-subtitle">
             Future opportunities — assess staff availability before bidding.
           </p>
         </div>
         {user.role === "administrator" && (
           <Link
             href="/proposals/new"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"
           >
             Add proposal
           </Link>
@@ -68,7 +68,7 @@ export default async function ProposalsPage({
       <div className="mb-4 flex gap-2">
         <Link
           href="/proposals"
-          className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+          className="app-btn app-btn-secondary focus-ring rounded-full px-3 py-1 text-xs"
         >
           All
         </Link>
@@ -76,7 +76,7 @@ export default async function ProposalsPage({
           <Link
             key={key}
             href={`/proposals?status=${key}`}
-            className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+            className="app-btn app-btn-secondary focus-ring rounded-full px-3 py-1 text-xs"
           >
             {config.label}
           </Link>
@@ -87,8 +87,8 @@ export default async function ProposalsPage({
         {status ? ` (${proposalStatusConfig[status]?.label ?? status})` : ""}
       </p>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-        <table className="min-w-full">
+      <div className="app-card overflow-hidden">
+        <table className="app-table min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -125,10 +125,7 @@ export default async function ProposalsPage({
               return (
                 <tr key={proposal.id} className="border-b border-zinc-100 last:border-0">
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/proposals/${proposal.id}`}
-                      className="font-medium text-zinc-900 hover:underline"
-                    >
+                    <Link href={`/proposals/${proposal.id}`} className="app-link font-medium text-zinc-900">
                       {proposal.name}
                     </Link>
                   </td>
@@ -157,7 +154,7 @@ export default async function ProposalsPage({
       </div>
 
       {(!proposals || proposals.length === 0) && (
-        <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
+        <p className="app-empty-state mt-4 p-8 text-center">
           No proposals found
           {status ? ` with status "${proposalStatusConfig[status]?.label ?? status}"` : ""}.
         </p>

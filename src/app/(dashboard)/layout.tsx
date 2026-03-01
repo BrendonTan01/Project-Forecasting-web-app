@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { NavLink } from "@/components/ui/NavLink";
 
 export default async function DashboardLayout({
   children,
@@ -32,32 +33,25 @@ export default async function DashboardLayout({
       ];
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <nav className="flex gap-6">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--background)" }}>
+      <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+          <nav className="flex flex-wrap items-center gap-1">
             {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
-              >
-                {link.label}
-              </Link>
+              <NavLink key={link.href} href={link.href} label={link.label} />
             ))}
           </nav>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-zinc-700">{user.email}</span>
-            <Link
-              href="/settings"
-              className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border px-2.5 py-1 text-xs font-medium text-zinc-600">
+              {user.email}
+            </span>
+            <Link href="/settings" className="app-nav-link focus-ring">
               Settings
             </Link>
             <form action="/api/auth/signout" method="POST">
               <button
                 type="submit"
-                className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
+                className="app-nav-link focus-ring"
               >
                 Sign out
               </button>

@@ -70,9 +70,13 @@ function WeekBar({ week, maxHours }: { week: WeekFeasibility; maxHours: number }
 
   return (
     <div
-      className="group relative flex h-full flex-1 flex-col items-center justify-end gap-1"
+      className="group focus-ring relative flex h-full flex-1 flex-col items-center justify-end gap-1"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      tabIndex={0}
+      aria-label={`Week ${formatDate(week.weekStart)} to ${formatDate(week.weekEnd)} capacity details`}
     >
       {/* Bar */}
       <div
@@ -269,15 +273,10 @@ export function FeasibilityAnalysis({
               role="switch"
               aria-checked={limitToSelectedOffices}
               onClick={() => handleOfficeScopeToggle(!limitToSelectedOffices)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                limitToSelectedOffices ? "bg-zinc-900" : "bg-zinc-300"
-              }`}
+              className="app-toggle focus-ring"
+              data-on={limitToSelectedOffices}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                  limitToSelectedOffices ? "translate-x-4" : "translate-x-0.5"
-                }`}
-              />
+              <span className="app-toggle-thumb" />
             </button>
             <span className="text-xs text-zinc-500">
               {limitToSelectedOffices ? "Selected offices only" : "All offices"}
@@ -291,7 +290,7 @@ export function FeasibilityAnalysis({
                       key={o.id}
                       type="button"
                       onClick={() => toggleOffice(o.id)}
-                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      className={`focus-ring rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                         active
                           ? "border-zinc-900 bg-zinc-900 text-white"
                           : "border-zinc-300 text-zinc-600 hover:border-zinc-500"
@@ -314,15 +313,10 @@ export function FeasibilityAnalysis({
             role="switch"
             aria-checked={allowOverallocation}
             onClick={() => handleOverallocToggle(!allowOverallocation)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-              allowOverallocation ? "bg-amber-400" : "bg-zinc-300"
-            }`}
+            className="app-toggle focus-ring"
+            data-on={allowOverallocation}
           >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                allowOverallocation ? "translate-x-4" : "translate-x-0.5"
-              }`}
-            />
+            <span className="app-toggle-thumb" />
           </button>
         </div>
       </div>
@@ -341,7 +335,7 @@ export function FeasibilityAnalysis({
               step={5}
               value={maxOverallocationPercent}
               onChange={(e) => handleOverallocationPercentChange(e.target.value)}
-              className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-800 focus:border-zinc-500 focus:outline-none"
+              className="app-input w-20 px-2 py-1 text-sm text-zinc-800"
             />
             <span className="text-sm text-zinc-500">%</span>
           </div>
@@ -363,7 +357,7 @@ export function FeasibilityAnalysis({
           id="analysis-mode"
           value={optimizationMode}
           onChange={(e) => handleModeChange(e.target.value as ProposalOptimizationMode)}
-          className="rounded-md border border-zinc-300 px-2 py-1 text-sm text-zinc-800 focus:border-zinc-500 focus:outline-none"
+          className="app-select w-auto px-2 py-1 text-sm text-zinc-800"
         >
           {PROPOSAL_OPTIMIZATION_MODES.map((mode) => (
             <option key={mode} value={mode}>
@@ -399,19 +393,19 @@ export function FeasibilityAnalysis({
         <>
           {/* Summary stats */}
           <div className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div className="app-card p-4">
               <p className="text-xs font-medium text-zinc-500">Overall feasibility</p>
               <p className={`mt-1 text-2xl font-bold ${feasibilityTextColor(overallRatio)}`}>
                 {feasResult.feasibilityPercent.toFixed(1)}%
               </p>
               <OverallBadge percent={feasResult.feasibilityPercent} />
             </div>
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div className="app-card p-4">
               <p className="text-xs font-medium text-zinc-500">Required hours</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">{feasResult.totalRequired}h</p>
               <p className="text-xs text-zinc-400">across {feasResult.weeks.length} week{feasResult.weeks.length !== 1 ? "s" : ""}</p>
             </div>
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div className="app-card p-4">
               <p className="text-xs font-medium text-zinc-500">Achievable hours</p>
               <p className={`mt-1 text-2xl font-bold ${feasibilityTextColor(overallRatio)}`}>
                 {feasResult.totalAchievable}h
@@ -420,14 +414,14 @@ export function FeasibilityAnalysis({
                 {Math.round(feasResult.totalRequired - feasResult.totalAchievable)}h shortfall
               </p>
             </div>
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div className="app-card p-4">
               <p className="text-xs font-medium text-zinc-500">Staff in scope</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">{feasResult.staffCount}</p>
               <p className="text-xs text-zinc-400">Based on the current office filter.</p>
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
+          <div className="app-card-soft px-4 py-3">
             <p className="text-xs font-medium text-zinc-500">Selected objective</p>
             <p className="mt-1 text-sm font-medium text-zinc-800">{feasResult.optimizationLabel}</p>
             <p className="mt-1 text-xs text-zinc-500">
@@ -435,7 +429,7 @@ export function FeasibilityAnalysis({
             </p>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="app-card p-4">
             <h3 className="text-sm font-semibold text-zinc-900">
               Recommended staff ({feasResult.recommendedStaff.length})
             </h3>
@@ -447,7 +441,7 @@ export function FeasibilityAnalysis({
                 {feasResult.recommendedStaff.map((staff) => (
                   <li key={staff.id} className="py-2">
                     <Link href={`/staff/${staff.id}`} className="group block">
-                      <p className="text-sm font-medium text-zinc-900 group-hover:underline">{staff.name}</p>
+                      <p className="app-link text-sm font-medium text-zinc-900">{staff.name}</p>
                       <p className="text-xs text-zinc-600">
                         {staff.role} · {staff.office}
                       </p>
@@ -463,11 +457,11 @@ export function FeasibilityAnalysis({
           </div>
 
           {feasResult.comparisons && feasResult.comparisons.length > 0 && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div className="app-card p-4">
               <h3 className="mb-3 text-sm font-semibold text-zinc-900">Scenario comparison</h3>
               <div className="grid gap-3 md:grid-cols-3">
                 {feasResult.comparisons.map((comparison) => (
-                  <div key={comparison.mode} className="rounded-md border border-zinc-200 p-3">
+                  <div key={comparison.mode} className="rounded-md border border-zinc-200 p-3 hover:bg-zinc-50">
                     <p className="text-xs font-medium text-zinc-500">{comparison.label}</p>
                     <p className="mt-1 text-lg font-semibold text-zinc-900">
                       {comparison.feasibilityPercent.toFixed(1)}%
@@ -486,7 +480,7 @@ export function FeasibilityAnalysis({
 
           {/* Timeline */}
           {feasResult.weeks.length > 0 && (
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <div className="app-card p-4">
               <h3 className="mb-1 text-sm font-semibold text-zinc-900">Weekly capacity timeline</h3>
               <p className="mb-4 text-xs text-zinc-500">
                 Bar height = required hours relative to the project&apos;s peak week. Fill = achievable portion.
@@ -557,7 +551,7 @@ export function FeasibilityAnalysis({
           )}
 
           {/* Insight */}
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
+          <div className="app-card-soft px-4 py-3">
             <p className="text-sm font-medium text-zinc-700 mb-1">Capacity insight</p>
             <p className="text-sm text-zinc-600">{generateInsight(feasResult)}</p>
           </div>

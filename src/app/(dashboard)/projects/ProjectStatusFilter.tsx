@@ -26,15 +26,15 @@ export default function ProjectStatusFilter() {
   }
 
   return (
-    <div className="flex gap-1 rounded-lg bg-zinc-100 p-1">
+    <div className="flex gap-1 rounded-lg border border-zinc-200 bg-white p-1">
       {statuses.map((s) => (
         <button
           key={s.value}
           onClick={() => handleClick(s.value)}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`focus-ring rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             current === s.value
-              ? "bg-white text-zinc-900 shadow-sm"
-              : "text-zinc-600 hover:text-zinc-900"
+              ? "bg-zinc-100 text-zinc-900 shadow-sm"
+              : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
           }`}
         >
           {s.label}

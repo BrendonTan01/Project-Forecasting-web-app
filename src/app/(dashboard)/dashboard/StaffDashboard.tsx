@@ -104,22 +104,22 @@ export default async function StaffDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">My Dashboard</h1>
-          <p className="text-sm text-zinc-600">
+          <h1 className="app-page-title">My Dashboard</h1>
+          <p className="app-page-subtitle">
             Your assigned projects, current progress, and quick access to log hours.
           </p>
         </div>
         <Link
           href="/time-entry"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+          className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"
         >
           Add time
         </Link>
       </div>
 
       {projects.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-          <table className="min-w-full">
+        <div className="app-card overflow-hidden">
+          <table className="app-table min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
@@ -162,7 +162,7 @@ export default async function StaffDashboard() {
                     <td className="px-4 py-3 text-right">
                       <Link
                         href="/time-entry"
-                        className="rounded border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                        className="app-btn app-btn-secondary focus-ring px-2.5 py-1 text-xs"
                       >
                         Add time
                       </Link>
@@ -174,13 +174,13 @@ export default async function StaffDashboard() {
           </table>
         </div>
       ) : (
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="app-card p-6">
           <p className="text-sm text-zinc-700">
             You are not currently assigned to any projects.
           </p>
           <Link
             href="/time-entry"
-            className="mt-3 inline-flex rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="app-btn app-btn-secondary focus-ring mt-3 inline-flex px-3 py-1.5 text-sm"
           >
             Go to time entry
           </Link>

@@ -8,7 +8,6 @@ import {
 import {
   getProjectHealthStatus,
   getProjectHealthLabel,
-  getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
 
@@ -170,11 +169,11 @@ export default async function AlertsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Alerts</h1>
+      <h1 className="app-page-title mb-6">Alerts</h1>
 
       <div className="space-y-3">
         {alerts.length === 0 ? (
-          <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-600">
+          <p className="app-empty-state p-8 text-center">
             No alerts. All systems healthy.
           </p>
         ) : (
@@ -182,9 +181,7 @@ export default async function AlertsPage() {
             <div
               key={i}
               className={`rounded-lg border p-4 ${
-                alert.severity === "error"
-                  ? "border-red-200 bg-red-50"
-                  : "border-amber-200 bg-amber-50"
+                alert.severity === "error" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
               }`}
             >
               <div className="flex items-start justify-between">
@@ -195,7 +192,7 @@ export default async function AlertsPage() {
                 {alert.link && (
                   <Link
                     href={alert.link}
-                    className="ml-4 shrink-0 text-sm font-medium text-zinc-900 hover:underline"
+                    className="app-link ml-4 shrink-0 text-sm font-medium text-zinc-900"
                   >
                     {alert.linkLabel ?? "View"}
                   </Link>

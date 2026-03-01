@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProject, updateProject, type ProjectFormData } from "./actions";
+import { Button, Card, Input, Select } from "@/components/ui/primitives";
 
 type ProjectFormProps = {
   project?: {
@@ -72,10 +73,11 @@ export function ProjectForm({ project }: ProjectFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="max-w-xl space-y-4 rounded-lg border border-zinc-200 bg-white p-6"
+      className="max-w-xl space-y-4"
     >
+      <Card className="space-y-4 p-6">
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="app-alert app-alert-error">
           {error}
         </p>
       )}
@@ -84,13 +86,12 @@ export function ProjectForm({ project }: ProjectFormProps) {
         <label htmlFor="name" className="mb-1 block text-sm font-medium text-zinc-700">
           Project name *
         </label>
-        <input
+        <Input
           id="name"
           name="name"
           type="text"
           required
           defaultValue={project?.name}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           placeholder="e.g. Bridge Design Phase 1"
         />
       </div>
@@ -99,12 +100,11 @@ export function ProjectForm({ project }: ProjectFormProps) {
         <label htmlFor="client_name" className="mb-1 block text-sm font-medium text-zinc-700">
           Client name
         </label>
-        <input
+        <Input
           id="client_name"
           name="client_name"
           type="text"
           defaultValue={project?.client_name ?? ""}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           placeholder="e.g. City Council"
         />
       </div>
@@ -114,14 +114,13 @@ export function ProjectForm({ project }: ProjectFormProps) {
           <label htmlFor="estimated_hours" className="mb-1 block text-sm font-medium text-zinc-700">
             Estimated hours
           </label>
-          <input
+          <Input
             id="estimated_hours"
             name="estimated_hours"
             type="number"
             min="0"
             step="0.5"
             defaultValue={project?.estimated_hours ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             placeholder="e.g. 400"
           />
         </div>
@@ -129,17 +128,16 @@ export function ProjectForm({ project }: ProjectFormProps) {
           <label htmlFor="status" className="mb-1 block text-sm font-medium text-zinc-700">
             Status
           </label>
-          <select
+          <Select
             id="status"
             name="status"
             defaultValue={project?.status ?? "active"}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           >
             <option value="active">Active</option>
             <option value="on_hold">On hold</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -148,43 +146,41 @@ export function ProjectForm({ project }: ProjectFormProps) {
           <label htmlFor="start_date" className="mb-1 block text-sm font-medium text-zinc-700">
             Start date
           </label>
-          <input
+          <Input
             id="start_date"
             name="start_date"
             type="date"
             defaultValue={project?.start_date ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           />
         </div>
         <div>
           <label htmlFor="end_date" className="mb-1 block text-sm font-medium text-zinc-700">
             End date
           </label>
-          <input
+          <Input
             id="end_date"
             name="end_date"
             type="date"
             defaultValue={project?.end_date ?? ""}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           />
         </div>
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button
+        <Button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
           {submitting ? "Saving…" : isEdit ? "Save changes" : "Create project"}
-        </button>
+        </Button>
         <Link
           href={isEdit ? `/projects/${project.id}` : "/projects"}
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
         >
           Cancel
         </Link>
       </div>
+      </Card>
     </form>
   );
 }

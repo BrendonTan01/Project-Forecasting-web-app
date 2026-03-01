@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProposal, updateProposal, type ProposalFormData } from "./actions";
+import { Button, Card, Input, Select, Textarea } from "@/components/ui/primitives";
 import {
   DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
   PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS,
@@ -207,8 +208,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     router.refresh();
   }
 
-  const inputClass =
-    "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500";
+  const inputClass = "app-input";
 
   const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
   const timelineComplete = Boolean(startDate && endDate);
@@ -225,10 +225,11 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-lg border border-zinc-200 bg-white p-6"
+      className="space-y-4"
     >
+      <Card className="space-y-4 p-6">
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="app-alert app-alert-error">
           {error}
         </p>
       )}
@@ -239,7 +240,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
           <label htmlFor="name" className="mb-1 block text-sm font-medium text-zinc-700">
             Proposal name *
           </label>
-          <input
+          <Input
             id="name"
             name="name"
             type="text"
@@ -253,7 +254,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
           <label htmlFor="client_name" className="mb-1 block text-sm font-medium text-zinc-700">
             Client name
           </label>
-          <input
+          <Input
             id="client_name"
             name="client_name"
             type="text"
@@ -270,7 +271,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
           <label htmlFor="proposed_start_date" className="mb-1 block text-sm font-medium text-zinc-700">
             Proposed start
           </label>
-          <input
+          <Input
             id="proposed_start_date"
             name="proposed_start_date"
             type="date"
@@ -295,7 +296,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
           <label htmlFor="proposed_end_date" className="mb-1 block text-sm font-medium text-zinc-700">
             Proposed end
           </label>
-          <input
+          <Input
             id="proposed_end_date"
             name="proposed_end_date"
             type="date"
@@ -319,7 +320,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       </div>
 
       {/* Labour hours */}
-      <div className="rounded-md border border-zinc-200 p-4">
+      <div className="app-card-soft p-4">
         <h2 className="mb-3 font-medium text-zinc-900">Labour estimate</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -327,7 +328,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             <label htmlFor="estimated_hours" className="mb-1 block text-sm font-medium text-zinc-700">
               Total project hours
             </label>
-            <input
+            <Input
               id="estimated_hours"
               type="number"
               min="0"
@@ -354,7 +355,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             <label htmlFor="hours_per_week" className="mb-1 block text-sm font-medium text-zinc-700">
               Hours per week (team total)
             </label>
-            <input
+            <Input
               id="hours_per_week"
               type="number"
               min="0"
@@ -413,7 +414,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       </div>
 
       {/* Allocation objective */}
-      <div className="rounded-md border border-zinc-200 p-4">
+      <div className="app-card-soft p-4">
         <div className="mb-1 flex items-center gap-2">
           <h2 className="font-medium text-zinc-900">Allocation objective</h2>
           <span
@@ -427,19 +428,18 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
         <p className="mb-3 text-xs text-zinc-500">
           Choose what the feasibility engine should optimize for.
         </p>
-        <select
+        <Select
           id="optimization_mode"
           name="optimization_mode"
           value={optimizationMode}
           onChange={(e) => setOptimizationMode(normalizeProposalOptimizationMode(e.target.value))}
-          className={inputClass}
         >
           {PROPOSAL_OPTIMIZATION_MODES.map((mode) => (
             <option key={mode} value={mode}>
               {PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}
             </option>
           ))}
-        </select>
+        </Select>
         <p className="mt-2 text-xs text-zinc-500">
           {PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[optimizationMode]}
         </p>
@@ -447,7 +447,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
       {/* Office scope */}
       {offices.length > 0 && (
-        <div className="rounded-md border border-zinc-200 p-4">
+        <div className="app-card-soft p-4">
           <h2 className="mb-1 font-medium text-zinc-900">Office scope</h2>
           <p className="mb-3 text-xs text-zinc-500">
             Set where staffing can be sourced from.
@@ -466,15 +466,10 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
                   return next;
                 })
               }
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                limitToSelectedOffices ? "bg-zinc-900" : "bg-zinc-300"
-              }`}
+              className="app-toggle focus-ring"
+              data-on={limitToSelectedOffices}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                  limitToSelectedOffices ? "translate-x-4" : "translate-x-0.5"
-                }`}
-              />
+              <span className="app-toggle-thumb" />
             </button>
             <span className="text-sm text-zinc-700">
               {limitToSelectedOffices ? "Selected offices only" : "All offices"}
@@ -513,11 +508,10 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
           <label htmlFor="status" className="mb-1 block text-sm font-medium text-zinc-700">
             Status
           </label>
-          <select
+          <Select
             id="status"
             name="status"
             defaultValue={proposal?.status ?? "draft"}
-            className={inputClass}
           >
             <option value="draft">Draft</option>
             <option value="submitted" disabled={!timelineComplete}>
@@ -529,7 +523,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
             <option value="lost" disabled={!timelineComplete}>
               Lost
             </option>
-          </select>
+          </Select>
           {!timelineComplete && (
             <p className="mt-1 text-xs text-amber-600">
               Set both timeline dates before moving status out of draft.
@@ -542,31 +536,30 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
         <label htmlFor="notes" className="mb-1 block text-sm font-medium text-zinc-700">
           Notes
         </label>
-        <textarea
+        <Textarea
           id="notes"
           name="notes"
           rows={3}
           defaultValue={proposal?.notes ?? ""}
-          className={inputClass}
           placeholder="Optional assumptions, dependencies, or scope notes"
         />
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button
+        <Button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
           {submitting ? "Saving…" : isEdit ? "Save changes" : "Create proposal"}
-        </button>
+        </Button>
         <Link
           href={isEdit ? `/proposals/${proposal.id}` : "/proposals"}
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
         >
           Cancel
         </Link>
       </div>
+      </Card>
     </form>
   );
 }

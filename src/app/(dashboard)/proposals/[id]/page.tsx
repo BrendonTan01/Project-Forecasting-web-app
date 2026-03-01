@@ -70,10 +70,10 @@ export default async function ProposalDetailPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/proposals" className="text-sm text-zinc-600 hover:underline">
+          <Link href="/proposals" className="app-link text-sm text-zinc-700">
             ← Proposals
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-zinc-900">{proposal.name}</h1>
+          <h1 className="app-page-title mt-2">{proposal.name}</h1>
           <p className="text-sm text-zinc-600">{proposal.client_name ?? "No client set"}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -84,7 +84,7 @@ export default async function ProposalDetailPage({
             <>
               <Link
                 href={`/proposals/${id}/edit`}
-                className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
               >
                 Edit
               </Link>
@@ -96,7 +96,7 @@ export default async function ProposalDetailPage({
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Timeline</p>
           <p className="mt-1 font-semibold text-zinc-900">
             {proposal.proposed_start_date ?? "?"} → {proposal.proposed_end_date ?? "?"}
@@ -105,19 +105,19 @@ export default async function ProposalDetailPage({
             {fmtWeeks(proposal.proposed_start_date, proposal.proposed_end_date)}
           </p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Total hours</p>
           <p className="mt-1 font-semibold text-zinc-900">
             {fmtHours(proposal.estimated_hours)}
           </p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Hours per week</p>
           <p className="mt-1 font-semibold text-zinc-900">
             {fmtHours(proposal.estimated_hours_per_week)}
           </p>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Staff scope</p>
           <p className="mt-1 font-semibold text-zinc-900">
             {officeScope && officeScope.length > 0
@@ -128,7 +128,7 @@ export default async function ProposalDetailPage({
       </div>
 
       {/* Feasibility analysis */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <div className="mb-4">
           <h2 className="text-base font-semibold text-zinc-900">Staff feasibility analysis</h2>
           <p className="text-sm text-zinc-500">
@@ -147,7 +147,7 @@ export default async function ProposalDetailPage({
 
       {/* Notes */}
       {proposal.notes?.trim() && (
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="app-card p-4">
           <h2 className="mb-2 font-semibold text-zinc-900">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-zinc-700">{proposal.notes}</p>
         </div>

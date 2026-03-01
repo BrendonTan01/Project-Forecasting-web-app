@@ -35,14 +35,14 @@ export function DeleteProposalButton({ proposalId, proposalName }: DeleteProposa
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          className="app-btn app-btn-danger focus-ring px-3 py-1.5 text-sm"
         >
           {deleting ? "Deleting…" : "Yes, delete"}
         </button>
         <button
           onClick={() => setConfirming(false)}
           disabled={deleting}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
         >
           Cancel
         </button>
@@ -53,7 +53,7 @@ export function DeleteProposalButton({ proposalId, proposalName }: DeleteProposa
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+      className="app-btn app-btn-danger focus-ring px-4 py-2 text-sm"
     >
       Delete
     </button>

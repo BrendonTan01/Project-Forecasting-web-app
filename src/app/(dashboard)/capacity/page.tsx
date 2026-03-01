@@ -107,14 +107,14 @@ export default async function CapacityPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-zinc-900">Capacity Planner</h1>
+      <h1 className="app-page-title">Capacity Planner</h1>
 
-      <div className="rounded-lg border border-zinc-200 bg-white">
+      <div className="app-card">
         <h2 className="border-b border-zinc-200 px-4 py-3 font-semibold text-zinc-900">
           Allocation overview
         </h2>
         <div className="overflow-x-auto">
-          <table className="min-w-full">
+          <table className="app-table min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -146,7 +146,7 @@ export default async function CapacityPage() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/staff/${row.id}`}
-                      className="font-medium text-zinc-900 hover:underline"
+                      className="app-link font-medium text-zinc-900"
                     >
                       {row.email}
                     </Link>
@@ -181,7 +181,7 @@ export default async function CapacityPage() {
       </div>
 
       {/* Timeline view - simplified */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Project allocations</h2>
         {assignments.length > 0 ? (
           <div className="space-y-2">
@@ -197,7 +197,7 @@ export default async function CapacityPage() {
               return (
                 <div
                   key={a.staff_id + (projectName ?? "")}
-                  className="flex items-center justify-between rounded border border-zinc-200 px-3 py-2"
+                  className="flex items-center justify-between rounded border border-zinc-200 px-3 py-2 hover:bg-zinc-50"
                 >
                   <span className="text-sm text-zinc-700">
                     {staffEmail}
