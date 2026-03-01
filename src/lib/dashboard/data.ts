@@ -1,10 +1,10 @@
-import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 type AssignmentRow = { staff_id: string; allocation_percentage: number };
 type ProjectHourRow = { project_id: string; hours: number };
 
-export const getDashboardWindowData = unstable_cache(
+export const getDashboardWindowData = cache(
   async (tenantId: string, start: string, end: string, cacheScopeKey: string) => {
     void cacheScopeKey;
     const supabase = await createClient();
@@ -64,9 +64,7 @@ export const getDashboardWindowData = unstable_cache(
       assignments: assignments ?? [],
       projectHours: projectHours ?? [],
     };
-  },
-  ["dashboard-window-data-v1"],
-  { revalidate: 30 }
+  }
 );
 
 type CapacityAssignmentRow = {
@@ -78,7 +76,7 @@ type CapacityAssignmentRow = {
     | null;
 };
 
-export const getCapacityData = unstable_cache(
+export const getCapacityData = cache(
   async (tenantId: string, cacheScopeKey: string) => {
     void cacheScopeKey;
     const supabase = await createClient();
@@ -108,7 +106,5 @@ export const getCapacityData = unstable_cache(
       leaveRequests: leaveRequests ?? [],
       assignments: assignments ?? [],
     };
-  },
-  ["capacity-data-v1"],
-  { revalidate: 30 }
+  }
 );

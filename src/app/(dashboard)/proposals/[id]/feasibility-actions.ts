@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
-import { unstable_cache } from "next/cache";
 import {
   PROPOSAL_OPTIMIZATION_COMPARISON_MODES,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
@@ -147,16 +146,13 @@ function parseOfficeIdsKey(officeIdsKey: string): string[] {
   return officeIdsKey.split(",").filter(Boolean);
 }
 
-const getFeasibilityBaseData = unstable_cache(
-  async (
-    tenantId: string,
-    proposalId: string,
-    officeIdsKey: string,
-    cacheScopeKey: string
-  ): Promise<FeasibilityBaseData | FeasibilityError> => {
-    void cacheScopeKey;
-    const supabase = await createClient();
-    const officeIds = parseOfficeIdsKey(officeIdsKey);
+async function getFeasibilityBaseData(
+  tenantId: string,
+  proposalId: string,
+  officeIdsKey: string
+): Promise<FeasibilityBaseData | FeasibilityError> {
+  const supabase = await createClient();
+  const officeIds = parseOfficeIdsKey(officeIdsKey);
 
     const { data: proposal, error: proposalError } = await supabase
       .from("project_proposals")
@@ -239,28 +235,25 @@ const getFeasibilityBaseData = unstable_cache(
       .lte("start_date", proposal.proposed_end_date)
       .gte("end_date", proposal.proposed_start_date);
 
-    return {
-      proposal: {
-        proposed_start_date: proposal.proposed_start_date,
-        proposed_end_date: proposal.proposed_end_date,
-        estimated_hours: proposal.estimated_hours,
-        estimated_hours_per_week: proposal.estimated_hours_per_week,
-        optimization_mode: proposal.optimization_mode,
-      },
-      staff,
-      overlappingProjects: overlappingProjects ?? [],
-      assignments: (assignmentRows ?? []).map((assignment) => ({
-        staff_id: assignment.staff_id,
-        allocation_percentage: Number(assignment.allocation_percentage),
-        project_id: assignment.project_id,
-      })),
-      leaves: leaveRows ?? [],
-      officeNames,
-    };
-  },
-  ["proposal-feasibility-base-v1"],
-  { revalidate: 45 }
-);
+  return {
+    proposal: {
+      proposed_start_date: proposal.proposed_start_date,
+      proposed_end_date: proposal.proposed_end_date,
+      estimated_hours: proposal.estimated_hours,
+      estimated_hours_per_week: proposal.estimated_hours_per_week,
+      optimization_mode: proposal.optimization_mode,
+    },
+    staff,
+    overlappingProjects: overlappingProjects ?? [],
+    assignments: (assignmentRows ?? []).map((assignment) => ({
+      staff_id: assignment.staff_id,
+      allocation_percentage: Number(assignment.allocation_percentage),
+      project_id: assignment.project_id,
+    })),
+    leaves: leaveRows ?? [],
+    officeNames,
+  };
+}
 
 type ComputedFeasibilityCore = Omit<FeasibilityResult, "optimizationMode" | "optimizationLabel" | "comparisons" | "officeNames">;
 
@@ -458,7 +451,7 @@ export async function computeFeasibility(
   if (!user) return { error: "Unauthorized" };
 
   const officeIdsKey = officeIds && officeIds.length > 0 ? [...officeIds].sort().join(",") : "";
-  const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey, user.id);
+  const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey);
   if ("error" in baseDataOrError) return baseDataOrError;
 
   const baseData = baseDataOrError;
