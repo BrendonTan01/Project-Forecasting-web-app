@@ -147,17 +147,21 @@ export async function computeFeasibility(
 
   if (propEnd < propStart) return { error: "End date is before start date" };
 
-  // Derive hours per week
-  const totalDays = (propEnd.getTime() - propStart.getTime()) / (1000 * 60 * 60 * 24);
-  const totalWeeks = Math.max(totalDays / 7, 0);
+  const estimatedHoursPerWeek =
+    proposal.estimated_hours_per_week !== null && proposal.estimated_hours_per_week !== undefined
+      ? Number(proposal.estimated_hours_per_week)
+      : null;
+  const estimatedTotalHours =
+    proposal.estimated_hours !== null && proposal.estimated_hours !== undefined
+      ? Number(proposal.estimated_hours)
+      : null;
+  const totalWorkingDays = workingDaysInRange(propStart, propEnd);
 
-  let hoursPerWeek: number;
-  if (proposal.estimated_hours_per_week) {
-    hoursPerWeek = Number(proposal.estimated_hours_per_week);
-  } else if (proposal.estimated_hours && totalWeeks > 0) {
-    hoursPerWeek = Number(proposal.estimated_hours) / totalWeeks;
-  } else {
+  if (estimatedHoursPerWeek === null && estimatedTotalHours === null) {
     return { error: "Proposal must have an hours estimate for feasibility analysis" };
+  }
+  if (estimatedHoursPerWeek === null && totalWorkingDays === 0) {
+    return { error: "Proposal timeline has no working days" };
   }
 
   // 2. Fetch staff in selected offices (or all tenant staff)
@@ -251,7 +255,10 @@ export async function computeFeasibility(
     const workDays = workingDaysInRange(clampStart, clampEnd);
     const weekFraction = workDays / 5; // 5 working days in a full week
 
-    const requiredHours = hoursPerWeek * weekFraction;
+    const requiredHours =
+      estimatedHoursPerWeek !== null
+        ? estimatedHoursPerWeek * weekFraction
+        : ((estimatedTotalHours ?? 0) * workDays) / totalWorkingDays;
 
     const weekStaffCapacity: StaffCapacitySlice[] = [];
     const staffLabelsById = new Map<string, string>();
@@ -336,7 +343,9 @@ export async function computeFeasibility(
     weekCursor.setUTCDate(weekCursor.getUTCDate() + 7);
   }
 
-  const totalRequired = weeks.reduce((s, w) => s + w.requiredHours, 0);
+  const roundedWeeklyTotalRequired = weeks.reduce((s, w) => s + w.requiredHours, 0);
+  const totalRequired =
+    estimatedHoursPerWeek !== null ? roundedWeeklyTotalRequired : (estimatedTotalHours ?? roundedWeeklyTotalRequired);
   const totalAchievable = weeks.reduce((s, w) => s + w.achievableHours, 0);
   const feasibilityPercent =
     totalRequired > 0 ? Math.round((totalAchievable / totalRequired) * 1000) / 10 : 100;
