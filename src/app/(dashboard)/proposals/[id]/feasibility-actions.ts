@@ -44,7 +44,12 @@ export type FeasibilityResult = {
   staffUsedCount: number;
   totalOverallocatedHours: number;
   staffCount: number;
-  staffInScope: Array<{ id: string; label: string }>;
+  recommendedStaff: Array<{
+    id: string;
+    name: string;
+    role: string;
+    office: string;
+  }>;
   officeNames: string[];
   comparisons?: FeasibilityComparison[];
   error?: never;
@@ -167,7 +172,7 @@ export async function computeFeasibility(
   // 2. Fetch staff in selected offices (or all tenant staff)
   let staffQuery = supabase
     .from("staff_profiles")
-    .select("id, weekly_capacity_hours, user_id, users!inner(email, office_id, offices(id, name))")
+    .select("id, weekly_capacity_hours, user_id, users!inner(email, role, office_id, offices(id, name))")
     .eq("tenant_id", user.tenantId);
 
   if (officeIds && officeIds.length > 0) {
@@ -183,12 +188,39 @@ export async function computeFeasibility(
   }
 
   const staffIds = staff.map((s) => s.id);
+  const staffMetaById = new Map<
+    string,
+    {
+      name: string;
+      role: string;
+      office: string;
+    }
+  >();
 
   // Collect office names for display
   const officeNameSet = new Set<string>();
   for (const s of staff) {
-    const officeName = (s.users as { offices?: { name?: string } | null })?.offices?.name;
+    const userRecord = s.users as
+      | {
+          email?: string;
+          role?: string;
+          offices?: { name?: string } | { name?: string }[] | null;
+        }
+      | {
+          email?: string;
+          role?: string;
+          offices?: { name?: string } | { name?: string }[] | null;
+        }[]
+      | null;
+    const user = Array.isArray(userRecord) ? userRecord[0] : userRecord;
+    const officeRecord = Array.isArray(user?.offices) ? user?.offices[0] : user?.offices;
+    const officeName = officeRecord?.name;
     if (officeName) officeNameSet.add(officeName);
+    staffMetaById.set(s.id, {
+      name: user?.email ?? "Unknown staff",
+      role: user?.role ?? "staff",
+      office: officeName ?? "No office",
+    });
   }
 
   // 3. Fetch all active projects overlapping the proposal period
@@ -406,15 +438,17 @@ export async function computeFeasibility(
     staffUsedCount,
     totalOverallocatedHours: round1(totalOverallocatedHours),
     staffCount: staff.length,
-    staffInScope: staff
-      .map((sp) => {
-        const staffUser = sp.users as { email?: string } | null;
+    recommendedStaff: Array.from(staffUsedById)
+      .map((staffId) => {
+        const meta = staffMetaById.get(staffId);
         return {
-          id: sp.id,
-          label: staffUser?.email ?? "Unknown staff",
+          id: staffId,
+          name: meta?.name ?? "Unknown staff",
+          role: meta?.role ?? "staff",
+          office: meta?.office ?? "No office",
         };
       })
-      .sort((a, b) => a.label.localeCompare(b.label)),
+      .sort((a, b) => a.name.localeCompare(b.name)),
     officeNames: Array.from(officeNameSet).sort(),
     comparisons,
   };

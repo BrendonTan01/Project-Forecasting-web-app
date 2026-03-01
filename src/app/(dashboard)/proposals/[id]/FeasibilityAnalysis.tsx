@@ -167,7 +167,6 @@ export function FeasibilityAnalysis({
 }: Props) {
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
-  const [showStaffInScope, setShowStaffInScope] = useState(false);
   const [optimizationMode, setOptimizationMode] = useState<ProposalOptimizationMode>(initialOptimizationMode);
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(
     new Set(initialOfficeScope ?? [])
@@ -358,41 +357,9 @@ export function FeasibilityAnalysis({
               </p>
             </div>
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
-              <button
-                type="button"
-                className="w-full text-left"
-                onClick={() => setShowStaffInScope((prev) => !prev)}
-                aria-expanded={showStaffInScope}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium text-zinc-500">Staff in scope</p>
-                    <p className="mt-1 text-2xl font-bold text-zinc-900">{feasResult.staffCount}</p>
-                    <p className="text-xs text-zinc-400">
-                      {feasResult.officeNames.length > 0
-                        ? feasResult.officeNames.join(", ")
-                        : "All offices"}
-                    </p>
-                  </div>
-                  <span className="pt-1 text-xs font-medium text-zinc-500">
-                    {showStaffInScope ? "Hide" : "Show"}
-                  </span>
-                </div>
-              </button>
-              {showStaffInScope && (
-                <ul className="mt-3 space-y-1 border-t border-zinc-100 pt-3">
-                  {feasResult.staffInScope.map((staff) => (
-                    <li key={staff.id}>
-                      <Link
-                        href={`/staff/${staff.id}`}
-                        className="text-sm text-zinc-700 hover:text-zinc-900 hover:underline"
-                      >
-                        {staff.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <p className="text-xs font-medium text-zinc-500">Staff in scope</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{feasResult.staffCount}</p>
+              <p className="text-xs text-zinc-400">Based on the current office filter.</p>
             </div>
           </div>
 
@@ -402,6 +369,33 @@ export function FeasibilityAnalysis({
             <p className="mt-1 text-xs text-zinc-500">
               Uses {feasResult.staffUsedCount} staff and {feasResult.totalOverallocatedHours}h of overallocated time.
             </p>
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-4">
+            <h3 className="text-sm font-semibold text-zinc-900">
+              Recommended staff ({feasResult.recommendedStaff.length})
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500">
+              Suggested from the selected optimization mode: {feasResult.optimizationLabel}.
+            </p>
+            {feasResult.recommendedStaff.length > 0 ? (
+              <ul className="mt-3 divide-y divide-zinc-100">
+                {feasResult.recommendedStaff.map((staff) => (
+                  <li key={staff.id} className="py-2">
+                    <Link href={`/staff/${staff.id}`} className="group block">
+                      <p className="text-sm font-medium text-zinc-900 group-hover:underline">{staff.name}</p>
+                      <p className="text-xs text-zinc-600">
+                        {staff.role} · {staff.office}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-zinc-600">
+                No staff recommendations yet for the current timeframe and filters.
+              </p>
+            )}
           </div>
 
           {feasResult.comparisons && feasResult.comparisons.length > 0 && (
