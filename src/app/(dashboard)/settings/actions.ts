@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant, getStaffIdByUserId } from "@/lib/supabase/auth-helpers";
 import { revalidatePath } from "next/cache";
+import { scheduleForecastRecalculation } from "@/lib/forecast/engine";
 
 export type ProfileFormData = {
   job_title: string | null;
@@ -59,5 +60,6 @@ export async function updateProfileSettings(data: ProfileFormData) {
   revalidatePath("/settings");
   revalidatePath("/staff");
   revalidatePath("/dashboard");
+  scheduleForecastRecalculation(user.tenantId);
   return { success: true };
 }
