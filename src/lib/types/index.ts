@@ -85,6 +85,7 @@ export interface ProjectAssignment {
   staff_id: string;
   allocation_percentage: number;
   weekly_hours_allocated: number;
+  week_start?: string | null;
   created_at?: string;
 }
 

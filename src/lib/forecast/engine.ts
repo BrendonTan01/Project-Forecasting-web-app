@@ -26,6 +26,7 @@ function addDays(date: Date, days: number): Date {
 
 type AssignmentWithProject = {
   weekly_hours_allocated: number;
+  week_start: string | null;
   projects: {
     start_date: string | null;
     end_date: string | null;
@@ -41,6 +42,7 @@ type RawProjectRelation = {
 
 type RawAssignmentRow = {
   weekly_hours_allocated: number | string | null;
+  week_start: string | null;
   projects: RawProjectRelation | RawProjectRelation[] | null;
 };
 
@@ -99,7 +101,7 @@ export async function runForecastForTenant(
 
     admin
       .from("project_assignments")
-      .select("weekly_hours_allocated, projects(start_date, end_date, status)")
+      .select("weekly_hours_allocated, week_start, projects(start_date, end_date, status)")
       .eq("tenant_id", tenantId),
   ]);
 
@@ -108,6 +110,7 @@ export async function runForecastForTenant(
   const rawAssignments = (assignments ?? []) as RawAssignmentRow[];
   const allAssignments: AssignmentWithProject[] = rawAssignments.map((row) => ({
     weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+    week_start: row.week_start ?? null,
     projects: normalizeProjectRelation(row.projects),
   }));
 
@@ -141,10 +144,21 @@ export async function runForecastForTenant(
       totalCapacity += override !== undefined ? override : member.weekly_capacity_hours;
     }
 
-    // total_project_hours: sum allocated hours for assignments whose project
-    // overlaps this week. Projects with no dates are included every week.
+    // total_project_hours: sum allocated hours for assignments that apply to
+    // this week. An assignment applies if:
+    //   - It has a week_start set and it matches this week exactly, OR
+    //   - It has no week_start and the project date range overlaps this week
+    //     (projects with no dates are included every week).
     let totalProjectHours = 0;
     for (const assignment of activeAssignments) {
+      if (assignment.week_start !== null) {
+        // Pinned to a specific week
+        if (assignment.week_start === weekStartStr) {
+          totalProjectHours += assignment.weekly_hours_allocated;
+        }
+        continue;
+      }
+
       const project = assignment.projects;
       const projectStart = project?.start_date ?? null;
       const projectEnd = project?.end_date ?? null;
