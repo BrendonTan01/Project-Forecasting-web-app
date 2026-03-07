@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant, getCurrentStaffId } from "@/lib/supabase/auth-helpers";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import { TimeEntrySheet } from "@/components/time-entry/TimeEntrySheet";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
 
 function getWeekDates(date: Date): { start: string; end: string; dates: string[] } {
   const d = new Date(date);
@@ -97,10 +98,18 @@ export default async function TimeEntryPage({
   if (user.role === "staff") {
     const { data: assignments } = await supabase
       .from("project_assignments")
-      .select("project_id")
+      .select("staff_id, project_id, week_start, weekly_hours_allocated, projects(start_date, end_date, status)")
       .eq("tenant_id", user.tenantId)
       .eq("staff_id", staffId);
-    const projectIds = assignments?.map((a) => a.project_id) ?? [];
+    const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+      (assignments ?? []).map((a) => ({
+        ...a,
+        week_start: a.week_start ?? null,
+        weekly_hours_allocated: Number(a.weekly_hours_allocated ?? 0),
+      })),
+      start
+    ).filter((a) => Number(a.weekly_hours_allocated) > 0);
+    const projectIds = [...new Set(effectiveAssignments.map((a) => a.project_id))];
     if (projectIds.length > 0) {
       projectsQuery = projectsQuery.in("id", projectIds);
     } else {

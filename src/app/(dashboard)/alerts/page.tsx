@@ -10,6 +10,10 @@ import {
   getProjectHealthLabel,
 } from "@/lib/utils/projectHealth";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 interface Alert {
   type: string;
@@ -41,6 +45,15 @@ export default async function AlertsPage() {
   const alerts: Alert[] = [];
   const { staffProfiles, projects, timeEntries, assignments, projectHours } =
     await getDashboardWindowData(user.tenantId, start, end, user.id);
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    assignments.map((a) => ({
+      ...a,
+      week_start: a.week_start ?? null,
+      weekly_hours_allocated: Number(a.weekly_hours_allocated ?? 0),
+    })),
+    currentWeekStart
+  );
 
   const actualByProject = projectHours.reduce<Record<string, number>>(
     (acc, row) => {
@@ -56,7 +69,13 @@ export default async function AlertsPage() {
     const billable = timeEntries.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0);
     const utilisation = calculateUtilisation(billable, capacity);
     const status = getUtilisationStatus(utilisation);
-    const allocationSum = assignments.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0);
+    const weeklyAllocatedHours = effectiveAssignments
+      .filter((a) => a.staff_id === sp.id)
+      .reduce((sum, a) => sum + Number(a.weekly_hours_allocated), 0);
+    const allocationSum =
+      sp.weekly_capacity_hours > 0
+        ? (weeklyAllocatedHours / Number(sp.weekly_capacity_hours)) * 100
+        : 0;
     const email = getStaffEmail(sp);
 
     if (status === "underutilised") {

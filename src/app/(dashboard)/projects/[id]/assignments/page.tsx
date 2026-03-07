@@ -34,6 +34,7 @@ export default async function AssignmentsPage({
     .select(`
       id,
       allocation_percentage,
+      week_start,
       staff_profiles (
         id,
         job_title,
@@ -42,7 +43,8 @@ export default async function AssignmentsPage({
       )
     `)
     .eq("tenant_id", user.tenantId)
-    .eq("project_id", id);
+    .eq("project_id", id)
+    .is("week_start", null);
 
   const assignedStaffIds = new Set(
     (assignments ?? []).map((a) => {

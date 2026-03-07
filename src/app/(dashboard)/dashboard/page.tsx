@@ -14,6 +14,10 @@ import {
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 import type { ProjectHealthStatus } from "@/lib/types";
 import StaffDashboard from "./StaffDashboard";
 import WeeklyTrendChart from "./WeeklyTrendChart";
@@ -224,6 +228,14 @@ export default async function DashboardPage({
   const { start, end } = getPeriodDates();
   const { staffProfiles, projects, proposals, timeEntries, assignments, projectHours } =
     await getDashboardWindowData(user.tenantId, start, end, user.id);
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    assignments.map((a) => ({
+      ...a,
+      weekly_hours_allocated: Number(a.weekly_hours_allocated),
+    })),
+    currentWeekStart
+  );
 
   const actualByProject = projectHours.reduce<Record<string, number>>(
     (acc, row) => {
@@ -292,7 +304,13 @@ export default async function DashboardPage({
     const officeRelation = getRelationOne(userRelation?.offices) as { id: string; name: string; country: string } | null;
     const hoursLogged = timeEntries.filter((e) => e.staff_id === sp.id).reduce((s, e) => s + Number(e.hours), 0);
     const billableHours = timeEntries.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0);
-    const allocationSum = assignments.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0);
+    const weeklyAssignedHours = effectiveAssignments
+      .filter((a) => a.staff_id === sp.id)
+      .reduce((sum, a) => sum + Number(a.weekly_hours_allocated), 0);
+    const allocationSum =
+      sp.weekly_capacity_hours > 0
+        ? (weeklyAssignedHours / Number(sp.weekly_capacity_hours)) * 100
+        : 0;
 
     // Capacity for 30 days: weekly_capacity * 4.3 weeks
     const capacityHours = sp.weekly_capacity_hours * (30 / 7);

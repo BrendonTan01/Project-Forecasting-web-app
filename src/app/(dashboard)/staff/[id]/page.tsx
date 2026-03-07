@@ -3,6 +3,10 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { calculateUtilisation, formatUtilisation } from "@/lib/utils/utilisation";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 function getPeriodDates(days: number) {
   const end = new Date();
@@ -44,7 +48,7 @@ export default async function StaffProfilePage({
 
   const { data: assignments } = await supabase
     .from("project_assignments")
-    .select("allocation_percentage, projects(id, name)")
+    .select("staff_id, project_id, week_start, weekly_hours_allocated, projects(id, name, start_date, end_date, status)")
     .eq("tenant_id", user.tenantId)
     .eq("staff_id", id);
 
@@ -64,7 +68,23 @@ export default async function StaffProfilePage({
   const capacity = staffProfile.weekly_capacity_hours * (30 / 7);
   const billable = timeEntries?.filter((e) => e.billable_flag).reduce((s, e) => s + Number(e.hours), 0) ?? 0;
   const utilisation = calculateUtilisation(billable, capacity);
-  const allocationSum = assignments?.reduce((s, a) => s + Number(a.allocation_percentage), 0) ?? 0;
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    (assignments ?? []).map((a) => ({
+      ...a,
+      week_start: a.week_start ?? null,
+      weekly_hours_allocated: Number(a.weekly_hours_allocated ?? 0),
+    })),
+    currentWeekStart
+  );
+  const weeklyAllocatedHours = effectiveAssignments.reduce(
+    (sum, a) => sum + Number(a.weekly_hours_allocated ?? 0),
+    0
+  );
+  const allocationSum =
+    staffProfile.weekly_capacity_hours > 0
+      ? (weeklyAllocatedHours / Number(staffProfile.weekly_capacity_hours)) * 100
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -100,17 +120,19 @@ export default async function StaffProfilePage({
 
       <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Current projects</h2>
-        {assignments && assignments.length > 0 ? (
+        {effectiveAssignments.length > 0 ? (
           <ul className="space-y-2">
-            {assignments.map((a) => {
+            {effectiveAssignments.map((a) => {
               const proj = a.projects as { id: string; name: string } | { id: string; name: string }[] | null;
               const project = Array.isArray(proj) ? proj[0] : proj;
               return (
-                <li key={project?.id ?? ""} className="flex justify-between">
+                <li key={a.project_id + (a.week_start ?? "base")} className="flex justify-between">
                   <Link href={`/projects/${project?.id}`} className="app-link text-zinc-900">
                     {project?.name ?? "Unknown"}
                   </Link>
-                  <span className="font-medium text-zinc-800">{a.allocation_percentage}%</span>
+                  <span className="font-medium text-zinc-800">
+                    {Number(a.weekly_hours_allocated).toFixed(1)}h
+                  </span>
                 </li>
               );
             })}
@@ -126,7 +148,7 @@ export default async function StaffProfilePage({
           Weekly capacity: <span className="font-medium text-zinc-900">{staffProfile.weekly_capacity_hours}h</span>
         </p>
         <p className="text-sm text-zinc-700">
-          Allocated: <span className="font-medium text-zinc-900">{allocationSum}%</span> ({(allocationSum / 100) * staffProfile.weekly_capacity_hours}h/week)
+          Allocated: <span className="font-medium text-zinc-900">{allocationSum.toFixed(0)}%</span> ({weeklyAllocatedHours.toFixed(1)}h/week)
         </p>
         <p className="mt-2 text-sm font-semibold text-zinc-900">
           Free capacity: {Math.max(0, staffProfile.weekly_capacity_hours * (1 - allocationSum / 100)).toFixed(1)}h/week

@@ -7,6 +7,10 @@ import {
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import ProjectStatusFilter from "./ProjectStatusFilter";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
@@ -76,12 +80,25 @@ export default async function ProjectsPage({
   const { data: assignmentsData } = projectIds.length
     ? await supabase
         .from("project_assignments")
-        .select("project_id, weekly_hours_allocated, staff_profiles(name)")
+        .select("project_id, staff_id, week_start, weekly_hours_allocated, staff_profiles(name), projects(start_date, end_date, status)")
         .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
 
-  const staffByProject = (assignmentsData ?? []).reduce<Record<string, { name: string; hours: number }[]>>(
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    (assignmentsData ?? []).map((row) => ({
+      staff_id: row.staff_id,
+      project_id: row.project_id,
+      week_start: row.week_start ?? null,
+      weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+      projects: row.projects ?? null,
+      staff_profiles: row.staff_profiles,
+    })),
+    currentWeekStart
+  ).filter((row) => row.weekly_hours_allocated > 0);
+
+  const staffByProject = effectiveAssignments.reduce<Record<string, { name: string; hours: number }[]>>(
     (acc, row) => {
       const profile = Array.isArray(row.staff_profiles)
         ? row.staff_profiles[0]

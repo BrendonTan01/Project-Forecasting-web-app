@@ -42,17 +42,39 @@ export async function upsertProjectAssignment(
 
   if (!staff) return { error: "Staff member not found." };
 
-  const { error } = await supabase
+  const { data: existingBaseAssignment, error: existingBaseErr } = await supabase
     .from("project_assignments")
-    .upsert(
-      {
+    .select("id")
+    .eq("tenant_id", user.tenantId)
+    .eq("project_id", projectId)
+    .eq("staff_id", staffId)
+    .is("week_start", null)
+    .maybeSingle();
+
+  if (existingBaseErr) return { error: existingBaseErr.message };
+
+  let error: { message: string } | null = null;
+  if (existingBaseAssignment) {
+    const updateResult = await supabase
+      .from("project_assignments")
+      .update({
+        allocation_percentage: allocationPercentage,
+      })
+      .eq("tenant_id", user.tenantId)
+      .eq("id", existingBaseAssignment.id);
+    error = updateResult.error;
+  } else {
+    const insertResult = await supabase
+      .from("project_assignments")
+      .insert({
         tenant_id: user.tenantId,
         project_id: projectId,
         staff_id: staffId,
         allocation_percentage: allocationPercentage,
-      },
-      { onConflict: "project_id,staff_id" }
-    );
+        week_start: null,
+      });
+    error = insertResult.error;
+  }
 
   if (error) return { error: error.message };
   revalidatePath(`/projects/${projectId}`);

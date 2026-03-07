@@ -8,6 +8,10 @@ import {
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import { DeleteProjectButton } from "./DeleteProjectButton";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 function formatProjectDate(value: string | null): string {
   if (!value) return "-";
@@ -66,6 +70,11 @@ export default async function ProjectDetailPage({
     .select(`
       id,
       allocation_percentage,
+      project_id,
+      staff_id,
+      week_start,
+      weekly_hours_allocated,
+      projects (start_date, end_date, status),
       staff_profiles (
         id,
         user_id,
@@ -76,6 +85,19 @@ export default async function ProjectDetailPage({
     `)
     .eq("tenant_id", user.tenantId)
     .eq("project_id", id);
+
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    (assignments ?? []).map((row) => ({
+      ...row,
+      staff_id: row.staff_id,
+      project_id: row.project_id,
+      week_start: row.week_start ?? null,
+      weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+      projects: row.projects ?? null,
+    })),
+    currentWeekStart
+  ).filter((row) => row.weekly_hours_allocated > 0);
 
   return (
     <div className="space-y-6">
@@ -153,16 +175,16 @@ export default async function ProjectDetailPage({
             </Link>
           )}
         </div>
-        {assignments && assignments.length > 0 ? (
+        {effectiveAssignments.length > 0 ? (
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
                 <th className="pb-2">Staff</th>
-                <th className="pb-2">Allocation</th>
+                <th className="pb-2">Assigned hrs/wk</th>
               </tr>
             </thead>
             <tbody>
-              {assignments.map((a) => {
+              {effectiveAssignments.map((a) => {
                 const sp = a.staff_profiles as {
                   id: string;
                   users?: { email: string } | { email: string }[] | null;
@@ -176,7 +198,9 @@ export default async function ProjectDetailPage({
                         {email}
                       </Link>
                     </td>
-                    <td className="py-2 font-medium text-zinc-800">{a.allocation_percentage}%</td>
+                    <td className="py-2 font-medium text-zinc-800">
+                      {Number(a.weekly_hours_allocated).toFixed(1)}h
+                    </td>
                   </tr>
                 );
               })}
