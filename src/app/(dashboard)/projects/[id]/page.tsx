@@ -74,6 +74,7 @@ export default async function ProjectDetailPage({
         users (email)
       )
     `)
+    .eq("tenant_id", user.tenantId)
     .eq("project_id", id);
 
   return (

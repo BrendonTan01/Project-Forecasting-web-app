@@ -36,6 +36,7 @@ export default async function StaffPage() {
       ? supabase
           .from("time_entries")
           .select("staff_id, hours, billable_flag")
+          .eq("tenant_id", user.tenantId)
           .in("staff_id", staffIds)
           .gte("date", start)
           .lte("date", end)
@@ -44,6 +45,7 @@ export default async function StaffPage() {
       ? supabase
           .from("project_assignments")
           .select("staff_id, allocation_percentage")
+          .eq("tenant_id", user.tenantId)
           .in("staff_id", staffIds)
       : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
   ]);

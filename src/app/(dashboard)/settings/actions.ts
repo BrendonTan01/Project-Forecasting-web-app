@@ -14,7 +14,7 @@ export type ProfileFormData = {
 
 export async function updateProfileSettings(data: ProfileFormData) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -31,7 +31,8 @@ export async function updateProfileSettings(data: ProfileFormData) {
   const { error: userError } = await supabase
     .from("users")
     .update({ office_id: data.office_id || null })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .eq("tenant_id", user.tenantId);
 
   if (userError) return { error: userError.message };
 
@@ -50,7 +51,8 @@ export async function updateProfileSettings(data: ProfileFormData) {
   const { error: staffError } = await supabase
     .from("staff_profiles")
     .update(staffUpdate)
-    .eq("id", staffId);
+    .eq("id", staffId)
+    .eq("tenant_id", user.tenantId);
 
   if (staffError) return { error: staffError.message };
 

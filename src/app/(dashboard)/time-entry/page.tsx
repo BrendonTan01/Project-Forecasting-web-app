@@ -75,6 +75,7 @@ export default async function TimeEntryPage({
       billable_flag,
       projects (id, name)
     `)
+    .eq("tenant_id", user.tenantId)
     .eq("staff_id", selectedStaffId)
     .gte("date", start)
     .lte("date", end)
@@ -97,6 +98,7 @@ export default async function TimeEntryPage({
     const { data: assignments } = await supabase
       .from("project_assignments")
       .select("project_id")
+      .eq("tenant_id", user.tenantId)
       .eq("staff_id", staffId);
     const projectIds = assignments?.map((a) => a.project_id) ?? [];
     if (projectIds.length > 0) {

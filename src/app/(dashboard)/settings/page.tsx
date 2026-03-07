@@ -13,6 +13,7 @@ export default async function SettingsPage() {
     .from("staff_profiles")
     .select("id, job_title, weekly_capacity_hours, billable_rate, cost_rate")
     .eq("user_id", user.id)
+    .eq("tenant_id", user.tenantId)
     .single();
 
   const { data: offices } = await supabase

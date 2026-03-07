@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentStaffId } from "@/lib/supabase/auth-helpers";
+import { getCurrentStaffId, getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import {
   getProjectHealthStatus,
@@ -34,13 +34,15 @@ type AssignmentRow = {
 };
 
 export default async function StaffDashboard() {
+  const user = await getCurrentUserWithTenant();
   const staffId = await getCurrentStaffId();
-  if (!staffId) return null;
+  if (!user || !staffId) return null;
 
   const supabase = await createClient();
   const { data: assignmentRows } = await supabase
     .from("project_assignments")
     .select("project_id, allocation_percentage, projects(id, name, client_name, estimated_hours, status)")
+    .eq("tenant_id", user.tenantId)
     .eq("staff_id", staffId);
 
   const assignments = (assignmentRows ?? []).map((row) => {
@@ -64,6 +66,7 @@ export default async function StaffDashboard() {
     ? await supabase
         .from("time_entries")
         .select("project_id, hours")
+        .eq("tenant_id", user.tenantId)
         .eq("staff_id", staffId)
         .in("project_id", projectIds)
     : { data: [] as { project_id: string; hours: number }[] };

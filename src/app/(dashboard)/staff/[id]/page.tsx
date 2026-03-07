@@ -36,6 +36,7 @@ export default async function StaffProfilePage({
   const { data: timeEntries } = await supabase
     .from("time_entries")
     .select("hours, billable_flag, date, projects(name)")
+    .eq("tenant_id", user.tenantId)
     .eq("staff_id", id)
     .gte("date", start)
     .lte("date", end)
@@ -44,11 +45,13 @@ export default async function StaffProfilePage({
   const { data: assignments } = await supabase
     .from("project_assignments")
     .select("allocation_percentage, projects(id, name)")
+    .eq("tenant_id", user.tenantId)
     .eq("staff_id", id);
 
   const { data: leaveRequests } = await supabase
     .from("leave_requests")
     .select("start_date, end_date, leave_type, status")
+    .eq("tenant_id", user.tenantId)
     .eq("staff_id", id)
     .gte("end_date", new Date().toISOString().split("T")[0])
     .order("start_date")

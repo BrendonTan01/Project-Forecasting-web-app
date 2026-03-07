@@ -41,6 +41,7 @@ export default async function AssignmentsPage({
         users (email)
       )
     `)
+    .eq("tenant_id", user.tenantId)
     .eq("project_id", id);
 
   const assignedStaffIds = new Set(

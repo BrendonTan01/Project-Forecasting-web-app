@@ -44,6 +44,7 @@ export async function upsertProjectAssignment(
     .from("project_assignments")
     .upsert(
       {
+        tenant_id: user.tenantId,
         project_id: projectId,
         staff_id: staffId,
         allocation_percentage: allocationPercentage,
@@ -81,6 +82,7 @@ export async function removeProjectAssignment(projectId: string, assignmentId: s
   const { error } = await supabase
     .from("project_assignments")
     .delete()
+    .eq("tenant_id", user.tenantId)
     .eq("id", assignmentId)
     .eq("project_id", projectId);
 

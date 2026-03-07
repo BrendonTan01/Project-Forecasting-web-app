@@ -24,6 +24,7 @@ export interface User {
   id: string;
   tenant_id: string;
   email: string;
+  name: string | null;
   role: UserRole;
   office_id: string | null;
   created_at?: string;
@@ -33,6 +34,7 @@ export interface StaffProfile {
   id: string;
   user_id: string;
   tenant_id: string;
+  name: string | null;
   job_title: string | null;
   weekly_capacity_hours: number;
   billable_rate: number | null;
@@ -78,9 +80,31 @@ export interface ProposalMetricCard {
 
 export interface ProjectAssignment {
   id: string;
+  tenant_id: string;
   project_id: string;
   staff_id: string;
   allocation_percentage: number;
+  weekly_hours_allocated: number;
+  created_at?: string;
+}
+
+export interface StaffAvailability {
+  id: string;
+  tenant_id: string;
+  staff_id: string;
+  week_start: string;
+  available_hours: number;
+  created_at?: string;
+}
+
+export interface ForecastResult {
+  id: string;
+  tenant_id: string;
+  week_start: string;
+  total_capacity: number;
+  total_project_hours: number;
+  utilization_rate: number;
+  staffing_gap: number;
   created_at?: string;
 }
 

@@ -45,6 +45,7 @@ export const getDashboardWindowData = cache(
         ? supabase
             .from("project_assignments")
             .select("staff_id, allocation_percentage")
+            .eq("tenant_id", tenantId)
             .in("staff_id", staffIds)
         : Promise.resolve({ data: [] as AssignmentRow[] }),
       projectIds.length
@@ -98,6 +99,7 @@ export const getCapacityData = cache(
       ? await supabase
           .from("project_assignments")
           .select("staff_id, allocation_percentage, projects(name, start_date, end_date)")
+          .eq("tenant_id", tenantId)
           .in("staff_id", staffIds)
       : { data: [] as CapacityAssignmentRow[] };
 

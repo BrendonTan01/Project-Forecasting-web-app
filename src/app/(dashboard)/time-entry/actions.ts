@@ -21,7 +21,7 @@ function isOldProjectDayConstraint(message: string | undefined) {
 
 export async function createTimeEntry(data: TimeEntryFormData) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -32,6 +32,7 @@ export async function createTimeEntry(data: TimeEntryFormData) {
   const { data: assignment } = await supabase
     .from("project_assignments")
     .select("id")
+    .eq("tenant_id", user.tenantId)
     .eq("project_id", data.project_id)
     .eq("staff_id", staffId)
     .single();
@@ -146,7 +147,7 @@ export async function createTimeEntry(data: TimeEntryFormData) {
 
 export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormData>) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -158,6 +159,7 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
     .from("time_entries")
     .select("id, staff_id, project_id, date, hours, billable_flag")
     .eq("id", id)
+    .eq("tenant_id", user.tenantId)
     .single();
 
   if (!existing) return { error: "Time entry not found" };
@@ -254,7 +256,7 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
 
 export async function deleteTimeEntry(id: string) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -265,6 +267,7 @@ export async function deleteTimeEntry(id: string) {
     .from("time_entries")
     .select("staff_id")
     .eq("id", id)
+    .eq("tenant_id", user.tenantId)
     .single();
 
   if (!existing) return { error: "Time entry not found" };

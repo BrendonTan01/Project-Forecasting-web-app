@@ -39,18 +39,23 @@ export async function getCurrentStaffId() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
 
-  return getStaffIdByUserId(user.id);
+  return getStaffIdByUserId(user.id, user.tenantId);
 }
 
-export async function getStaffIdByUserId(userId: string) {
+export async function getStaffIdByUserId(userId: string, tenantId?: string) {
   if (!userId) return null;
 
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("staff_profiles")
     .select("id")
-    .eq("user_id", userId)
-    .single();
+    .eq("user_id", userId);
+
+  if (tenantId) {
+    query = query.eq("tenant_id", tenantId);
+  }
+
+  const { data } = await query.single();
 
   return data?.id ?? null;
 }
