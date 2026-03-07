@@ -25,6 +25,8 @@ function addDays(date: Date, days: number): Date {
 }
 
 type AssignmentWithProject = {
+  project_id: string;
+  staff_id: string;
   weekly_hours_allocated: number;
   week_start: string | null;
   projects: {
@@ -41,6 +43,8 @@ type RawProjectRelation = {
 };
 
 type RawAssignmentRow = {
+  project_id: string;
+  staff_id: string;
   weekly_hours_allocated: number | string | null;
   week_start: string | null;
   projects: RawProjectRelation | RawProjectRelation[] | null;
@@ -101,7 +105,7 @@ export async function runForecastForTenant(
 
     admin
       .from("project_assignments")
-      .select("weekly_hours_allocated, week_start, projects(start_date, end_date, status)")
+      .select("project_id, staff_id, weekly_hours_allocated, week_start, projects(start_date, end_date, status)")
       .eq("tenant_id", tenantId),
   ]);
 
@@ -109,6 +113,8 @@ export async function runForecastForTenant(
   const availability: AvailabilityRow[] = (availabilityRows ?? []) as AvailabilityRow[];
   const rawAssignments = (assignments ?? []) as RawAssignmentRow[];
   const allAssignments: AssignmentWithProject[] = rawAssignments.map((row) => ({
+    project_id: row.project_id,
+    staff_id: row.staff_id,
     weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
     week_start: row.week_start ?? null,
     projects: normalizeProjectRelation(row.projects),
@@ -127,6 +133,16 @@ export async function runForecastForTenant(
   const activeAssignments = allAssignments.filter(
     (a) => a.projects?.status === "active"
   );
+
+  // Week-specific rows override recurring rows for the same staff+project+week.
+  const weeklyOverrideKeys = new Set<string>();
+  for (const assignment of activeAssignments) {
+    if (assignment.week_start !== null) {
+      weeklyOverrideKeys.add(
+        `${assignment.staff_id}::${assignment.project_id}::${assignment.week_start}`
+      );
+    }
+  }
 
   const results: ForecastResult[] = [];
 
@@ -156,6 +172,11 @@ export async function runForecastForTenant(
         if (assignment.week_start === weekStartStr) {
           totalProjectHours += assignment.weekly_hours_allocated;
         }
+        continue;
+      }
+
+      const overrideKey = `${assignment.staff_id}::${assignment.project_id}::${weekStartStr}`;
+      if (weeklyOverrideKeys.has(overrideKey)) {
         continue;
       }
 

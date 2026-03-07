@@ -153,6 +153,15 @@ export async function GET(): Promise<NextResponse> {
     (a) => a.project?.status === "active"
   );
 
+  // When a week-specific row exists for the same staff+project+week, it
+  // overrides the recurring (week_start=null) row for that week.
+  const weeklyOverrideKeys = new Set<string>();
+  for (const a of activeAssignments) {
+    if (a.week_start !== null && a.project?.id) {
+      weeklyOverrideKeys.add(`${a.staff_id}::${a.project.id}::${a.week_start}`);
+    }
+  }
+
   // Build a lookup: staff_id → assignment[]
   const assignmentsByStaff = new Map<string, typeof activeAssignments>();
   for (const a of activeAssignments) {
@@ -182,6 +191,14 @@ export async function GET(): Promise<NextResponse> {
           // Pinned to a specific week
           includesThisWeek = a.week_start === weekStart;
         } else {
+          // If there is a week-specific override for this staff+project+week,
+          // skip the recurring row for this week.
+          const overrideKey = `${a.staff_id}::${a.project?.id ?? ""}::${weekStart}`;
+          if (weeklyOverrideKeys.has(overrideKey)) {
+            includesThisWeek = false;
+            continue;
+          }
+
           // Floating — applies whenever the project's date range covers this week
           const projectStart = a.project?.start_date ?? null;
           const projectEnd = a.project?.end_date ?? null;
@@ -192,12 +209,14 @@ export async function GET(): Promise<NextResponse> {
 
         if (includesThisWeek) {
           assignedHours += a.weekly_hours_allocated;
-          matchingAssignments.push({
-            id: a.id,
-            project_id: a.project?.id ?? "",
-            project_name: a.project?.name ?? "Unknown",
-            weekly_hours_allocated: a.weekly_hours_allocated,
-          });
+          if (a.weekly_hours_allocated > 0) {
+            matchingAssignments.push({
+              id: a.id,
+              project_id: a.project?.id ?? "",
+              project_name: a.project?.name ?? "Unknown",
+              weekly_hours_allocated: a.weekly_hours_allocated,
+            });
+          }
         }
       }
 

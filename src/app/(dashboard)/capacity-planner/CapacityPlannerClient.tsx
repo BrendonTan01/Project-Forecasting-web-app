@@ -20,6 +20,12 @@ interface DragState {
   weeklyHoursAllocated: number;
 }
 
+interface PendingMove {
+  drag: DragState;
+  toStaffId: string;
+  toWeekStart: string;
+}
+
 function formatWeekLabel(weekStart: string): string {
   const date = new Date(weekStart + "T00:00:00Z");
   return date.toLocaleDateString("en-US", {
@@ -71,6 +77,7 @@ export default function CapacityPlannerClient({
   const [dragOver, setDragOver] = useState<string | null>(null); // "staffId::weekStart"
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   const dragRef = useRef<DragState | null>(null);
 
@@ -129,38 +136,29 @@ export default function CapacityPlannerClient({
     setDragOver(null);
   }, []);
 
-  const handleDrop = useCallback(
-    async (e: React.DragEvent, toStaffId: string, toWeekStart: string) => {
-      e.preventDefault();
-      setDragOver(null);
-
-      const drag = dragRef.current;
-      if (!drag) return;
-
-      // No-op if dropped onto the same cell
-      if (
-        drag.fromStaffId === toStaffId &&
-        drag.fromWeekStart === toWeekStart
-      ) {
-        return;
-      }
-
+  const executeMove = useCallback(
+    async (
+      pending: PendingMove,
+      moveScope: "single" | "future" | "all"
+    ) => {
+      setPendingMove(null);
+      const { drag, toStaffId, toWeekStart } = pending;
       setLoading(true);
       setErrorMsg(null);
 
       try {
         const body: Record<string, unknown> = {
           assignment_id: drag.assignmentId,
+          source_week_start: drag.fromWeekStart,
+          week_start: toWeekStart,
+          move_scope: moveScope,
         };
 
         if (drag.fromStaffId !== toStaffId) {
           body.staff_id = toStaffId;
         }
 
-        // Pin to the target week when dropping to a different week
-        body.week_start = toWeekStart;
-
-        // Preserve the allocated hours exactly
+        // Preserve allocated hours unless changed in future UX.
         body.weekly_hours_allocated = drag.weeklyHoursAllocated;
 
         const res = await fetch("/api/project-assignment", {
@@ -186,6 +184,31 @@ export default function CapacityPlannerClient({
       }
     },
     [refreshData]
+  );
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent, toStaffId: string, toWeekStart: string) => {
+      e.preventDefault();
+      setDragOver(null);
+
+      const drag = dragRef.current;
+      if (!drag) return;
+
+      // No-op if dropped onto the same cell
+      if (
+        drag.fromStaffId === toStaffId &&
+        drag.fromWeekStart === toWeekStart
+      ) {
+        return;
+      }
+
+      setPendingMove({
+        drag,
+        toStaffId,
+        toWeekStart,
+      });
+    },
+    []
   );
 
   const handleDragEnd = useCallback(() => {
@@ -291,6 +314,52 @@ export default function CapacityPlannerClient({
           weeks={data.weeks}
           onClose={() => setSelectedStaffId(null)}
         />
+      )}
+
+      {pendingMove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded border border-zinc-200 bg-white p-4 shadow-lg">
+            <h3 className="text-sm font-semibold text-zinc-900">
+              Move assignment scope
+            </h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              Choose how much of this assignment series to move.
+            </p>
+
+            <div className="mt-4 space-y-2">
+              <button
+                className="w-full rounded border border-zinc-300 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                onClick={() => executeMove(pendingMove, "single")}
+              >
+                Move only this week
+              </button>
+              <button
+                className="w-full rounded border border-zinc-300 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                onClick={() => executeMove(pendingMove, "future")}
+              >
+                Move this and all future weeks
+              </button>
+              <button
+                className="w-full rounded border border-zinc-300 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                onClick={() => executeMove(pendingMove, "all")}
+              >
+                Move all assignments (past, this, future)
+              </button>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+                onClick={() => {
+                  setPendingMove(null);
+                  dragRef.current = null;
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
