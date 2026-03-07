@@ -13,6 +13,7 @@ import {
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import type { ProjectHealthStatus } from "@/lib/types";
 import StaffDashboard from "./StaffDashboard";
+import WeeklyTrendChart from "./WeeklyTrendChart";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
 
 // Period: last 30 days for utilisation
@@ -714,6 +715,26 @@ export default async function DashboardPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Weekly utilisation trend */}
+      <div className="app-card p-4">
+        <h2 className="mb-1 font-semibold text-zinc-900">Utilisation trend (last 30 days)</h2>
+        <p className="mb-4 text-sm text-zinc-600">
+          Billable hours as a percentage of total team capacity, week by week.
+        </p>
+        <WeeklyTrendChart
+          timeEntries={timeEntries.map((e) => ({
+            staff_id: e.staff_id,
+            date: e.date,
+            hours: Number(e.hours),
+            billable_flag: e.billable_flag,
+          }))}
+          staffProfiles={staffProfiles.map((sp) => ({
+            id: sp.id,
+            weekly_capacity_hours: Number(sp.weekly_capacity_hours),
+          }))}
+        />
       </div>
 
       {/* Alerts */}

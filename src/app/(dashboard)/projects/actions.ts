@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { revalidatePath } from "next/cache";
+import { writeAuditLog } from "@/lib/audit/log";
 
 export type ProjectFormData = {
   name: string;
@@ -39,6 +40,14 @@ export async function createProject(data: ProjectFormData) {
   if (error) return { error: error.message };
   revalidatePath("/projects");
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "project.created",
+    entityType: "project",
+    entityId: project.id,
+    newValue: { name: data.name, status: data.status },
+  });
   return { success: true, id: project.id };
 }
 
@@ -69,6 +78,14 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "project.updated",
+    entityType: "project",
+    entityId: id,
+    newValue: updateData,
+  });
   return { success: true };
 }
 
@@ -90,5 +107,12 @@ export async function deleteProject(id: string) {
   if (error) return { error: error.message };
   revalidatePath("/projects");
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "project.deleted",
+    entityType: "project",
+    entityId: id,
+  });
   return { success: true };
 }

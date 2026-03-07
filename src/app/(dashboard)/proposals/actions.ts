@@ -8,6 +8,7 @@ import {
   normalizeProposalOptimizationMode,
   type ProposalOptimizationMode,
 } from "./optimization-modes";
+import { writeAuditLog } from "@/lib/audit/log";
 
 export type ProposalFormData = {
   name: string;
@@ -55,6 +56,14 @@ export async function createProposal(data: ProposalFormData) {
 
   revalidatePath("/proposals");
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.created",
+    entityType: "proposal",
+    entityId: proposal.id,
+    newValue: { name: data.name, status: data.status },
+  });
   return { success: true, id: proposal.id };
 }
 
@@ -116,6 +125,14 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
   revalidatePath("/proposals");
   revalidatePath(`/proposals/${id}`);
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.updated",
+    entityType: "proposal",
+    entityId: id,
+    newValue: updateData,
+  });
   return { success: true };
 }
 
@@ -137,5 +154,12 @@ export async function deleteProposal(id: string) {
 
   revalidatePath("/proposals");
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.deleted",
+    entityType: "proposal",
+    entityId: id,
+  });
   return { success: true };
 }

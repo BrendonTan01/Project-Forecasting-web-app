@@ -1,6 +1,9 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// ─── Join existing org (staff invite-code path) ──────────────────────────────
 
 type SignupInput = {
   email: string;
@@ -41,7 +44,6 @@ export async function signupAction(input: SignupInput) {
 
   const supabase = await createClient();
 
-  // Validate the tenant exists before attaching metadata.
   const { data: tenant } = await supabase
     .from("tenants")
     .select("id")
@@ -67,11 +69,71 @@ export async function signupAction(input: SignupInput) {
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: metadata,
-    },
+    options: { data: metadata },
   });
 
   if (error) return { error: error.message };
   return { success: true };
+}
+
+// ─── Create new organisation (self-service onboarding) ────────────────────────
+
+type CreateOrgInput = {
+  orgName: string;
+  email: string;
+  password: string;
+  jobTitle?: string;
+};
+
+export async function createTenantAndAdmin(input: CreateOrgInput) {
+  const orgName = input.orgName.trim();
+  const email = input.email.trim().toLowerCase();
+  const password = input.password;
+  const jobTitle = input.jobTitle?.trim();
+
+  if (!orgName) return { error: "Organisation name is required." };
+  if (!email) return { error: "Email is required." };
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+
+  const admin = createAdminClient();
+
+  // 1. Create the tenant row
+  const { data: tenant, error: tenantError } = await admin
+    .from("tenants")
+    .insert({ name: orgName })
+    .select("id")
+    .single();
+
+  if (tenantError || !tenant) {
+    return { error: tenantError?.message ?? "Failed to create organisation." };
+  }
+
+  const tenantId = tenant.id;
+
+  // 2. Create the Supabase auth user with administrator role
+  //    The handle_new_user() trigger will create the users + staff_profiles rows.
+  //    Service-role callers are allowed to set elevated roles and rates.
+  const metadata: Record<string, string> = {
+    tenant_id: tenantId,
+    role: "administrator",
+  };
+  if (jobTitle) metadata.job_title = jobTitle;
+
+  const { data: authUser, error: authError } =
+    await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
+
+  if (authError || !authUser) {
+    // Roll back the tenant row so we don't leave orphaned tenants
+    await admin.from("tenants").delete().eq("id", tenantId);
+    return {
+      error: authError?.message ?? "Failed to create administrator account.",
+    };
+  }
+
+  return { success: true, tenantId };
 }

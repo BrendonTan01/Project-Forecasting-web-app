@@ -141,7 +141,17 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 font-semibold text-zinc-900">Assigned staff</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-semibold text-zinc-900">Assigned staff</h2>
+          {user.role === "administrator" && (
+            <Link
+              href={`/projects/${id}/assignments`}
+              className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
+            >
+              Manage assignments
+            </Link>
+          )}
+        </div>
         {assignments && assignments.length > 0 ? (
           <table className="min-w-full">
             <thead>
