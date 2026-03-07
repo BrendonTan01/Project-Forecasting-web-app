@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { writeAuditLog } from "@/lib/audit/log";
 
@@ -17,8 +18,8 @@ export type ProjectFormData = {
 export async function createProject(data: ProjectFormData) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can create projects" };
+  if (!hasPermission(user.role, "projects:manage")) {
+    return { error: "You do not have permission to create projects" };
   }
 
   const supabase = await createClient();
@@ -54,8 +55,8 @@ export async function createProject(data: ProjectFormData) {
 export async function updateProject(id: string, data: Partial<ProjectFormData>) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can edit projects" };
+  if (!hasPermission(user.role, "projects:manage")) {
+    return { error: "You do not have permission to edit projects" };
   }
 
   const supabase = await createClient();
@@ -92,8 +93,8 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
 export async function deleteProject(id: string) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can delete projects" };
+  if (!hasPermission(user.role, "projects:manage")) {
+    return { error: "You do not have permission to delete projects" };
   }
 
   const supabase = await createClient();

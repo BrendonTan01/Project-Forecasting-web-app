@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 
 export async function upsertProjectAssignment(
@@ -11,8 +12,8 @@ export async function upsertProjectAssignment(
 ) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can manage project assignments." };
+  if (!hasPermission(user.role, "assignments:manage")) {
+    return { error: "You do not have permission to manage project assignments." };
   }
   if (allocationPercentage < 0 || allocationPercentage > 200) {
     return { error: "Allocation must be between 0% and 200%." };
@@ -63,8 +64,8 @@ export async function upsertProjectAssignment(
 export async function removeProjectAssignment(projectId: string, assignmentId: string) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can manage project assignments." };
+  if (!hasPermission(user.role, "assignments:manage")) {
+    return { error: "You do not have permission to manage project assignments." };
   }
 
   const supabase = await createClient();

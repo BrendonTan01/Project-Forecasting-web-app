@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isStaffBlockedRoute } from "@/lib/permissions";
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -68,6 +69,20 @@ export async function proxy(request: NextRequest) {
   // Authenticated user visiting /login or /signup -> redirect to /dashboard.
   if (user && isAuthOnlyRoute(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // Role-based route guard: staff cannot access proposals or capacity routes.
+  // The DB query only runs when the authenticated user hits one of these restricted paths.
+  if (user && isStaffBlockedRoute(pathname)) {
+    const { data: dbUser } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (dbUser?.role === "staff") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return supabaseResponse;

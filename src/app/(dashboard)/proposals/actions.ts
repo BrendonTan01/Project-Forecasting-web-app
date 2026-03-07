@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
@@ -26,8 +27,8 @@ export type ProposalFormData = {
 export async function createProposal(data: ProposalFormData) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can create proposals" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to create proposals" };
   }
   if (data.status !== "draft" && (!data.proposed_start_date || !data.proposed_end_date)) {
     return { error: "Set both timeline dates before changing status from draft" };
@@ -70,8 +71,8 @@ export async function createProposal(data: ProposalFormData) {
 export async function updateProposal(id: string, data: Partial<ProposalFormData>) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can edit proposals" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to edit proposals" };
   }
 
   if (data.status !== undefined) {
@@ -139,8 +140,8 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
 export async function deleteProposal(id: string) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can delete proposals" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to delete proposals" };
   }
 
   const supabase = await createClient();
