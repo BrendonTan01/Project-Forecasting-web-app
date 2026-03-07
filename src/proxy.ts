@@ -28,7 +28,7 @@ function isAuthOnlyRoute(pathname: string): boolean {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -51,21 +51,21 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Refresh the session — must be called before any redirects
+  // Refresh the session before checking redirects.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
 
-  // Unauthenticated user trying to access a protected route → redirect to /login
+  // Unauthenticated user trying to access a protected route -> redirect to /login.
   if (!user && isProtectedRoute(pathname)) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated user visiting /login or /signup → redirect to /dashboard
+  // Authenticated user visiting /login or /signup -> redirect to /dashboard.
   if (user && isAuthOnlyRoute(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }

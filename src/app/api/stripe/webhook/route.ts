@@ -32,8 +32,10 @@ async function verifyStripeWebhook(
   if (!signature || !webhookSecret || !stripeKey) return null;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Stripe = require("stripe");
+    // Use runtime require to avoid bundling `stripe` when billing is not enabled.
+    // eslint-disable-next-line no-eval
+    const runtimeRequire = eval("require") as (id: string) => any;
+    const Stripe = runtimeRequire("stripe");
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-02-24.acacia" });
     const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     return event as StripeEvent;
@@ -66,6 +68,13 @@ function extractPlanFromPriceId(priceId: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { error: "Stripe is not configured on this server." },
+      { status: 501 }
+    );
+  }
+
   const rawBody = await request.text();
   const event = await verifyStripeWebhook(request, rawBody);
 
