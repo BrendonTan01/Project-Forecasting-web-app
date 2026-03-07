@@ -1,5 +1,8 @@
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
+import { UtilizationTable } from "@/components/api-views/UtilizationTable";
+import { StaffingGapsTable } from "@/components/api-views/StaffingGapsTable";
+import { ForecastTable } from "@/components/api-views/ForecastTable";
 import {
   calculateUtilisation,
   formatUtilisation,
@@ -735,6 +738,27 @@ export default async function DashboardPage({
             weekly_capacity_hours: Number(sp.weekly_capacity_hours),
           }))}
         />
+      </div>
+
+      {/* Weekly Utilization */}
+      <div className="app-card p-4 space-y-3">
+        <h2 className="font-semibold text-zinc-900">Weekly Utilization</h2>
+        <p className="text-xs text-zinc-500">Capacity vs. project hours over the next 12 weeks.</p>
+        <UtilizationTable weeks={12} />
+      </div>
+
+      {/* Staffing Gaps */}
+      <div className="app-card p-4 space-y-3">
+        <h2 className="font-semibold text-zinc-900">Staffing Gaps</h2>
+        <p className="text-xs text-zinc-500">Weeks where demand exceeds capacity and estimated additional staff needed.</p>
+        <StaffingGapsTable weeks={12} />
+      </div>
+
+      {/* Upcoming Project Load */}
+      <div className="app-card p-4 space-y-3">
+        <h2 className="font-semibold text-zinc-900">Upcoming Project Load</h2>
+        <p className="text-xs text-zinc-500">12-week forecast of project hours, capacity, utilization, and staffing gaps.</p>
+        <ForecastTable weeks={12} />
       </div>
 
       {/* Alerts */}

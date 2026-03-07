@@ -73,6 +73,28 @@ export default async function ProjectsPage({
     {}
   );
 
+  const { data: assignmentsData } = projectIds.length
+    ? await supabase
+        .from("project_assignments")
+        .select("project_id, weekly_hours_allocated, staff_profiles(name)")
+        .eq("tenant_id", user.tenantId)
+        .in("project_id", projectIds)
+    : { data: [] };
+
+  const staffByProject = (assignmentsData ?? []).reduce<Record<string, { name: string; hours: number }[]>>(
+    (acc, row) => {
+      const profile = Array.isArray(row.staff_profiles)
+        ? row.staff_profiles[0]
+        : row.staff_profiles;
+      const name = profile?.name ?? "Unknown";
+      const hours = Number(row.weekly_hours_allocated);
+      if (!acc[row.project_id]) acc[row.project_id] = [];
+      acc[row.project_id].push({ name, hours });
+      return acc;
+    },
+    {}
+  );
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -123,6 +145,9 @@ export default async function ProjectsPage({
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Status
               </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                Assigned Staff
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -171,6 +196,13 @@ export default async function ProjectsPage({
                     >
                       {badge.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {staffByProject[project.id]?.length
+                      ? staffByProject[project.id]
+                          .map((s) => `${s.name} (${s.hours}h/wk)`)
+                          .join(", ")
+                      : "—"}
                   </td>
                 </tr>
               );

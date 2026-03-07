@@ -1,4 +1,5 @@
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { getCapacityData } from "@/lib/dashboard/data";
 
@@ -45,6 +46,31 @@ export default async function CapacityPage() {
   ];
 
   const { staffProfiles, leaveRequests, assignments } = await getCapacityData(user.tenantId, user.id);
+
+  // Fetch additional data for the Staff Weekly Capacity & Project Load table
+  const supabase = await createClient();
+  const { data: staffWithDetails } = await supabase
+    .from("staff_profiles")
+    .select("id, name, job_title, weekly_capacity_hours")
+    .eq("tenant_id", user.tenantId)
+    .order("name");
+
+  const staffIds = (staffWithDetails ?? []).map((s) => s.id);
+  const { data: weeklyAssignments } = staffIds.length
+    ? await supabase
+        .from("project_assignments")
+        .select("staff_id, weekly_hours_allocated")
+        .eq("tenant_id", user.tenantId)
+        .in("staff_id", staffIds)
+    : { data: [] };
+
+  const weeklyHoursByStaff = (weeklyAssignments ?? []).reduce<Record<string, number>>(
+    (acc, row) => {
+      acc[row.staff_id] = (acc[row.staff_id] ?? 0) + Number(row.weekly_hours_allocated);
+      return acc;
+    },
+    {}
+  );
 
   // Calculate free capacity per staff for each period
   const capacityData = staffProfiles.map((sp) => {
@@ -108,6 +134,53 @@ export default async function CapacityPage() {
   return (
     <div className="space-y-6">
       <h1 className="app-page-title">Capacity Planner</h1>
+
+      {/* Staff Weekly Capacity & Project Load */}
+      <div className="app-card">
+        <h2 className="border-b border-zinc-200 px-4 py-3 font-semibold text-zinc-900">
+          Staff Weekly Capacity &amp; Project Load
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="app-table min-w-full">
+            <thead>
+              <tr className="border-b border-zinc-200 bg-zinc-50">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Job Title</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Weekly Capacity (hrs)</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Assigned hrs/wk</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Utilization %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(staffWithDetails ?? []).map((s) => {
+                const assigned = weeklyHoursByStaff[s.id] ?? 0;
+                const capacity = Number(s.weekly_capacity_hours);
+                const utilization = capacity > 0 ? (assigned / capacity) * 100 : 0;
+                return (
+                  <tr key={s.id} className="border-b border-zinc-100">
+                    <td className="px-4 py-3 text-sm font-medium text-zinc-900">{s.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-700">{s.job_title ?? "—"}</td>
+                    <td className="px-4 py-3 text-right text-sm text-zinc-800">{capacity}h</td>
+                    <td className="px-4 py-3 text-right text-sm text-zinc-800">{assigned.toFixed(1)}h</td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={utilization > 100 ? "text-red-600" : utilization >= 80 ? "text-amber-600" : "text-green-600"}>
+                        {utilization.toFixed(0)}%
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {(!staffWithDetails || staffWithDetails.length === 0) && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">
+                    No staff profiles found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="app-card">
         <h2 className="border-b border-zinc-200 px-4 py-3 font-semibold text-zinc-900">
