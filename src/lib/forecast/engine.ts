@@ -33,6 +33,17 @@ type AssignmentWithProject = {
   } | null;
 };
 
+type RawProjectRelation = {
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+};
+
+type RawAssignmentRow = {
+  weekly_hours_allocated: number | string | null;
+  projects: RawProjectRelation | RawProjectRelation[] | null;
+};
+
 type StaffCapacity = {
   id: string;
   weekly_capacity_hours: number;
@@ -43,6 +54,16 @@ type AvailabilityRow = {
   week_start: string;
   available_hours: number;
 };
+
+function normalizeProjectRelation(
+  projects: RawProjectRelation | RawProjectRelation[] | null
+): RawProjectRelation | null {
+  if (Array.isArray(projects)) {
+    return projects[0] ?? null;
+  }
+
+  return projects ?? null;
+}
 
 /**
  * Runs the forecasting calculation for a tenant, upserts results into
@@ -84,7 +105,11 @@ export async function runForecastForTenant(
 
   const staff: StaffCapacity[] = staffProfiles ?? [];
   const availability: AvailabilityRow[] = (availabilityRows ?? []) as AvailabilityRow[];
-  const allAssignments: AssignmentWithProject[] = (assignments ?? []) as AssignmentWithProject[];
+  const rawAssignments = (assignments ?? []) as RawAssignmentRow[];
+  const allAssignments: AssignmentWithProject[] = rawAssignments.map((row) => ({
+    weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+    projects: normalizeProjectRelation(row.projects),
+  }));
 
   // Build a lookup: staff_id -> week_start_string -> available_hours
   const availMap = new Map<string, Map<string, number>>();
