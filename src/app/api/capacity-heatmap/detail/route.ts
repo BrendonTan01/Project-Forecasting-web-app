@@ -2,16 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { addUtcDays, toDateString } from "@/lib/utils/week";
 
 export type CellProject = {
   id: string;
@@ -61,17 +53,6 @@ function normalizeProject(p: RawProject | RawProject[] | null): RawProject | nul
   return Array.isArray(p) ? (p[0] ?? null) : p ?? null;
 }
 
-function projectOverlapsWeek(
-  projectStart: string | null,
-  projectEnd: string | null,
-  weekStart: string,
-  weekEnd: string
-): boolean {
-  const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEnd;
-  const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStart;
-  return startsBeforeWeekEnds && endsAfterWeekStarts;
-}
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUserWithTenant();
 
@@ -95,7 +76,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const admin = createAdminClient();
-  const weekEnd = toDateString(addDays(new Date(`${weekStart}T00:00:00Z`), 6));
+  const weekEnd = toDateString(addUtcDays(new Date(`${weekStart}T00:00:00Z`), 6));
 
   const [
     { data: officeRow, error: officeErr },
@@ -177,21 +158,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Normalize all assignments
   const allAssignments = ((assignmentRows ?? []) as RawAssignment[]).map((row) => ({
     id: row.id,
+    project_id: normalizeProject(row.projects)?.id ?? "",
     staff_id: row.staff_id,
     weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
     week_start: row.week_start ?? null,
-    project: normalizeProject(row.projects),
+    projects: normalizeProject(row.projects),
   }));
 
-  const activeAssignments = allAssignments.filter((a) => a.project?.status === "active");
-
-  // Track week-pinned overrides
-  const weeklyOverrideKeys = new Set<string>();
-  for (const a of activeAssignments) {
-    if (a.week_start !== null && a.project?.id) {
-      weeklyOverrideKeys.add(`${a.staff_id}::${a.project.id}::${a.week_start}`);
-    }
-  }
+  const activeAssignments = allAssignments.filter((a) => a.projects?.status === "active");
 
   // Determine which assignments are effective for this week for this office's staff
   type EffectiveAssignment = {
@@ -200,35 +174,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     weekly_hours_allocated: number;
   };
 
-  const effectiveForWeek: EffectiveAssignment[] = [];
-
-  for (const a of activeAssignments) {
-    if (!officeStaffIds.has(a.staff_id)) continue;
-    if (!a.project) continue;
-
-    let includesThisWeek: boolean;
-
-    if (a.week_start !== null) {
-      includesThisWeek = a.week_start === weekStart;
-    } else {
-      const overrideKey = `${a.staff_id}::${a.project.id}::${weekStart}`;
-      if (weeklyOverrideKeys.has(overrideKey)) continue;
-      includesThisWeek = projectOverlapsWeek(
-        a.project.start_date ?? null,
-        a.project.end_date ?? null,
-        weekStart,
-        weekEnd
-      );
-    }
-
-    if (includesThisWeek && a.weekly_hours_allocated > 0) {
-      effectiveForWeek.push({
-        staff_id: a.staff_id,
-        project: a.project,
-        weekly_hours_allocated: a.weekly_hours_allocated,
-      });
-    }
-  }
+  const effectiveForWeek: EffectiveAssignment[] = filterEffectiveAssignmentsForWeek(
+    activeAssignments,
+    weekStart
+  )
+    .filter((a) => officeStaffIds.has(a.staff_id) && a.projects && a.weekly_hours_allocated > 0)
+    .map((a) => ({
+      staff_id: a.staff_id,
+      project: a.projects!,
+      weekly_hours_allocated: a.weekly_hours_allocated,
+    }));
 
   // Aggregate per-project: total allocated hours + unique staff count
   const projectMap = new Map<

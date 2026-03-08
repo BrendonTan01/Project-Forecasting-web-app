@@ -1,4 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { getProposalHoursForWeek } from "@/lib/utils/proposalHours";
+import { addUtcDays, startOfCurrentWeekUtc, toDateString, weekEndFromWeekStart } from "@/lib/utils/week";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
@@ -19,47 +22,6 @@ function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function getCurrentWeekMonday(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  today.setDate(today.getDate() + diff);
-  return today;
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function toUtcDate(dateString: string): Date {
-  return new Date(`${dateString}T00:00:00Z`);
-}
-
-function toWeekMonday(dateString: string): string {
-  const date = toUtcDate(dateString);
-  const day = date.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setUTCDate(date.getUTCDate() + diff);
-  return date.toISOString().slice(0, 10);
-}
-
-function countProposalWeeks(proposalStart: string, proposalEnd: string): number {
-  const startMonday = toUtcDate(toWeekMonday(proposalStart));
-  const endMonday = toUtcDate(toWeekMonday(proposalEnd));
-  if (endMonday < startMonday) return 1;
-  const diffDays = Math.floor(
-    (endMonday.getTime() - startMonday.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return Math.floor(diffDays / 7) + 1;
-}
-
 type ProposalRow = {
   id: string;
   estimated_hours_per_week: number | null;
@@ -67,41 +29,6 @@ type ProposalRow = {
   proposed_start_date: string | null;
   proposed_end_date: string | null;
 };
-
-function getProposalHoursForWeek(
-  proposal: ProposalRow,
-  weekStart: string,
-  weekEnd: string
-): number {
-  if (
-    proposal.estimated_hours_per_week !== null &&
-    proposal.estimated_hours_per_week !== undefined
-  ) {
-    const rangeStart = proposal.proposed_start_date;
-    const rangeEnd = proposal.proposed_end_date;
-
-    // If dates are set, only apply demand within the proposal range
-    if (rangeStart && rangeEnd) {
-      if (rangeStart > weekEnd || rangeEnd < weekStart) return 0;
-    }
-
-    return Math.max(0, Number(proposal.estimated_hours_per_week));
-  }
-
-  const totalHours = proposal.estimated_hours;
-  if (!totalHours || Number(totalHours) <= 0) return 0;
-
-  const dateAnchor = proposal.proposed_start_date ?? proposal.proposed_end_date;
-  if (!dateAnchor) return 0;
-
-  const rangeStart = proposal.proposed_start_date ?? dateAnchor;
-  const rangeEnd = proposal.proposed_end_date ?? dateAnchor;
-
-  if (rangeStart > weekEnd || rangeEnd < weekStart) return 0;
-
-  const proposalWeeks = countProposalWeeks(rangeStart, rangeEnd);
-  return Number(totalHours) / proposalWeeks;
-}
 
 type RawProjectRelation = {
   start_date: string | null;
@@ -144,8 +71,8 @@ export async function simulateProposalImpact(
   const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
   const admin = createAdminClient();
 
-  const weekMonday = getCurrentWeekMonday();
-  const forecastEnd = addDays(weekMonday, clampedWeeks * 7 - 1);
+  const weekMonday = startOfCurrentWeekUtc();
+  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
 
   const [
     { data: proposalData },
@@ -215,25 +142,15 @@ export async function simulateProposalImpact(
     (a) => a.projects?.status === "active"
   );
 
-  const weeklyOverrideKeys = new Set<string>();
-  for (const assignment of activeAssignments) {
-    if (assignment.week_start !== null) {
-      weeklyOverrideKeys.add(
-        `${assignment.staff_id}::${assignment.project_id}::${assignment.week_start}`
-      );
-    }
-  }
-
   let totalCurrentUtilization = 0;
   let totalSimulatedUtilization = 0;
   let overloadWeek: number | null = null;
   let capacityRisk = false;
 
   for (let i = 0; i < clampedWeeks; i++) {
-    const weekStart = addDays(weekMonday, i * 7);
-    const weekEnd = addDays(weekStart, 6);
+    const weekStart = addUtcDays(weekMonday, i * 7);
     const weekStartStr = toDateString(weekStart);
-    const weekEndStr = toDateString(weekEnd);
+    const weekEndStr = weekEndFromWeekStart(weekStartStr);
 
     let totalCapacity = 0;
     for (const member of staff) {
@@ -241,29 +158,10 @@ export async function simulateProposalImpact(
       totalCapacity += override !== undefined ? override : member.weekly_capacity_hours;
     }
 
-    let totalProjectHours = 0;
-    for (const assignment of activeAssignments) {
-      if (assignment.week_start !== null) {
-        if (assignment.week_start === weekStartStr) {
-          totalProjectHours += assignment.weekly_hours_allocated;
-        }
-        continue;
-      }
-
-      const overrideKey = `${assignment.staff_id}::${assignment.project_id}::${weekStartStr}`;
-      if (weeklyOverrideKeys.has(overrideKey)) continue;
-
-      const project = assignment.projects;
-      const projectStart = project?.start_date ?? null;
-      const projectEnd = project?.end_date ?? null;
-
-      const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
-      const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
-
-      if (startsBeforeWeekEnds && endsAfterWeekStarts) {
-        totalProjectHours += assignment.weekly_hours_allocated;
-      }
-    }
+    const totalProjectHours = filterEffectiveAssignmentsForWeek(activeAssignments, weekStartStr).reduce(
+      (sum, assignment) => sum + assignment.weekly_hours_allocated,
+      0
+    );
 
     const proposalHours = getProposalHoursForWeek(proposal, weekStartStr, weekEndStr);
     const simulatedProjectHours = totalProjectHours + proposalHours;

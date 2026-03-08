@@ -1,3 +1,10 @@
+import {
+  startOfCurrentWeekUtc,
+  toDateString,
+  rangesOverlap,
+  weekEndFromWeekStart,
+} from "@/lib/utils/week";
+
 type ProjectWindow =
   | {
       start_date: string | null;
@@ -19,16 +26,6 @@ export type EffectiveAssignmentRow = {
   projects?: ProjectWindow;
 };
 
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
 function normalizeProject(project: ProjectWindow): {
   start_date: string | null;
   end_date: string | null;
@@ -39,12 +36,7 @@ function normalizeProject(project: ProjectWindow): {
 }
 
 export function getCurrentWeekMondayString(now: Date = new Date()): string {
-  const date = new Date(now);
-  date.setUTCHours(0, 0, 0, 0);
-  const day = date.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setUTCDate(date.getUTCDate() + diff);
-  return toDateString(date);
+  return toDateString(startOfCurrentWeekUtc(now));
 }
 
 function projectOverlapsWeek(
@@ -52,10 +44,10 @@ function projectOverlapsWeek(
   projectEnd: string | null,
   weekStart: string
 ): boolean {
-  const weekEnd = toDateString(addDays(new Date(`${weekStart}T00:00:00Z`), 6));
-  const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEnd;
-  const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStart;
-  return startsBeforeWeekEnds && endsAfterWeekStarts;
+  const weekEnd = weekEndFromWeekStart(weekStart);
+  const safeProjectStart = projectStart ?? "0000-01-01";
+  const safeProjectEnd = projectEnd ?? "9999-12-31";
+  return rangesOverlap(safeProjectStart, safeProjectEnd, weekStart, weekEnd);
 }
 
 export function filterEffectiveAssignmentsForWeek<T extends EffectiveAssignmentRow>(

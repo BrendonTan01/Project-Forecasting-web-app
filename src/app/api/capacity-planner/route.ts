@@ -2,27 +2,10 @@ import { NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { addUtcDays, buildWeekStarts, startOfCurrentWeekUtc, toDateString } from "@/lib/utils/week";
 
 const WEEKS = 12;
-
-function getCurrentWeekMonday(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  today.setDate(today.getDate() + diff);
-  return today;
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export type AssignmentCell = {
   id: string;
@@ -64,15 +47,9 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const admin = createAdminClient();
-  const weekMonday = getCurrentWeekMonday();
-
-  // Build the list of 12 week-start ISO strings
-  const weekStarts: string[] = [];
-  for (let i = 0; i < WEEKS; i++) {
-    weekStarts.push(toDateString(addDays(weekMonday, i * 7)));
-  }
-
-  const forecastEnd = toDateString(addDays(weekMonday, WEEKS * 7 - 1));
+  const weekMonday = startOfCurrentWeekUtc();
+  const weekStarts = buildWeekStarts(weekMonday, WEEKS);
+  const forecastEnd = toDateString(addUtcDays(weekMonday, WEEKS * 7 - 1));
 
   // Parallel fetch: staff profiles, assignments with project info, staff availability
   const [
@@ -142,25 +119,17 @@ export async function GET(): Promise<NextResponse> {
 
   const allAssignments = ((assignmentRows ?? []) as RawAssignment[]).map((row) => ({
     id: row.id,
+    project_id: normalizeProject(row.projects)?.id ?? "",
     staff_id: row.staff_id,
     weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
     week_start: row.week_start ?? null,
-    project: normalizeProject(row.projects),
+    projects: normalizeProject(row.projects),
   }));
 
   // Only include assignments for active projects
   const activeAssignments = allAssignments.filter(
-    (a) => a.project?.status === "active"
+    (a) => a.projects?.status === "active"
   );
-
-  // When a week-specific row exists for the same staff+project+week, it
-  // overrides the recurring (week_start=null) row for that week.
-  const weeklyOverrideKeys = new Set<string>();
-  for (const a of activeAssignments) {
-    if (a.week_start !== null && a.project?.id) {
-      weeklyOverrideKeys.add(`${a.staff_id}::${a.project.id}::${a.week_start}`);
-    }
-  }
 
   // Build a lookup: staff_id → assignment[]
   const assignmentsByStaff = new Map<string, typeof activeAssignments>();
@@ -177,46 +146,22 @@ export async function GET(): Promise<NextResponse> {
     const weekMap: Record<string, WeekCell> = {};
 
     for (const weekStart of weekStarts) {
-      const weekEnd = toDateString(addDays(new Date(weekStart), 6));
       const capacityHours =
         availMap.get(staff.id)?.get(weekStart) ?? Number(staff.weekly_capacity_hours);
 
       const matchingAssignments: AssignmentCell[] = [];
       let assignedHours = 0;
 
-      for (const a of staffAssignments) {
-        let includesThisWeek: boolean;
-
-        if (a.week_start !== null) {
-          // Pinned to a specific week
-          includesThisWeek = a.week_start === weekStart;
-        } else {
-          // If there is a week-specific override for this staff+project+week,
-          // skip the recurring row for this week.
-          const overrideKey = `${a.staff_id}::${a.project?.id ?? ""}::${weekStart}`;
-          if (weeklyOverrideKeys.has(overrideKey)) {
-            includesThisWeek = false;
-            continue;
-          }
-
-          // Floating — applies whenever the project's date range covers this week
-          const projectStart = a.project?.start_date ?? null;
-          const projectEnd = a.project?.end_date ?? null;
-          const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEnd;
-          const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStart;
-          includesThisWeek = startsBeforeWeekEnds && endsAfterWeekStarts;
-        }
-
-        if (includesThisWeek) {
-          assignedHours += a.weekly_hours_allocated;
-          if (a.weekly_hours_allocated > 0) {
-            matchingAssignments.push({
-              id: a.id,
-              project_id: a.project?.id ?? "",
-              project_name: a.project?.name ?? "Unknown",
-              weekly_hours_allocated: a.weekly_hours_allocated,
-            });
-          }
+      const effectiveAssignments = filterEffectiveAssignmentsForWeek(staffAssignments, weekStart);
+      for (const a of effectiveAssignments) {
+        assignedHours += a.weekly_hours_allocated;
+        if (a.weekly_hours_allocated > 0) {
+          matchingAssignments.push({
+            id: a.id,
+            project_id: a.projects?.id ?? "",
+            project_name: a.projects?.name ?? "Unknown",
+            weekly_hours_allocated: a.weekly_hours_allocated,
+          });
         }
       }
 

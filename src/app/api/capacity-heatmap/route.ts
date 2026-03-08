@@ -2,28 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { addUtcDays, buildWeekStarts, startOfCurrentWeekUtc, toDateString } from "@/lib/utils/week";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 26;
-
-function getCurrentWeekMonday(): Date {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const day = today.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  today.setUTCDate(today.getUTCDate() + diff);
-  return today;
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 export type HeatmapCell = {
   officeId: string;
@@ -59,17 +42,6 @@ function normalizeProject(p: RawProject | RawProject[] | null): RawProject | nul
   return Array.isArray(p) ? (p[0] ?? null) : p ?? null;
 }
 
-function projectOverlapsWeek(
-  projectStart: string | null,
-  projectEnd: string | null,
-  weekStart: string,
-  weekEnd: string
-): boolean {
-  const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEnd;
-  const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStart;
-  return startsBeforeWeekEnds && endsAfterWeekStarts;
-}
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUserWithTenant();
 
@@ -88,14 +60,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     : DEFAULT_WEEKS;
 
   const admin = createAdminClient();
-  const weekMonday = getCurrentWeekMonday();
-
-  const weekStarts: string[] = [];
-  for (let i = 0; i < numWeeks; i++) {
-    weekStarts.push(toDateString(addDays(weekMonday, i * 7)));
-  }
-
-  const forecastEnd = toDateString(addDays(weekMonday, numWeeks * 7 - 1));
+  const weekMonday = startOfCurrentWeekUtc();
+  const weekStarts = buildWeekStarts(weekMonday, numWeeks);
+  const forecastEnd = toDateString(addUtcDays(weekMonday, numWeeks * 7 - 1));
 
   const [
     { data: officeRows, error: officeErr },
@@ -172,21 +139,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Normalize and filter assignments to active projects only
   const allAssignments = ((assignmentRows ?? []) as RawAssignment[]).map((row) => ({
     id: row.id,
+    project_id: normalizeProject(row.projects)?.id ?? "",
     staff_id: row.staff_id,
     weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
     week_start: row.week_start ?? null,
-    project: normalizeProject(row.projects),
+    projects: normalizeProject(row.projects),
   }));
 
-  const activeAssignments = allAssignments.filter((a) => a.project?.status === "active");
-
-  // Track week-pinned overrides (staff+project+week) to suppress recurring rows
-  const weeklyOverrideKeys = new Set<string>();
-  for (const a of activeAssignments) {
-    if (a.week_start !== null && a.project?.id) {
-      weeklyOverrideKeys.add(`${a.staff_id}::${a.project.id}::${a.week_start}`);
-    }
-  }
+  const activeAssignments = allAssignments.filter((a) => a.projects?.status === "active");
 
   // Build: officeId → weekStart → { totalCapacity, totalAllocated }
   const officeWeekMap = new Map<string, Map<string, { cap: number; alloc: number }>>();
@@ -210,33 +170,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Accumulate allocated hours from assignments
-  for (const a of activeAssignments) {
-    const meta = staffMeta.get(a.staff_id);
-    if (!meta?.officeId) continue;
-    const officeWeeks = officeWeekMap.get(meta.officeId);
-    if (!officeWeeks) continue;
-
-    for (const ws of weekStarts) {
-      const weekEnd = toDateString(addDays(new Date(`${ws}T00:00:00Z`), 6));
-      let includesThisWeek: boolean;
-
-      if (a.week_start !== null) {
-        includesThisWeek = a.week_start === ws;
-      } else {
-        const overrideKey = `${a.staff_id}::${a.project?.id ?? ""}::${ws}`;
-        if (weeklyOverrideKeys.has(overrideKey)) continue;
-        includesThisWeek = projectOverlapsWeek(
-          a.project?.start_date ?? null,
-          a.project?.end_date ?? null,
-          ws,
-          weekEnd
-        );
-      }
-
-      if (includesThisWeek) {
-        officeWeeks.get(ws)!.alloc += a.weekly_hours_allocated;
-      }
+  // Accumulate allocated hours from assignments using shared effective-week semantics.
+  for (const ws of weekStarts) {
+    const effectiveForWeek = filterEffectiveAssignmentsForWeek(activeAssignments, ws);
+    for (const assignment of effectiveForWeek) {
+      const meta = staffMeta.get(assignment.staff_id);
+      if (!meta?.officeId) continue;
+      const officeWeeks = officeWeekMap.get(meta.officeId);
+      if (!officeWeeks) continue;
+      officeWeeks.get(ws)!.alloc += assignment.weekly_hours_allocated;
     }
   }
 

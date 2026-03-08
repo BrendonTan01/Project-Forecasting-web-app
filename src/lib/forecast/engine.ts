@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { addUtcDays, rangesOverlap, startOfCurrentWeekUtc, toDateString } from "@/lib/utils/week";
 import type {
   ForecastResult,
   HiringPrediction,
@@ -19,26 +21,6 @@ const UNDERUTILIZATION_WEEKS = 4;
 const STANDARD_STAFF_CAPACITY = 40;
 const DEMAND_EXCESS_THRESHOLD = 1.2;
 const CONSECUTIVE_WEEKS_TRIGGER = 4;
-
-/** Returns the ISO date string (YYYY-MM-DD) for the Monday of the current week. */
-function getCurrentWeekMonday(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const day = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const diff = day === 0 ? -6 : 1 - day;
-  today.setDate(today.getDate() + diff);
-  return today;
-}
-
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
 
 function formatMonthYear(dateString: string): string {
   const date = new Date(`${dateString}T00:00:00Z`);
@@ -117,8 +99,8 @@ export async function runForecastForTenant(
   const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
   const admin = createAdminClient();
 
-  const weekMonday = getCurrentWeekMonday();
-  const forecastEnd = addDays(weekMonday, clampedWeeks * 7 - 1);
+  const weekMonday = startOfCurrentWeekUtc();
+  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
 
   // Fetch all required data in parallel
   const [
@@ -164,28 +146,14 @@ export async function runForecastForTenant(
     availMap.get(row.staff_id)!.set(row.week_start, row.available_hours);
   }
 
-  // Filter to only active project assignments
-  const activeAssignments = allAssignments.filter(
-    (a) => a.projects?.status === "active"
-  );
-
-  // Week-specific rows override recurring rows for the same staff+project+week.
-  const weeklyOverrideKeys = new Set<string>();
-  for (const assignment of activeAssignments) {
-    if (assignment.week_start !== null) {
-      weeklyOverrideKeys.add(
-        `${assignment.staff_id}::${assignment.project_id}::${assignment.week_start}`
-      );
-    }
-  }
+  // Active-only is preserved by shared effective-assignment filtering.
+  const activeAssignments = allAssignments.filter((a) => a.projects?.status === "active");
 
   const results: ForecastResult[] = [];
 
   for (let i = 0; i < clampedWeeks; i++) {
-    const weekStart = addDays(weekMonday, i * 7);
-    const weekEnd = addDays(weekStart, 6);
+    const weekStart = addUtcDays(weekMonday, i * 7);
     const weekStartStr = toDateString(weekStart);
-    const weekEndStr = toDateString(weekEnd);
 
     // total_capacity: sum available hours per staff for this week.
     // Use staff_availability override if present, otherwise fall back to weekly_capacity_hours.
@@ -195,37 +163,10 @@ export async function runForecastForTenant(
       totalCapacity += override !== undefined ? override : member.weekly_capacity_hours;
     }
 
-    // total_project_hours: sum allocated hours for assignments that apply to
-    // this week. An assignment applies if:
-    //   - It has a week_start set and it matches this week exactly, OR
-    //   - It has no week_start and the project date range overlaps this week
-    //     (projects with no dates are included every week).
-    let totalProjectHours = 0;
-    for (const assignment of activeAssignments) {
-      if (assignment.week_start !== null) {
-        // Pinned to a specific week
-        if (assignment.week_start === weekStartStr) {
-          totalProjectHours += assignment.weekly_hours_allocated;
-        }
-        continue;
-      }
-
-      const overrideKey = `${assignment.staff_id}::${assignment.project_id}::${weekStartStr}`;
-      if (weeklyOverrideKeys.has(overrideKey)) {
-        continue;
-      }
-
-      const project = assignment.projects;
-      const projectStart = project?.start_date ?? null;
-      const projectEnd = project?.end_date ?? null;
-
-      const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
-      const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
-
-      if (startsBeforeWeekEnds && endsAfterWeekStarts) {
-        totalProjectHours += assignment.weekly_hours_allocated;
-      }
-    }
+    const totalProjectHours = filterEffectiveAssignmentsForWeek(activeAssignments, weekStartStr).reduce(
+      (sum, assignment) => sum + assignment.weekly_hours_allocated,
+      0
+    );
 
     const utilizationRate =
       totalCapacity > 0 ? totalProjectHours / totalCapacity : 0;
@@ -434,6 +375,77 @@ function normalizeStaffProfileRelation(
   return staffProfile ?? null;
 }
 
+type SkillCapacityMember = { staffId: string; weeklyCapacityHours: number };
+type SkillWeekDemandCapacity = {
+  weekStart: string;
+  weekEnd: string;
+  demand: number;
+  capacity: number;
+};
+
+function projectOverlapsWeek(
+  projectStart: string | null,
+  projectEnd: string | null,
+  weekStart: string,
+  weekEnd: string
+): boolean {
+  const safeStart = projectStart ?? "0000-01-01";
+  const safeEnd = projectEnd ?? "9999-12-31";
+  return rangesOverlap(safeStart, safeEnd, weekStart, weekEnd);
+}
+
+function buildSkillWeeklyDemandCapacityMatrix(
+  skills: SkillRow[],
+  activeRequirements: ProjectSkillRequirementRow[],
+  skillToStaff: Map<string, SkillCapacityMember[]>,
+  availMap: Map<string, Map<string, number>>,
+  weekMonday: Date,
+  weeks: number
+): Map<string, SkillWeekDemandCapacity[]> {
+  const matrix = new Map<string, SkillWeekDemandCapacity[]>();
+
+  for (const skill of skills) {
+    const weeklySeries: SkillWeekDemandCapacity[] = [];
+    for (let i = 0; i < weeks; i++) {
+      const weekStart = addUtcDays(weekMonday, i * 7);
+      const weekStartStr = toDateString(weekStart);
+      const weekEndStr = toDateString(addUtcDays(weekStart, 6));
+
+      let demand = 0;
+      for (const req of activeRequirements) {
+        if (req.skill_id !== skill.id) continue;
+        const proj = req.projects;
+        if (
+          projectOverlapsWeek(
+            proj?.start_date ?? null,
+            proj?.end_date ?? null,
+            weekStartStr,
+            weekEndStr
+          )
+        ) {
+          demand += req.required_hours_per_week;
+        }
+      }
+
+      let capacity = 0;
+      for (const { staffId, weeklyCapacityHours } of skillToStaff.get(skill.id) ?? []) {
+        const override = availMap.get(staffId)?.get(weekStartStr);
+        capacity += override !== undefined ? override : weeklyCapacityHours;
+      }
+
+      weeklySeries.push({
+        weekStart: weekStartStr,
+        weekEnd: weekEndStr,
+        demand,
+        capacity,
+      });
+    }
+    matrix.set(skill.id, weeklySeries);
+  }
+
+  return matrix;
+}
+
 /**
  * Detects skills that have sustained demand pressure and returns hiring
  * recommendations. A recommendation is triggered when demand exceeds capacity
@@ -446,8 +458,8 @@ export async function computeHiringRecommendations(
   const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
   const admin = createAdminClient();
 
-  const weekMonday = getCurrentWeekMonday();
-  const forecastEnd = addDays(weekMonday, clampedWeeks * 7 - 1);
+  const weekMonday = startOfCurrentWeekUtc();
+  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
   const weekMondayStr = toDateString(weekMonday);
   const forecastEndStr = toDateString(forecastEnd);
 
@@ -538,35 +550,27 @@ export async function computeHiringRecommendations(
     });
   }
 
+  const skillMatrix = buildSkillWeeklyDemandCapacityMatrix(
+    skills,
+    activeRequirements,
+    skillToStaff,
+    availMap,
+    weekMonday,
+    clampedWeeks
+  );
+
   const recommendations: HiringRecommendation[] = [];
 
   for (const skill of skills) {
     let consecutiveWeeks = 0;
 
     for (let i = 0; i < clampedWeeks; i++) {
-      const weekStart = addDays(weekMonday, i * 7);
-      const weekEnd = addDays(weekStart, 6);
-      const weekStartStr = toDateString(weekStart);
-      const weekEndStr = toDateString(weekEnd);
-
-      let weekDemand = 0;
-      for (const req of activeRequirements) {
-        if (req.skill_id !== skill.id) continue;
-        const proj = req.projects;
-        const projectStart = proj?.start_date ?? null;
-        const projectEnd = proj?.end_date ?? null;
-        const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
-        const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
-        if (startsBeforeWeekEnds && endsAfterWeekStarts) {
-          weekDemand += req.required_hours_per_week;
-        }
-      }
-
-      let weekCapacity = 0;
-      for (const { staffId, weeklyCapacityHours } of skillToStaff.get(skill.id) ?? []) {
-        const override = availMap.get(staffId)?.get(weekStartStr);
-        weekCapacity += override !== undefined ? override : weeklyCapacityHours;
-      }
+      const weekEntry = (skillMatrix.get(skill.id) ?? [])[i];
+      if (!weekEntry) continue;
+      const weekStartStr = weekEntry.weekStart;
+      const weekEndStr = weekEntry.weekEnd;
+      const weekDemand = weekEntry.demand;
+      const weekCapacity = weekEntry.capacity;
 
       const exceedsThreshold =
         weekDemand > 0 && weekDemand > weekCapacity * DEMAND_EXCESS_THRESHOLD;
@@ -584,7 +588,7 @@ export async function computeHiringRecommendations(
           Math.ceil(demandOverCapacity / STANDARD_STAFF_CAPACITY)
         );
         const breachStartWeekIndex = i - (CONSECUTIVE_WEEKS_TRIGGER - 1);
-        const shortageStartWeek = toDateString(addDays(weekMonday, breachStartWeekIndex * 7));
+        const shortageStartWeek = toDateString(addUtcDays(weekMonday, breachStartWeekIndex * 7));
 
         const demandSources = activeRequirements
           .filter((req) => {
@@ -592,9 +596,11 @@ export async function computeHiringRecommendations(
             const proj = req.projects;
             const projectStart = proj?.start_date ?? null;
             const projectEnd = proj?.end_date ?? null;
-            return (
-              (projectStart === null || projectStart <= weekEndStr) &&
-              (projectEnd === null || projectEnd >= weekStartStr)
+            return projectOverlapsWeek(
+              projectStart,
+              projectEnd,
+              weekStartStr,
+              weekEndStr
             );
           })
           .map((req) => ({
@@ -636,8 +642,8 @@ export async function computeSkillShortages(
   const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
   const admin = createAdminClient();
 
-  const weekMonday = getCurrentWeekMonday();
-  const forecastEnd = addDays(weekMonday, clampedWeeks * 7 - 1);
+  const weekMonday = startOfCurrentWeekUtc();
+  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
   const weekMondayStr = toDateString(weekMonday);
   const forecastEndStr = toDateString(forecastEnd);
 
@@ -727,52 +733,23 @@ export async function computeSkillShortages(
     });
   }
 
-  // Accumulate demand and capacity per skill across all forecast weeks
-  const skillDemandSum = new Map<string, number>();
-  const skillCapacitySum = new Map<string, number>();
-  for (const skill of skills) {
-    skillDemandSum.set(skill.id, 0);
-    skillCapacitySum.set(skill.id, 0);
-  }
-
-  for (let i = 0; i < clampedWeeks; i++) {
-    const weekStart = addDays(weekMonday, i * 7);
-    const weekEnd = addDays(weekStart, 6);
-    const weekStartStr = toDateString(weekStart);
-    const weekEndStr = toDateString(weekEnd);
-
-    for (const skill of skills) {
-      // Demand: sum required_hours_per_week for active requirements whose project overlaps this week
-      let weekDemand = 0;
-      for (const req of activeRequirements) {
-        if (req.skill_id !== skill.id) continue;
-        const proj = req.projects;
-        const projectStart = proj?.start_date ?? null;
-        const projectEnd = proj?.end_date ?? null;
-        const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
-        const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
-        if (startsBeforeWeekEnds && endsAfterWeekStarts) {
-          weekDemand += req.required_hours_per_week;
-        }
-      }
-
-      // Capacity: sum available hours for each staff member who holds this skill
-      let weekCapacity = 0;
-      for (const { staffId, weeklyCapacityHours } of skillToStaff.get(skill.id) ?? []) {
-        const override = availMap.get(staffId)?.get(weekStartStr);
-        weekCapacity += override !== undefined ? override : weeklyCapacityHours;
-      }
-
-      skillDemandSum.set(skill.id, skillDemandSum.get(skill.id)! + weekDemand);
-      skillCapacitySum.set(skill.id, skillCapacitySum.get(skill.id)! + weekCapacity);
-    }
-  }
+  const skillMatrix = buildSkillWeeklyDemandCapacityMatrix(
+    skills,
+    activeRequirements,
+    skillToStaff,
+    availMap,
+    weekMonday,
+    clampedWeeks
+  );
 
   // Build result: average per week, include only skills with demand or shortage
   const result: SkillShortage[] = [];
   for (const skill of skills) {
-    const avgDemand = Math.round((skillDemandSum.get(skill.id)! / clampedWeeks) * 100) / 100;
-    const avgCapacity = Math.round((skillCapacitySum.get(skill.id)! / clampedWeeks) * 100) / 100;
+    const weekEntries = skillMatrix.get(skill.id) ?? [];
+    const demandTotal = weekEntries.reduce((sum, entry) => sum + entry.demand, 0);
+    const capacityTotal = weekEntries.reduce((sum, entry) => sum + entry.capacity, 0);
+    const avgDemand = Math.round((demandTotal / clampedWeeks) * 100) / 100;
+    const avgCapacity = Math.round((capacityTotal / clampedWeeks) * 100) / 100;
     const shortage = Math.round(Math.max(0, avgDemand - avgCapacity) * 100) / 100;
 
     if (avgDemand > 0 || shortage > 0) {

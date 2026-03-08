@@ -8,6 +8,8 @@ import {
 } from "@/lib/forecast/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ForecastExplanationEntry } from "@/lib/types";
+import { getProposalHoursForWeek } from "@/lib/utils/proposalHours";
+import { toUtcDate, weekEndFromWeekStart } from "@/lib/utils/week";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
@@ -33,69 +35,6 @@ type StaffNameRow = {
   name: string;
   weekly_capacity_hours: number;
 };
-
-function toUtcDate(dateString: string): Date {
-  return new Date(`${dateString}T00:00:00Z`);
-}
-
-function toWeekMonday(dateString: string): string {
-  const date = toUtcDate(dateString);
-  const day = date.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setUTCDate(date.getUTCDate() + diff);
-  return date.toISOString().slice(0, 10);
-}
-
-function getDateRangeOverlap(
-  rangeStart: string,
-  rangeEnd: string,
-  weekStart: string,
-  weekEnd: string
-): boolean {
-  return rangeStart <= weekEnd && rangeEnd >= weekStart;
-}
-
-function countProposalWeeks(proposalStart: string, proposalEnd: string): number {
-  const startMonday = toUtcDate(toWeekMonday(proposalStart));
-  const endMonday = toUtcDate(toWeekMonday(proposalEnd));
-  if (endMonday < startMonday) {
-    return 1;
-  }
-
-  const diffDays = Math.floor((endMonday.getTime() - startMonday.getTime()) / (1000 * 60 * 60 * 24));
-  return Math.floor(diffDays / 7) + 1;
-}
-
-function getRawProposalHoursForWeek(
-  proposal: ProposalDemandRow,
-  weekStart: string,
-  weekEnd: string
-): number {
-  const explicitWeeklyHours = proposal.estimated_hours_per_week;
-  if (explicitWeeklyHours !== null && explicitWeeklyHours !== undefined) {
-    return Math.max(0, Number(explicitWeeklyHours));
-  }
-
-  const totalEstimatedHours = proposal.estimated_hours;
-  if (totalEstimatedHours === null || totalEstimatedHours === undefined || Number(totalEstimatedHours) <= 0) {
-    return 0;
-  }
-
-  const dateAnchor = proposal.proposed_start_date ?? proposal.proposed_end_date;
-  if (!dateAnchor) {
-    return 0;
-  }
-
-  const rangeStart = proposal.proposed_start_date ?? dateAnchor;
-  const rangeEnd = proposal.proposed_end_date ?? dateAnchor;
-
-  if (!getDateRangeOverlap(rangeStart, rangeEnd, weekStart, weekEnd)) {
-    return 0;
-  }
-
-  const proposalWeeks = countProposalWeeks(rangeStart, rangeEnd);
-  return Number(totalEstimatedHours) / proposalWeeks;
-}
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUserWithTenant();
@@ -158,16 +97,14 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => a.week_start.localeCompare(b.week_start))
       .map((row) => {
         const weekStart = row.week_start;
-        const weekDate = toUtcDate(weekStart);
-        weekDate.setUTCDate(weekDate.getUTCDate() + 6);
-        const weekEnd = weekDate.toISOString().slice(0, 10);
+        const weekEnd = weekEndFromWeekStart(weekStart);
 
         let rawProposalDemand = 0;
         let expectedProposalDemand = 0;
         const explanations: ForecastExplanationEntry[] = [];
 
         for (const proposal of proposals) {
-          const rawHours = getRawProposalHoursForWeek(proposal, weekStart, weekEnd);
+          const rawHours = getProposalHoursForWeek(proposal, weekStart, weekEnd);
           const winProbability = Math.min(100, Math.max(0, Number(proposal.win_probability ?? 50)));
           const expectedHours = rawHours * (winProbability / 100);
           rawProposalDemand += rawHours;
@@ -187,8 +124,8 @@ export async function GET(request: NextRequest) {
           if (overlapStart > overlapEnd) continue;
           const overlapDays =
             Math.floor(
-              (new Date(`${overlapEnd}T00:00:00Z`).getTime() -
-                new Date(`${overlapStart}T00:00:00Z`).getTime()) /
+              (toUtcDate(overlapEnd).getTime() -
+                toUtcDate(overlapStart).getTime()) /
                 86400000
             ) + 1;
           const staffMember = staffMap.get(leave.staff_id);
