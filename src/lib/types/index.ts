@@ -65,6 +65,7 @@ export interface ProjectProposal {
   proposed_end_date: string | null;
   estimated_hours: number | null;
   estimated_hours_per_week: number | null;
+  win_probability: number;
   office_scope: string[] | null;
   status: ProposalStatus;
   notes: string | null;
@@ -106,6 +107,8 @@ export interface ForecastResult {
   total_project_hours: number;
   utilization_rate: number;
   staffing_gap: number;
+  raw_proposal_demand?: number;
+  expected_proposal_demand?: number;
   created_at?: string;
 }
 
