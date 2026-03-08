@@ -22,8 +22,7 @@ function aggregateExplanations(weeks: ForecastWeek[]): AggregatedEntry[] {
   const map = new Map<string, AggregatedEntry>();
   for (const week of weeks) {
     for (const entry of week.forecast_explanation ?? []) {
-      const displayName =
-        entry.type === "leave" ? entry.staff : entry.name;
+      const displayName = entry.name;
       const key = `${entry.type}::${displayName}`;
       const existing = map.get(key);
       if (existing) {

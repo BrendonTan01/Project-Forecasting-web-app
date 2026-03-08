@@ -104,6 +104,7 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
           <DashboardActionPanel
             weeks={data.weeks}
             hiringRecommendations={data.hiring_recommendations}
+            skillShortages={data.skill_shortages}
           />
         </div>
       </div>

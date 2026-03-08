@@ -1,8 +1,9 @@
-import type { ForecastWeek, HiringRecommendation } from "./types";
+import type { ForecastWeek, HiringRecommendation, SkillShortage } from "./types";
 
 interface Props {
   weeks: ForecastWeek[];
   hiringRecommendations: HiringRecommendation[];
+  skillShortages: SkillShortage[];
 }
 
 // ── Staffing Risks ────────────────────────────────────────────────────────────
@@ -97,6 +98,41 @@ function HiringRecommendationsSection({
   );
 }
 
+// ── Skill Shortages ───────────────────────────────────────────────────────────
+
+function SkillShortagesSection({
+  shortages,
+}: {
+  shortages: SkillShortage[];
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Top Skill Shortages
+      </h3>
+      {shortages.length === 0 ? (
+        <p className="text-xs text-zinc-400 italic">No skill shortages detected</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {shortages.map((shortage) => (
+            <li
+              key={shortage.skill}
+              className="rounded border border-zinc-100 px-3 py-1.5"
+            >
+              <p className="truncate text-xs font-medium text-zinc-800">
+                {shortage.skill}
+              </p>
+              <p className="mt-0.5 text-[11px] text-zinc-600 tabular-nums">
+                Demand {shortage.weekly_demand.toFixed(1)}h · Capacity {shortage.available_capacity.toFixed(1)}h · Shortage {shortage.shortage.toFixed(1)}h
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Forecast Drivers ──────────────────────────────────────────────────────────
 
 type AggregatedDriver = {
@@ -109,8 +145,7 @@ function aggregateDrivers(weeks: ForecastWeek[]): AggregatedDriver[] {
   const map = new Map<string, AggregatedDriver>();
   for (const week of weeks) {
     for (const entry of week.forecast_explanation ?? []) {
-      const displayName =
-        entry.type === "leave" ? entry.staff : entry.name;
+      const displayName = entry.name;
       const key = `${entry.type}::${displayName}`;
       const existing = map.get(key);
       if (existing) {
@@ -180,7 +215,7 @@ function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function DashboardActionPanel({ weeks, hiringRecommendations }: Props) {
+export function DashboardActionPanel({ weeks, hiringRecommendations, skillShortages }: Props) {
   return (
     <div className="app-card flex h-full flex-col divide-y divide-zinc-100 p-4">
       <div className="pb-4">
@@ -188,6 +223,9 @@ export function DashboardActionPanel({ weeks, hiringRecommendations }: Props) {
       </div>
       <div className="py-4">
         <HiringRecommendationsSection recommendations={hiringRecommendations} />
+      </div>
+      <div className="py-4">
+        <SkillShortagesSection shortages={skillShortages} />
       </div>
       <div className="pt-4">
         <ForecastDriversSection weeks={weeks} />

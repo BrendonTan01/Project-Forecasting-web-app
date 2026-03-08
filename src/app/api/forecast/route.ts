@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
           if (impactHours > 0) {
             explanations.push({
               type: "leave",
-              staff: staffMember.name,
+              name: staffMember.name,
               impact_hours: -Math.round(impactHours * 100) / 100,
             });
           }

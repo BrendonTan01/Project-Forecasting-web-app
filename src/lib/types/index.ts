@@ -113,8 +113,7 @@ export interface ForecastResult {
 }
 
 export type ForecastExplanationEntry =
-  | { type: "proposal"; name: string; impact_hours: number }
-  | { type: "leave"; staff: string; impact_hours: number };
+  { type: "proposal" | "leave"; name: string; impact_hours: number };
 
 export type HiringRecommendationType =
   | "overload"

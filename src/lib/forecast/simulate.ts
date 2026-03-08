@@ -10,7 +10,14 @@ export type SimulationResult = {
   simulated_utilization: number;
   capacity_risk: boolean;
   overload_week: number | null;
+  expected_revenue: number | null;
+  expected_cost: number | null;
+  expected_margin: number | null;
 };
+
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 function getCurrentWeekMonday(): Date {
   const today = new Date();
@@ -157,7 +164,7 @@ export async function simulateProposalImpact(
 
     admin
       .from("staff_profiles")
-      .select("id, weekly_capacity_hours")
+      .select("id, weekly_capacity_hours, billable_rate, cost_rate")
       .eq("tenant_id", tenantId),
 
     admin
@@ -178,7 +185,12 @@ export async function simulateProposalImpact(
   if (!proposalData) return null;
 
   const proposal = proposalData as ProposalRow;
-  const staff = (staffProfiles ?? []) as { id: string; weekly_capacity_hours: number }[];
+  const staff = (staffProfiles ?? []) as {
+    id: string;
+    weekly_capacity_hours: number;
+    billable_rate: number | null;
+    cost_rate: number | null;
+  }[];
 
   const availMap = new Map<string, Map<string, number>>();
   for (const row of (availabilityRows ?? []) as {
@@ -276,11 +288,47 @@ export async function simulateProposalImpact(
   const avgSimulatedUtilization =
     Math.round((totalSimulatedUtilization / clampedWeeks) * 1000) / 1000;
 
+  const proposalEstimatedHours =
+    proposal.estimated_hours !== null && proposal.estimated_hours !== undefined
+      ? Number(proposal.estimated_hours)
+      : null;
+  const billableRates = staff
+    .map((member) => member.billable_rate)
+    .filter((rate): rate is number => rate !== null && rate !== undefined);
+  const costRates = staff
+    .map((member) => member.cost_rate)
+    .filter((rate): rate is number => rate !== null && rate !== undefined);
+
+  const averageBillableRate =
+    billableRates.length > 0
+      ? billableRates.reduce((sum, rate) => sum + Number(rate), 0) / billableRates.length
+      : null;
+  const averageCostRate =
+    costRates.length > 0
+      ? costRates.reduce((sum, rate) => sum + Number(rate), 0) / costRates.length
+      : null;
+
+  const expectedRevenue =
+    proposalEstimatedHours !== null && averageBillableRate !== null
+      ? roundCurrency(averageBillableRate * proposalEstimatedHours)
+      : null;
+  const expectedCost =
+    proposalEstimatedHours !== null && averageCostRate !== null
+      ? roundCurrency(averageCostRate * proposalEstimatedHours)
+      : null;
+  const expectedMargin =
+    expectedRevenue !== null && expectedCost !== null
+      ? roundCurrency(expectedRevenue - expectedCost)
+      : null;
+
   return {
     proposal_id: proposalId,
     current_utilization: avgCurrentUtilization,
     simulated_utilization: avgSimulatedUtilization,
     capacity_risk: capacityRisk,
     overload_week: overloadWeek,
+    expected_revenue: expectedRevenue,
+    expected_cost: expectedCost,
+    expected_margin: expectedMargin,
   };
 }

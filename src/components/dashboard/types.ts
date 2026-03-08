@@ -1,7 +1,5 @@
 export type ExplanationEntry =
-  | { type: "proposal"; name: string; impact_hours: number }
-  | { type: "leave"; staff: string; impact_hours: number }
-  | { type: "project"; name: string; impact_hours: number };
+  { type: "proposal" | "leave" | "project"; name: string; impact_hours: number };
 
 export interface ForecastWeek {
   week_start: string;
@@ -23,7 +21,15 @@ export interface HiringRecommendation {
   demand_sources?: Array<{ project_name: string; hours_per_week: number }>;
 }
 
+export interface SkillShortage {
+  skill: string;
+  weekly_demand: number;
+  available_capacity: number;
+  shortage: number;
+}
+
 export interface ForecastResponse {
   weeks: ForecastWeek[];
   hiring_recommendations: HiringRecommendation[];
+  skill_shortages: SkillShortage[];
 }

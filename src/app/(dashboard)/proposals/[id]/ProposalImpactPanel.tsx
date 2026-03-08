@@ -8,8 +8,12 @@ export type SimulationResult = {
   simulated_utilization?: number;
   capacity_risk?: boolean;
   overload_week?: number | null;
-  required_roles?: string[] | null;
+  expected_revenue?: number | null;
+  expected_cost?: number | null;
+  expected_margin?: number | null;
 };
+// Future extension point: if proposal role-demand data is modeled in simulation,
+// add `required_roles` back into this contract and render it here.
 
 type Props = {
   proposalId: string;
@@ -21,6 +25,15 @@ type Props = {
 
 function fmtPct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function fmtCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "-";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function ProposalImpactPanel({
@@ -107,96 +120,110 @@ export function ProposalImpactPanel({
       )}
 
       {!error && simulationData && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {simulationData.current_utilization !== undefined && (
-            <div className="rounded-md border border-zinc-200 p-3">
-              <p className="text-xs font-medium text-zinc-500">Current utilization</p>
-              <p className="mt-1 text-2xl font-bold text-zinc-900">
-                {fmtPct(simulationData.current_utilization)}
-              </p>
-              <p className="text-xs text-zinc-400">Avg over forecast period</p>
-            </div>
-          )}
-
-          {simulationData.simulated_utilization !== undefined && (
-            <div className="rounded-md border border-zinc-200 p-3">
-              <p className="text-xs font-medium text-zinc-500">Simulated utilization</p>
-              <p
-                className={`mt-1 text-2xl font-bold ${
-                  simulationData.simulated_utilization > 0.9
-                    ? "text-red-600"
-                    : simulationData.simulated_utilization > 0.75
-                      ? "text-amber-600"
-                      : "text-emerald-700"
-                }`}
-              >
-                {fmtPct(simulationData.simulated_utilization)}
-              </p>
-              {utilizationDelta !== null && (
-                <p className={`text-xs ${utilizationDelta > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                  {utilizationDelta > 0 ? "+" : ""}
-                  {fmtPct(utilizationDelta)} vs current
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {simulationData.current_utilization !== undefined && (
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Current utilization</p>
+                <p className="mt-1 text-2xl font-bold text-zinc-900">
+                  {fmtPct(simulationData.current_utilization)}
                 </p>
-              )}
-            </div>
-          )}
+                <p className="text-xs text-zinc-400">Avg over forecast period</p>
+              </div>
+            )}
 
-          {simulationData.capacity_risk !== undefined && (
-            <div className="rounded-md border border-zinc-200 p-3">
-              <p className="text-xs font-medium text-zinc-500">Capacity risk</p>
-              <div className="mt-1">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium ${
-                    simulationData.capacity_risk
-                      ? "bg-red-50 text-red-700"
-                      : "bg-emerald-50 text-emerald-700"
+            {simulationData.simulated_utilization !== undefined && (
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Simulated utilization</p>
+                <p
+                  className={`mt-1 text-2xl font-bold ${
+                    simulationData.simulated_utilization > 0.9
+                      ? "text-red-600"
+                      : simulationData.simulated_utilization > 0.75
+                        ? "text-amber-600"
+                        : "text-emerald-700"
                   }`}
                 >
-                  <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      simulationData.capacity_risk ? "bg-red-500" : "bg-emerald-500"
-                    }`}
-                  />
-                  {simulationData.capacity_risk ? "At risk" : "Low risk"}
-                </span>
+                  {fmtPct(simulationData.simulated_utilization)}
+                </p>
+                {utilizationDelta !== null && (
+                  <p className={`text-xs ${utilizationDelta > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {utilizationDelta > 0 ? "+" : ""}
+                    {fmtPct(utilizationDelta)} vs current
+                  </p>
+                )}
               </div>
-              <p className="mt-1.5 text-xs text-zinc-400">
-                {simulationData.capacity_risk
-                  ? "Team exceeds 90% utilization"
-                  : "Team stays within safe range"}
-              </p>
-            </div>
-          )}
+            )}
 
-          {simulationData.overload_week !== undefined && (
-            <div className="rounded-md border border-zinc-200 p-3">
-              <p className="text-xs font-medium text-zinc-500">Overload week</p>
-              <p
-                className={`mt-1 text-2xl font-bold ${
-                  simulationData.overload_week !== null ? "text-red-600" : "text-emerald-700"
-                }`}
-              >
-                {simulationData.overload_week !== null ? `Week ${simulationData.overload_week}` : "None"}
-              </p>
-              <p className="text-xs text-zinc-400">
-                {simulationData.overload_week !== null
-                  ? "First week above capacity threshold"
-                  : "No overload projected"}
-              </p>
-            </div>
-          )}
+            {simulationData.capacity_risk !== undefined && (
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Capacity risk</p>
+                <div className="mt-1">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium ${
+                      simulationData.capacity_risk
+                        ? "bg-red-50 text-red-700"
+                        : "bg-emerald-50 text-emerald-700"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${
+                        simulationData.capacity_risk ? "bg-red-500" : "bg-emerald-500"
+                      }`}
+                    />
+                    {simulationData.capacity_risk ? "At risk" : "Low risk"}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs text-zinc-400">
+                  {simulationData.capacity_risk
+                    ? "Team exceeds 90% utilization"
+                    : "Team stays within safe range"}
+                </p>
+              </div>
+            )}
 
-          {simulationData.required_roles !== undefined && (
-            <div className="rounded-md border border-zinc-200 p-3 sm:col-span-2 lg:col-span-4">
-              <p className="text-xs font-medium text-zinc-500">Required roles</p>
-              {simulationData.required_roles && simulationData.required_roles.length > 0 ? (
-                <p className="mt-1 text-sm text-zinc-800">{simulationData.required_roles.join(", ")}</p>
-              ) : (
-                <p className="mt-1 text-sm text-zinc-500">No role requirements provided.</p>
-              )}
+            {simulationData.overload_week !== undefined && (
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Overload week</p>
+                <p
+                  className={`mt-1 text-2xl font-bold ${
+                    simulationData.overload_week !== null ? "text-red-600" : "text-emerald-700"
+                  }`}
+                >
+                  {simulationData.overload_week !== null ? `Week ${simulationData.overload_week}` : "None"}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {simulationData.overload_week !== null
+                    ? "First week above capacity threshold"
+                    : "No overload projected"}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-zinc-200 p-3">
+            <h3 className="text-sm font-semibold text-zinc-800">Financial Impact</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Expected revenue</p>
+                <p className="mt-1 text-lg font-semibold text-zinc-900">
+                  {fmtCurrency(simulationData.expected_revenue)}
+                </p>
+              </div>
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Expected cost</p>
+                <p className="mt-1 text-lg font-semibold text-zinc-900">
+                  {fmtCurrency(simulationData.expected_cost)}
+                </p>
+              </div>
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Expected margin</p>
+                <p className="mt-1 text-lg font-semibold text-zinc-900">
+                  {fmtCurrency(simulationData.expected_margin)}
+                </p>
+              </div>
             </div>
-          )}
-          {/* TODO: Show required_roles details when /api/proposal-impact returns a stable schema for role demand. */}
+          </div>
         </div>
       )}
     </div>
