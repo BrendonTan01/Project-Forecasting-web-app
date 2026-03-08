@@ -9,6 +9,7 @@ import {
   PROPOSAL_OPTIMIZATION_MODES,
   type ProposalOptimizationMode,
 } from "../optimization-modes";
+import type { SimulationResult } from "./ProposalImpactPanel";
 
 type Office = { id: string; name: string };
 
@@ -18,6 +19,8 @@ type Props = {
   initialOfficeScope: string[] | null;
   initialOptimizationMode: ProposalOptimizationMode;
   initialResult: FeasibilityResult | { error: string } | null;
+  simulationActive?: boolean;
+  simulationData?: SimulationResult | null;
 };
 
 function formatDate(iso: string): string {
@@ -169,6 +172,8 @@ export function FeasibilityAnalysis({
   initialOfficeScope,
   initialOptimizationMode,
   initialResult,
+  simulationActive = false,
+  simulationData = null,
 }: Props) {
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
@@ -489,6 +494,42 @@ export function FeasibilityAnalysis({
                 <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-400" /> &lt;50%</span>
               </p>
 
+              {/* Simulation banner */}
+              {simulationActive && simulationData && (
+                <div
+                  className={`mb-4 flex items-start gap-3 rounded-md px-4 py-3 text-sm ${
+                    simulationData.capacity_risk
+                      ? "bg-red-50 text-red-800"
+                      : "bg-amber-50 text-amber-800"
+                  }`}
+                >
+                  <span className="mt-0.5 shrink-0 text-base leading-none">
+                    {simulationData.capacity_risk ? "⚠" : "ℹ"}
+                  </span>
+                  <div className="space-y-0.5">
+                    <p className="font-medium">
+                      {simulationData.capacity_risk
+                        ? "Capacity risk detected if this proposal is accepted"
+                        : "Simulation active — proposal accepted"}
+                    </p>
+                    <p>
+                      Team utilization shifts from{" "}
+                      <span className="font-semibold">
+                        {(simulationData.current_utilization * 100).toFixed(1)}%
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold">
+                        {(simulationData.simulated_utilization * 100).toFixed(1)}%
+                      </span>{" "}
+                      avg across the forecast period.
+                      {simulationData.overload_week !== null && (
+                        <> Team exceeds 90% utilization from week {simulationData.overload_week}.</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Chart area */}
               <div className="relative">
                 <div
@@ -503,6 +544,30 @@ export function FeasibilityAnalysis({
                     />
                   ))}
                 </div>
+
+                {/* Simulation reference lines */}
+                {simulationActive && simulationData && (
+                  <>
+                    {/* Simulated utilization line */}
+                    <div
+                      className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-red-400"
+                      style={{ bottom: `${simulationData.simulated_utilization * 220}px` }}
+                    >
+                      <span className="absolute right-0 -translate-y-full rounded-sm bg-red-400 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                        Simulated {(simulationData.simulated_utilization * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    {/* Current utilization line */}
+                    <div
+                      className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-zinc-400"
+                      style={{ bottom: `${simulationData.current_utilization * 220}px` }}
+                    >
+                      <span className="absolute left-0 -translate-y-full rounded-sm bg-zinc-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                        Current {(simulationData.current_utilization * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {/* X-axis labels — show every nth week to avoid crowding */}
                 {feasResult.weeks.length > 0 && (

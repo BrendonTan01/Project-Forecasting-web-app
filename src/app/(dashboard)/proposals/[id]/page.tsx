@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { DeleteProposalButton } from "./DeleteProposalButton";
-import { FeasibilityAnalysis } from "./FeasibilityAnalysis";
+import { ProposalSimulationSection } from "./ProposalSimulationSection";
 import { computeFeasibility } from "./feasibility-actions";
 import { normalizeProposalOptimizationMode } from "../optimization-modes";
 
@@ -195,23 +195,14 @@ export default async function ProposalDetailPage({
         </div>
       )}
 
-      {/* Feasibility analysis */}
-      <div className="app-card p-4">
-        <div className="mb-4">
-          <h2 className="text-base font-semibold text-zinc-900">Staff feasibility analysis</h2>
-          <p className="text-sm text-zinc-500">
-            Simulates how much of this project can be absorbed by current staff, accounting for
-            existing project commitments and approved leave.
-          </p>
-        </div>
-        <FeasibilityAnalysis
-          proposalId={id}
-          allOffices={offices ?? []}
-          initialOfficeScope={officeScope}
-          initialOptimizationMode={optimizationMode}
-          initialResult={initialFeasibility}
-        />
-      </div>
+      {/* Proposal impact + feasibility analysis */}
+      <ProposalSimulationSection
+        proposalId={id}
+        allOffices={offices ?? []}
+        initialOfficeScope={officeScope}
+        initialOptimizationMode={optimizationMode}
+        initialResult={initialFeasibility}
+      />
 
       {/* Notes */}
       {proposal.notes?.trim() && (
