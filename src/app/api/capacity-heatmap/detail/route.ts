@@ -98,7 +98,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const [
     { data: officeRow, error: officeErr },
-    { data: staffRows, error: staffErr },
+    { data: officeUsers, error: officeUsersErr },
     { data: assignmentRows, error: assignErr },
     { data: availRows, error: availErr },
   ] = await Promise.all([
@@ -110,8 +110,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .single(),
 
     admin
-      .from("staff_profiles")
-      .select("id, name, job_title, weekly_capacity_hours, office_id")
+      .from("users")
+      .select("id")
       .eq("tenant_id", user.tenantId)
       .eq("office_id", officeId),
 
@@ -132,15 +132,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (officeErr || !officeRow) {
     return NextResponse.json({ error: "Office not found" }, { status: 404 });
   }
-  if (staffErr) return NextResponse.json({ error: staffErr.message }, { status: 500 });
-  if (assignErr) return NextResponse.json({ error: assignErr.message }, { status: 500 });
-  if (availErr) return NextResponse.json({ error: availErr.message }, { status: 500 });
+  if (officeUsersErr) return NextResponse.json({ error: officeUsersErr.message }, { status: 500 });
 
-  const officeStaffIds = new Set((staffRows ?? []).map((s) => s.id));
+  const officeUserIds = (officeUsers ?? []).map((u) => u.id);
+
+  const { data: resolvedStaffRows, error: resolvedStaffErr } = officeUserIds.length
+    ? await admin
+        .from("staff_profiles")
+        .select("id, user_id, name, job_title, weekly_capacity_hours")
+        .eq("tenant_id", user.tenantId)
+        .in("user_id", officeUserIds)
+    : { data: [], error: null as { message: string } | null };
+
+  if (resolvedStaffErr) return NextResponse.json({ error: resolvedStaffErr.message }, { status: 500 });
+  if (assignErr) return NextResponse.json({ error: assignErr.message }, { status: 500 });
+
+  const availabilityTableMissing =
+    availErr &&
+    /staff_availability/i.test(availErr.message) &&
+    /does not exist|relation/i.test(availErr.message);
+  if (availErr && !availabilityTableMissing) {
+    return NextResponse.json({ error: availErr.message }, { status: 500 });
+  }
+  const safeAvailRows = availabilityTableMissing ? [] : (availRows ?? []);
+
+  const officeStaffIds = new Set((resolvedStaffRows ?? []).map((s) => s.id));
 
   // Availability lookup: staff_id → available_hours for this week
   const availLookup = new Map<string, number>();
-  for (const row of availRows ?? []) {
+  for (const row of safeAvailRows) {
     if (officeStaffIds.has(row.staff_id)) {
       availLookup.set(row.staff_id, Number(row.available_hours));
     }
@@ -236,7 +256,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     staffAllocMap.set(ea.staff_id, (staffAllocMap.get(ea.staff_id) ?? 0) + ea.weekly_hours_allocated);
   }
 
-  const staff: CellStaff[] = (staffRows ?? []).map((s) => {
+  const staff: CellStaff[] = (resolvedStaffRows ?? []).map((s) => {
     const allocatedHours = Math.round((staffAllocMap.get(s.id) ?? 0) * 100) / 100;
     const capacityHours = availLookup.get(s.id) ?? Number(s.weekly_capacity_hours);
     return {

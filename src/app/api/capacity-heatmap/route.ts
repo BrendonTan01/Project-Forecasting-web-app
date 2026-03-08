@@ -99,6 +99,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const [
     { data: officeRows, error: officeErr },
+    { data: userRows, error: userErr },
     { data: staffRows, error: staffErr },
     { data: assignmentRows, error: assignErr },
     { data: availRows, error: availErr },
@@ -110,8 +111,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .order("name"),
 
     admin
+      .from("users")
+      .select("id, office_id")
+      .eq("tenant_id", user.tenantId),
+
+    admin
       .from("staff_profiles")
-      .select("id, office_id, weekly_capacity_hours")
+      .select("id, user_id, weekly_capacity_hours")
       .eq("tenant_id", user.tenantId),
 
     admin
@@ -130,23 +136,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   ]);
 
   if (officeErr) return NextResponse.json({ error: officeErr.message }, { status: 500 });
+  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
   if (staffErr) return NextResponse.json({ error: staffErr.message }, { status: 500 });
   if (assignErr) return NextResponse.json({ error: assignErr.message }, { status: 500 });
-  if (availErr) return NextResponse.json({ error: availErr.message }, { status: 500 });
+
+  const availabilityTableMissing =
+    availErr &&
+    /staff_availability/i.test(availErr.message) &&
+    /does not exist|relation/i.test(availErr.message);
+  if (availErr && !availabilityTableMissing) {
+    return NextResponse.json({ error: availErr.message }, { status: 500 });
+  }
+  const safeAvailRows = availabilityTableMissing ? [] : (availRows ?? []);
 
   // Build availability lookup: staff_id → week_start → available_hours
   const availMap = new Map<string, Map<string, number>>();
-  for (const row of availRows ?? []) {
+  for (const row of safeAvailRows) {
     if (!availMap.has(row.staff_id)) availMap.set(row.staff_id, new Map());
     availMap.get(row.staff_id)!.set(row.week_start, Number(row.available_hours));
   }
 
   // Build staff lookup: staff_id → { officeId, weeklyCap }
   type StaffMeta = { officeId: string | null; weeklyCap: number };
+  const officeByUserId = new Map<string, string | null>(
+    (userRows ?? []).map((u) => [u.id, u.office_id ?? null])
+  );
   const staffMeta = new Map<string, StaffMeta>();
   for (const s of staffRows ?? []) {
     staffMeta.set(s.id, {
-      officeId: s.office_id ?? null,
+      officeId: officeByUserId.get(s.user_id) ?? null,
       weeklyCap: Number(s.weekly_capacity_hours),
     });
   }
