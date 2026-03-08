@@ -202,3 +202,32 @@ export interface AuditLogEntry {
   new_value: Record<string, unknown> | null;
   created_at: string;
 }
+
+export interface Skill {
+  id: string;
+  tenant_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface StaffSkill {
+  staff_id: string;
+  skill_id: string;
+  tenant_id: string;
+  created_at: string;
+}
+
+export interface ProjectSkillRequirement {
+  project_id: string;
+  skill_id: string;
+  required_hours_per_week: number;
+  tenant_id: string;
+  created_at: string;
+}
+
+export interface SkillShortage {
+  skill: string;
+  weekly_demand: number;
+  available_capacity: number;
+  shortage: number;
+}

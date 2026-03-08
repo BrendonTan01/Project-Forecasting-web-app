@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ForecastResult, HiringPrediction, HiringRecommendationType } from "@/lib/types";
+import type { ForecastResult, HiringPrediction, HiringRecommendationType, SkillShortage } from "@/lib/types";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
@@ -374,4 +374,175 @@ export function scheduleHiringPredictionsRecalculation(tenantId: string): void {
   runHiringPredictionsForTenant(tenantId).catch(() => {
     // Intentionally silent — hiring predictions are best-effort.
   });
+}
+
+// ---------------------------------------------------------------------------
+// Skill-based shortage computation
+// ---------------------------------------------------------------------------
+
+type SkillRow = { id: string; name: string };
+
+type ProjectSkillRequirementRow = {
+  project_id: string;
+  skill_id: string;
+  required_hours_per_week: number | string;
+  projects: { status: string; start_date: string | null; end_date: string | null } | null;
+};
+
+type StaffSkillRow = {
+  staff_id: string;
+  skill_id: string;
+  staff_profiles: { id: string; weekly_capacity_hours: number } | null;
+};
+
+/**
+ * Computes per-skill staffing shortages averaged across the forecast window.
+ *
+ * For each skill:
+ *   - weekly_demand: average weekly hours required by active projects that have
+ *     this skill requirement and whose date range overlaps the week.
+ *   - available_capacity: average weekly hours available from staff who hold
+ *     this skill (respecting staff_availability overrides).
+ *   - shortage: max(0, weekly_demand - available_capacity)
+ *
+ * Only skills with non-zero demand or a shortage are returned.
+ */
+export async function computeSkillShortages(
+  tenantId: string,
+  weeks: number = DEFAULT_WEEKS
+): Promise<SkillShortage[]> {
+  const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
+  const admin = createAdminClient();
+
+  const weekMonday = getCurrentWeekMonday();
+  const forecastEnd = addDays(weekMonday, clampedWeeks * 7 - 1);
+  const weekMondayStr = toDateString(weekMonday);
+  const forecastEndStr = toDateString(forecastEnd);
+
+  const [
+    { data: skillRows },
+    { data: requirementRows },
+    { data: staffSkillRows },
+    { data: availabilityRows },
+  ] = await Promise.all([
+    admin
+      .from("skills")
+      .select("id, name")
+      .eq("tenant_id", tenantId),
+
+    admin
+      .from("project_skill_requirements")
+      .select("project_id, skill_id, required_hours_per_week, projects(status, start_date, end_date)")
+      .eq("tenant_id", tenantId),
+
+    admin
+      .from("staff_skills")
+      .select("staff_id, skill_id, staff_profiles(id, weekly_capacity_hours)")
+      .eq("tenant_id", tenantId),
+
+    admin
+      .from("staff_availability")
+      .select("staff_id, week_start, available_hours")
+      .eq("tenant_id", tenantId)
+      .gte("week_start", weekMondayStr)
+      .lte("week_start", forecastEndStr),
+  ]);
+
+  const skills = (skillRows ?? []) as SkillRow[];
+  const requirements = (requirementRows ?? []) as ProjectSkillRequirementRow[];
+  const staffSkills = (staffSkillRows ?? []) as StaffSkillRow[];
+  const availability = (availabilityRows ?? []) as AvailabilityRow[];
+
+  if (skills.length === 0) {
+    return [];
+  }
+
+  // Build availability map: staff_id -> week_start -> available_hours
+  const availMap = new Map<string, Map<string, number>>();
+  for (const row of availability) {
+    if (!availMap.has(row.staff_id)) {
+      availMap.set(row.staff_id, new Map());
+    }
+    availMap.get(row.staff_id)!.set(row.week_start, row.available_hours);
+  }
+
+  // Build skill-to-requirements index (active projects only)
+  const activeRequirements = requirements.filter((r) => {
+    const proj = Array.isArray(r.projects) ? r.projects[0] : r.projects;
+    return proj?.status === "active";
+  });
+
+  // Build skill-to-staffProfiles index: skill_id -> [{staffId, weeklyCapacityHours}]
+  const skillToStaff = new Map<string, { staffId: string; weeklyCapacityHours: number }[]>();
+  for (const row of staffSkills) {
+    const profile = Array.isArray(row.staff_profiles) ? row.staff_profiles[0] : row.staff_profiles;
+    if (!profile) continue;
+    if (!skillToStaff.has(row.skill_id)) {
+      skillToStaff.set(row.skill_id, []);
+    }
+    skillToStaff.get(row.skill_id)!.push({
+      staffId: profile.id,
+      weeklyCapacityHours: Number(profile.weekly_capacity_hours ?? 0),
+    });
+  }
+
+  // Accumulate demand and capacity per skill across all forecast weeks
+  const skillDemandSum = new Map<string, number>();
+  const skillCapacitySum = new Map<string, number>();
+  for (const skill of skills) {
+    skillDemandSum.set(skill.id, 0);
+    skillCapacitySum.set(skill.id, 0);
+  }
+
+  for (let i = 0; i < clampedWeeks; i++) {
+    const weekStart = addDays(weekMonday, i * 7);
+    const weekEnd = addDays(weekStart, 6);
+    const weekStartStr = toDateString(weekStart);
+    const weekEndStr = toDateString(weekEnd);
+
+    for (const skill of skills) {
+      // Demand: sum required_hours_per_week for active requirements whose project overlaps this week
+      let weekDemand = 0;
+      for (const req of activeRequirements) {
+        if (req.skill_id !== skill.id) continue;
+        const proj = Array.isArray(req.projects) ? req.projects[0] : req.projects;
+        const projectStart = proj?.start_date ?? null;
+        const projectEnd = proj?.end_date ?? null;
+        const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
+        const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
+        if (startsBeforeWeekEnds && endsAfterWeekStarts) {
+          weekDemand += Number(req.required_hours_per_week ?? 0);
+        }
+      }
+
+      // Capacity: sum available hours for each staff member who holds this skill
+      let weekCapacity = 0;
+      for (const { staffId, weeklyCapacityHours } of skillToStaff.get(skill.id) ?? []) {
+        const override = availMap.get(staffId)?.get(weekStartStr);
+        weekCapacity += override !== undefined ? override : weeklyCapacityHours;
+      }
+
+      skillDemandSum.set(skill.id, skillDemandSum.get(skill.id)! + weekDemand);
+      skillCapacitySum.set(skill.id, skillCapacitySum.get(skill.id)! + weekCapacity);
+    }
+  }
+
+  // Build result: average per week, include only skills with demand or shortage
+  const result: SkillShortage[] = [];
+  for (const skill of skills) {
+    const avgDemand = Math.round((skillDemandSum.get(skill.id)! / clampedWeeks) * 100) / 100;
+    const avgCapacity = Math.round((skillCapacitySum.get(skill.id)! / clampedWeeks) * 100) / 100;
+    const shortage = Math.round(Math.max(0, avgDemand - avgCapacity) * 100) / 100;
+
+    if (avgDemand > 0 || shortage > 0) {
+      result.push({
+        skill: skill.name,
+        weekly_demand: avgDemand,
+        available_capacity: avgCapacity,
+        shortage,
+      });
+    }
+  }
+
+  return result;
 }
