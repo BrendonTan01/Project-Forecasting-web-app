@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentStaffId } from "@/lib/supabase/auth-helpers";
+import { getCurrentStaffId, getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import {
   getProjectHealthStatus,
   getProjectHealthLabel,
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
@@ -16,7 +20,10 @@ const statusConfig: Record<string, { label: string; colour: string }> = {
 };
 
 type AssignmentRow = {
+  staff_id: string;
   project_id: string;
+  week_start: string | null;
+  weekly_hours_allocated: number;
   allocation_percentage: number;
   projects: {
     id: string;
@@ -34,16 +41,37 @@ type AssignmentRow = {
 };
 
 export default async function StaffDashboard() {
+  const user = await getCurrentUserWithTenant();
   const staffId = await getCurrentStaffId();
-  if (!staffId) return null;
+  if (!user || !staffId) return null;
 
   const supabase = await createClient();
+  const { data: staffProfile } = await supabase
+    .from("staff_profiles")
+    .select("weekly_capacity_hours")
+    .eq("tenant_id", user.tenantId)
+    .eq("id", staffId)
+    .single();
+
+  const weeklyCapacity = Number(staffProfile?.weekly_capacity_hours ?? 0);
+
   const { data: assignmentRows } = await supabase
     .from("project_assignments")
-    .select("project_id, allocation_percentage, projects(id, name, client_name, estimated_hours, status)")
+    .select("staff_id, project_id, week_start, weekly_hours_allocated, allocation_percentage, projects(id, name, client_name, estimated_hours, status, start_date, end_date)")
+    .eq("tenant_id", user.tenantId)
     .eq("staff_id", staffId);
 
-  const assignments = (assignmentRows ?? []).map((row) => {
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignmentRows = filterEffectiveAssignmentsForWeek(
+    (assignmentRows ?? []).map((row) => ({
+      ...row,
+      week_start: row.week_start ?? null,
+      weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+    })),
+    currentWeekStart
+  ).filter((row) => row.weekly_hours_allocated > 0);
+
+  const assignments = effectiveAssignmentRows.map((row) => {
     const project = getRelationOne((row as AssignmentRow).projects) as {
       id: string;
       name: string;
@@ -54,7 +82,7 @@ export default async function StaffDashboard() {
 
     return {
       projectId: row.project_id,
-      allocation: Number(row.allocation_percentage),
+      weeklyHoursAllocated: Number(row.weekly_hours_allocated),
       project,
     };
   });
@@ -64,6 +92,7 @@ export default async function StaffDashboard() {
     ? await supabase
         .from("time_entries")
         .select("project_id, hours")
+        .eq("tenant_id", user.tenantId)
         .eq("staff_id", staffId)
         .in("project_id", projectIds)
     : { data: [] as { project_id: string; hours: number }[] };
@@ -80,7 +109,7 @@ export default async function StaffDashboard() {
       clientName: string | null;
       status: string;
       estimatedHours: number | null;
-      allocation: number;
+      weeklyHoursAllocated: number;
       actualHours: number;
     }>>((acc, assignment) => {
       if (!assignment.project) return acc;
@@ -91,11 +120,11 @@ export default async function StaffDashboard() {
           clientName: assignment.project.client_name,
           status: assignment.project.status,
           estimatedHours: assignment.project.estimated_hours,
-          allocation: 0,
+          weeklyHoursAllocated: 0,
           actualHours: actualByProject[assignment.projectId] ?? 0,
         };
       }
-      acc[assignment.projectId].allocation += assignment.allocation;
+      acc[assignment.projectId].weeklyHoursAllocated += assignment.weeklyHoursAllocated;
       return acc;
     }, {})
   ).sort((a, b) => a.name.localeCompare(b.name));
@@ -153,7 +182,9 @@ export default async function StaffDashboard() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
-                      {project.allocation.toFixed(0)}%
+                      {weeklyCapacity > 0
+                        ? `${((project.weeklyHoursAllocated / weeklyCapacity) * 100).toFixed(0)}%`
+                        : "0%"}
                     </td>
                     <td className="px-4 py-3 text-right text-sm text-zinc-800">{progress}</td>
                     <td className={`px-4 py-3 text-right text-sm font-medium ${getProjectHealthColour(health)}`}>

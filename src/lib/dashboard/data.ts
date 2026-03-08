@@ -1,7 +1,16 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
-type AssignmentRow = { staff_id: string; allocation_percentage: number };
+type AssignmentRow = {
+  staff_id: string;
+  project_id: string;
+  week_start: string | null;
+  weekly_hours_allocated: number;
+  projects:
+    | { start_date: string | null; end_date: string | null; status: string }
+    | { start_date: string | null; end_date: string | null; status: string }[]
+    | null;
+};
 type ProjectHourRow = { project_id: string; hours: number };
 
 export const getDashboardWindowData = cache(
@@ -44,7 +53,8 @@ export const getDashboardWindowData = cache(
       staffIds.length
         ? supabase
             .from("project_assignments")
-            .select("staff_id, allocation_percentage")
+            .select("staff_id, project_id, week_start, weekly_hours_allocated, projects(start_date, end_date, status)")
+            .eq("tenant_id", tenantId)
             .in("staff_id", staffIds)
         : Promise.resolve({ data: [] as AssignmentRow[] }),
       projectIds.length
@@ -69,10 +79,12 @@ export const getDashboardWindowData = cache(
 
 type CapacityAssignmentRow = {
   staff_id: string;
-  allocation_percentage: number;
+  project_id: string;
+  week_start: string | null;
+  weekly_hours_allocated: number;
   projects:
-    | { name: string; start_date: string | null; end_date: string | null }
-    | { name: string; start_date: string | null; end_date: string | null }[]
+    | { name: string; start_date: string | null; end_date: string | null; status: string }
+    | { name: string; start_date: string | null; end_date: string | null; status: string }[]
     | null;
 };
 
@@ -97,7 +109,8 @@ export const getCapacityData = cache(
     const { data: assignments } = staffIds.length
       ? await supabase
           .from("project_assignments")
-          .select("staff_id, allocation_percentage, projects(name, start_date, end_date)")
+          .select("staff_id, project_id, week_start, weekly_hours_allocated, projects(name, start_date, end_date, status)")
+          .eq("tenant_id", tenantId)
           .in("staff_id", staffIds)
       : { data: [] as CapacityAssignmentRow[] };
 

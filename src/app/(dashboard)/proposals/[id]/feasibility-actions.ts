@@ -222,6 +222,7 @@ async function getFeasibilityBaseData(
       ? await supabase
           .from("project_assignments")
           .select("staff_id, allocation_percentage, project_id")
+          .eq("tenant_id", tenantId)
           .in("project_id", projectIds)
           .in("staff_id", staffIds)
       : { data: [] };

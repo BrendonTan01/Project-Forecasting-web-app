@@ -1,5 +1,8 @@
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
+import { UtilizationTable } from "@/components/api-views/UtilizationTable";
+import { StaffingGapsTable } from "@/components/api-views/StaffingGapsTable";
+import { ForecastTable } from "@/components/api-views/ForecastTable";
 import {
   calculateUtilisation,
   formatUtilisation,
@@ -11,8 +14,13 @@ import {
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 import type { ProjectHealthStatus } from "@/lib/types";
 import StaffDashboard from "./StaffDashboard";
+import WeeklyTrendChart from "./WeeklyTrendChart";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
 
 // Period: last 30 days for utilisation
@@ -220,6 +228,14 @@ export default async function DashboardPage({
   const { start, end } = getPeriodDates();
   const { staffProfiles, projects, proposals, timeEntries, assignments, projectHours } =
     await getDashboardWindowData(user.tenantId, start, end, user.id);
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    assignments.map((a) => ({
+      ...a,
+      weekly_hours_allocated: Number(a.weekly_hours_allocated),
+    })),
+    currentWeekStart
+  );
 
   const actualByProject = projectHours.reduce<Record<string, number>>(
     (acc, row) => {
@@ -288,7 +304,13 @@ export default async function DashboardPage({
     const officeRelation = getRelationOne(userRelation?.offices) as { id: string; name: string; country: string } | null;
     const hoursLogged = timeEntries.filter((e) => e.staff_id === sp.id).reduce((s, e) => s + Number(e.hours), 0);
     const billableHours = timeEntries.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0);
-    const allocationSum = assignments.filter((a) => a.staff_id === sp.id).reduce((s, a) => s + Number(a.allocation_percentage), 0);
+    const weeklyAssignedHours = effectiveAssignments
+      .filter((a) => a.staff_id === sp.id)
+      .reduce((sum, a) => sum + Number(a.weekly_hours_allocated), 0);
+    const allocationSum =
+      sp.weekly_capacity_hours > 0
+        ? (weeklyAssignedHours / Number(sp.weekly_capacity_hours)) * 100
+        : 0;
 
     // Capacity for 30 days: weekly_capacity * 4.3 weeks
     const capacityHours = sp.weekly_capacity_hours * (30 / 7);
@@ -714,6 +736,47 @@ export default async function DashboardPage({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Weekly utilisation trend */}
+      <div className="app-card p-4">
+        <h2 className="mb-1 font-semibold text-zinc-900">Utilisation trend (last 30 days)</h2>
+        <p className="mb-4 text-sm text-zinc-600">
+          Billable hours as a percentage of total team capacity, week by week.
+        </p>
+        <WeeklyTrendChart
+          timeEntries={timeEntries.map((e) => ({
+            staff_id: e.staff_id,
+            date: e.date,
+            hours: Number(e.hours),
+            billable_flag: e.billable_flag,
+          }))}
+          staffProfiles={staffProfiles.map((sp) => ({
+            id: sp.id,
+            weekly_capacity_hours: Number(sp.weekly_capacity_hours),
+          }))}
+        />
+      </div>
+
+      {/* Weekly Utilization */}
+      <div className="app-card p-4 space-y-3">
+        <h2 className="font-semibold text-zinc-900">Weekly Utilization</h2>
+        <p className="text-xs text-zinc-500">Capacity vs. project hours over the next 12 weeks.</p>
+        <UtilizationTable weeks={12} />
+      </div>
+
+      {/* Staffing Gaps */}
+      <div className="app-card p-4 space-y-3">
+        <h2 className="font-semibold text-zinc-900">Staffing Gaps</h2>
+        <p className="text-xs text-zinc-500">Weeks where demand exceeds capacity and estimated additional staff needed.</p>
+        <StaffingGapsTable weeks={12} />
+      </div>
+
+      {/* Upcoming Project Load */}
+      <div className="app-card p-4 space-y-3">
+        <h2 className="font-semibold text-zinc-900">Upcoming Project Load</h2>
+        <p className="text-xs text-zinc-500">12-week forecast of project hours, capacity, utilization, and staffing gaps.</p>
+        <ForecastTable weeks={12} />
       </div>
 
       {/* Alerts */}

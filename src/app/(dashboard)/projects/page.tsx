@@ -7,6 +7,10 @@ import {
   getProjectHealthColour,
 } from "@/lib/utils/projectHealth";
 import ProjectStatusFilter from "./ProjectStatusFilter";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
@@ -73,6 +77,41 @@ export default async function ProjectsPage({
     {}
   );
 
+  const { data: assignmentsData } = projectIds.length
+    ? await supabase
+        .from("project_assignments")
+        .select("project_id, staff_id, week_start, weekly_hours_allocated, staff_profiles(name), projects(start_date, end_date, status)")
+        .eq("tenant_id", user.tenantId)
+        .in("project_id", projectIds)
+    : { data: [] };
+
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    (assignmentsData ?? []).map((row) => ({
+      staff_id: row.staff_id,
+      project_id: row.project_id,
+      week_start: row.week_start ?? null,
+      weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+      projects: row.projects ?? null,
+      staff_profiles: row.staff_profiles,
+    })),
+    currentWeekStart
+  ).filter((row) => row.weekly_hours_allocated > 0);
+
+  const staffByProject = effectiveAssignments.reduce<Record<string, { name: string; hours: number }[]>>(
+    (acc, row) => {
+      const profile = Array.isArray(row.staff_profiles)
+        ? row.staff_profiles[0]
+        : row.staff_profiles;
+      const name = profile?.name ?? "Unknown";
+      const hours = Number(row.weekly_hours_allocated);
+      if (!acc[row.project_id]) acc[row.project_id] = [];
+      acc[row.project_id].push({ name, hours });
+      return acc;
+    },
+    {}
+  );
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -123,6 +162,9 @@ export default async function ProjectsPage({
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Status
               </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                Assigned Staff
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -171,6 +213,13 @@ export default async function ProjectsPage({
                     >
                       {badge.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {staffByProject[project.id]?.length
+                      ? staffByProject[project.id]
+                          .map((s) => `${s.name} (${s.hours}h/wk)`)
+                          .join(", ")
+                      : "—"}
                   </td>
                 </tr>
               );

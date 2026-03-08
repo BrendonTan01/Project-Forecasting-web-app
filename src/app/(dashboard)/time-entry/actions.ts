@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant, getStaffIdByUserId } from "@/lib/supabase/auth-helpers";
 import { revalidatePath } from "next/cache";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
 
 export type TimeEntryFormData = {
   project_id: string;
@@ -19,9 +20,18 @@ function isOldProjectDayConstraint(message: string | undefined) {
   return /constraint "time_entries_unique_staff_project_date"/.test(message ?? "");
 }
 
+function getWeekMondayFromDateString(dateString: string): string {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  const day = date.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setUTCDate(date.getUTCDate() + diff);
+  date.setUTCHours(0, 0, 0, 0);
+  return date.toISOString().slice(0, 10);
+}
+
 export async function createTimeEntry(data: TimeEntryFormData) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -29,14 +39,27 @@ export async function createTimeEntry(data: TimeEntryFormData) {
   const supabase = await createClient();
 
   // Validate: staff must be assigned to project (managers can bypass for now)
-  const { data: assignment } = await supabase
+  const { data: assignmentRows } = await supabase
     .from("project_assignments")
-    .select("id")
+    .select("staff_id, project_id, week_start, weekly_hours_allocated, projects(start_date, end_date, status)")
+    .eq("tenant_id", user.tenantId)
     .eq("project_id", data.project_id)
-    .eq("staff_id", staffId)
-    .single();
+    .eq("staff_id", staffId);
 
-  if (!assignment && user.role === "staff") {
+  const entryWeekStart = getWeekMondayFromDateString(data.date);
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    (assignmentRows ?? []).map((row) => ({
+      ...row,
+      week_start: row.week_start ?? null,
+      weekly_hours_allocated: Number(row.weekly_hours_allocated ?? 0),
+    })),
+    entryWeekStart
+  );
+  const hasAssignmentForWeek = effectiveAssignments.some(
+    (row) => Number(row.weekly_hours_allocated) > 0
+  );
+
+  if (!hasAssignmentForWeek && user.role === "staff") {
     return { error: "You must be assigned to this project to log time" };
   }
 
@@ -146,7 +169,7 @@ export async function createTimeEntry(data: TimeEntryFormData) {
 
 export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormData>) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -158,6 +181,7 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
     .from("time_entries")
     .select("id, staff_id, project_id, date, hours, billable_flag")
     .eq("id", id)
+    .eq("tenant_id", user.tenantId)
     .single();
 
   if (!existing) return { error: "Time entry not found" };
@@ -254,7 +278,7 @@ export async function updateTimeEntry(id: string, data: Partial<TimeEntryFormDat
 
 export async function deleteTimeEntry(id: string) {
   const user = await getCurrentUserWithTenant();
-  const staffId = user ? await getStaffIdByUserId(user.id) : null;
+  const staffId = user ? await getStaffIdByUserId(user.id, user.tenantId) : null;
   if (!user || !staffId) {
     return { error: "Unauthorized" };
   }
@@ -265,6 +289,7 @@ export async function deleteTimeEntry(id: string) {
     .from("time_entries")
     .select("staff_id")
     .eq("id", id)
+    .eq("tenant_id", user.tenantId)
     .single();
 
   if (!existing) return { error: "Time entry not found" };

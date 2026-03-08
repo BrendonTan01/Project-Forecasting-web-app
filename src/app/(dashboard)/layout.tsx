@@ -15,11 +15,13 @@ export default async function DashboardLayout({
   }
 
   const isStaff = user.role === "staff";
+  const isAdmin = user.role === "administrator";
   const navLinks = isStaff
     ? [
         { href: "/dashboard", label: "Dashboard" },
-        { href: "/staff", label: "Staff" },
+        { href: "/projects", label: "Projects" },
         { href: "/time-entry", label: "Time Entry" },
+        { href: "/leave", label: "Leave" },
         { href: "/alerts", label: "Alerts" },
       ]
     : [
@@ -28,8 +30,12 @@ export default async function DashboardLayout({
         { href: "/proposals", label: "Proposals" },
         { href: "/staff", label: "Staff" },
         { href: "/capacity", label: "Capacity" },
+        { href: "/capacity-planner", label: "Capacity Planner" },
+        { href: "/forecast", label: "Forecast" },
         { href: "/time-entry", label: "Time Entry" },
+        { href: "/leave", label: "Leave" },
         { href: "/alerts", label: "Alerts" },
+        ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
       ];
 
   return (

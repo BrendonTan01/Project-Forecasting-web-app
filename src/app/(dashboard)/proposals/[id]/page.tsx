@@ -38,7 +38,7 @@ export default async function ProposalDetailPage({
 
   const supabase = await createClient();
 
-  const [{ data: proposal }, { data: offices }] = await Promise.all([
+  const [{ data: proposal }, { data: offices }, { data: staffRates }] = await Promise.all([
     supabase
       .from("project_proposals")
       .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, optimization_mode, status, notes")
@@ -50,6 +50,11 @@ export default async function ProposalDetailPage({
       .select("id, name")
       .eq("tenant_id", user.tenantId)
       .order("name"),
+    supabase
+      .from("staff_profiles")
+      .select("billable_rate, cost_rate")
+      .eq("tenant_id", user.tenantId)
+      .not("billable_rate", "is", null),
   ]);
 
   if (!proposal) notFound();
@@ -61,6 +66,29 @@ export default async function ProposalDetailPage({
 
   const officeScope = proposal.office_scope as string[] | null;
   const optimizationMode = normalizeProposalOptimizationMode(proposal.optimization_mode);
+
+  // Financial forecast: estimated revenue + cost from staff rates (if available)
+  const rateCount = staffRates?.length ?? 0;
+  const avgBillableRate =
+    rateCount > 0
+      ? (staffRates ?? []).reduce((sum, r) => sum + Number(r.billable_rate ?? 0), 0) / rateCount
+      : null;
+  const avgCostRate =
+    rateCount > 0 && (staffRates ?? []).some((r) => r.cost_rate !== null)
+      ? (staffRates ?? []).reduce((sum, r) => sum + Number(r.cost_rate ?? 0), 0) / rateCount
+      : null;
+  const estimatedRevenue =
+    avgBillableRate !== null && proposal?.estimated_hours
+      ? avgBillableRate * Number(proposal.estimated_hours)
+      : null;
+  const estimatedCost =
+    avgCostRate !== null && proposal?.estimated_hours
+      ? avgCostRate * Number(proposal.estimated_hours)
+      : null;
+  const estimatedMargin =
+    estimatedRevenue !== null && estimatedCost !== null
+      ? estimatedRevenue - estimatedCost
+      : null;
 
   // Run initial feasibility computation server-side
   const initialFeasibility = await computeFeasibility(id, officeScope, false, 120, optimizationMode);
@@ -126,6 +154,46 @@ export default async function ProposalDetailPage({
           </p>
         </div>
       </div>
+
+      {/* Financial forecast */}
+      {estimatedRevenue !== null && (
+        <div className="app-card p-4">
+          <h2 className="mb-1 font-semibold text-zinc-900">Financial forecast</h2>
+          <p className="mb-4 text-xs text-zinc-500">
+            Based on average billable/cost rates across {rateCount} staff member{rateCount !== 1 ? "s" : ""} with rates configured.
+            Figures are estimates — actual rates depend on which staff are assigned.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-sm font-medium text-zinc-500">Est. revenue</p>
+              <p className="mt-1 text-xl font-semibold text-zinc-900">
+                {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(estimatedRevenue)}
+              </p>
+              <p className="text-xs text-zinc-400">avg ${avgBillableRate?.toFixed(0)}/h × {proposal.estimated_hours}h</p>
+            </div>
+            {estimatedCost !== null && (
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-sm font-medium text-zinc-500">Est. cost</p>
+                <p className="mt-1 text-xl font-semibold text-zinc-900">
+                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(estimatedCost)}
+                </p>
+                <p className="text-xs text-zinc-400">avg ${avgCostRate?.toFixed(0)}/h × {proposal.estimated_hours}h</p>
+              </div>
+            )}
+            {estimatedMargin !== null && (
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-sm font-medium text-zinc-500">Est. margin</p>
+                <p className={`mt-1 text-xl font-semibold ${estimatedMargin >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                  {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(estimatedMargin)}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {estimatedRevenue > 0 ? ((estimatedMargin / estimatedRevenue) * 100).toFixed(1) : "0"}% margin
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Feasibility analysis */}
       <div className="app-card p-4">

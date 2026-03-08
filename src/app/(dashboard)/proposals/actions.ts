@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
   normalizeProposalOptimizationMode,
   type ProposalOptimizationMode,
 } from "./optimization-modes";
+import { writeAuditLog } from "@/lib/audit/log";
 
 export type ProposalFormData = {
   name: string;
@@ -25,8 +27,8 @@ export type ProposalFormData = {
 export async function createProposal(data: ProposalFormData) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can create proposals" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to create proposals" };
   }
   if (data.status !== "draft" && (!data.proposed_start_date || !data.proposed_end_date)) {
     return { error: "Set both timeline dates before changing status from draft" };
@@ -55,14 +57,22 @@ export async function createProposal(data: ProposalFormData) {
 
   revalidatePath("/proposals");
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.created",
+    entityType: "proposal",
+    entityId: proposal.id,
+    newValue: { name: data.name, status: data.status },
+  });
   return { success: true, id: proposal.id };
 }
 
 export async function updateProposal(id: string, data: Partial<ProposalFormData>) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can edit proposals" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to edit proposals" };
   }
 
   if (data.status !== undefined) {
@@ -116,14 +126,22 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
   revalidatePath("/proposals");
   revalidatePath(`/proposals/${id}`);
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.updated",
+    entityType: "proposal",
+    entityId: id,
+    newValue: updateData,
+  });
   return { success: true };
 }
 
 export async function deleteProposal(id: string) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
-  if (user.role !== "administrator") {
-    return { error: "Only administrators can delete proposals" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to delete proposals" };
   }
 
   const supabase = await createClient();
@@ -137,5 +155,12 @@ export async function deleteProposal(id: string) {
 
   revalidatePath("/proposals");
   revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.deleted",
+    entityType: "proposal",
+    entityId: id,
+  });
   return { success: true };
 }

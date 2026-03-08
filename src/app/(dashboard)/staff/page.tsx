@@ -3,6 +3,10 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { calculateUtilisation, formatUtilisation } from "@/lib/utils/utilisation";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 function getPeriodDates() {
   const end = new Date();
@@ -36,6 +40,7 @@ export default async function StaffPage() {
       ? supabase
           .from("time_entries")
           .select("staff_id, hours, billable_flag")
+          .eq("tenant_id", user.tenantId)
           .in("staff_id", staffIds)
           .gte("date", start)
           .lte("date", end)
@@ -43,14 +48,25 @@ export default async function StaffPage() {
     staffIds.length
       ? supabase
           .from("project_assignments")
-          .select("staff_id, allocation_percentage")
+          .select("staff_id, project_id, week_start, weekly_hours_allocated, projects(start_date, end_date, status)")
+          .eq("tenant_id", user.tenantId)
           .in("staff_id", staffIds)
-      : Promise.resolve({ data: [] as { staff_id: string; allocation_percentage: number }[] }),
+      : Promise.resolve({ data: [] as { staff_id: string; project_id: string; week_start: string | null; weekly_hours_allocated: number; projects: { start_date: string | null; end_date: string | null; status: string } | { start_date: string | null; end_date: string | null; status: string }[] | null }[] }),
   ]);
 
-  const allocationByStaff = (assignments ?? []).reduce<Record<string, number>>(
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveAssignments = filterEffectiveAssignmentsForWeek(
+    (assignments ?? []).map((a) => ({
+      ...a,
+      week_start: a.week_start ?? null,
+      weekly_hours_allocated: Number(a.weekly_hours_allocated ?? 0),
+    })),
+    currentWeekStart
+  );
+
+  const weeklyHoursByStaff = effectiveAssignments.reduce<Record<string, number>>(
     (acc, a) => {
-      acc[a.staff_id] = (acc[a.staff_id] ?? 0) + Number(a.allocation_percentage);
+      acc[a.staff_id] = (acc[a.staff_id] ?? 0) + Number(a.weekly_hours_allocated);
       return acc;
     },
     {}
@@ -98,6 +114,11 @@ export default async function StaffPage() {
               const capacity = sp.weekly_capacity_hours * (30 / 7);
               const billable = billableByStaff[sp.id] ?? 0;
               const utilisation = calculateUtilisation(billable, capacity);
+              const weeklyHours = weeklyHoursByStaff[sp.id] ?? 0;
+              const allocationPercent =
+                sp.weekly_capacity_hours > 0
+                  ? (weeklyHours / Number(sp.weekly_capacity_hours)) * 100
+                  : 0;
 
               return (
                 <tr key={sp.id} className="border-b border-zinc-100">
@@ -116,7 +137,7 @@ export default async function StaffPage() {
                     {u?.role ?? sp.job_title ?? "-"}
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
-                    {allocationByStaff[sp.id] ?? 0}%
+                    {allocationPercent.toFixed(0)}%
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
                     {formatUtilisation(utilisation)}

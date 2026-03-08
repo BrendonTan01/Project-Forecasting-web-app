@@ -1,6 +1,11 @@
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { getCapacityData } from "@/lib/dashboard/data";
+import {
+  filterEffectiveAssignmentsForWeek,
+  getCurrentWeekMondayString,
+} from "@/lib/utils/assignmentEffective";
 
 function startOfDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -45,13 +50,47 @@ export default async function CapacityPage() {
   ];
 
   const { staffProfiles, leaveRequests, assignments } = await getCapacityData(user.tenantId, user.id);
+  const currentWeekStart = getCurrentWeekMondayString();
+  const effectiveWeekAssignments = filterEffectiveAssignmentsForWeek(
+    assignments.map((a) => ({
+      ...a,
+      weekly_hours_allocated: Number(a.weekly_hours_allocated ?? 0),
+      week_start: a.week_start ?? null,
+    })),
+    currentWeekStart
+  );
+
+  // Fetch additional data for the Staff Weekly Capacity & Project Load table
+  const supabase = await createClient();
+  const { data: staffWithDetails } = await supabase
+    .from("staff_profiles")
+    .select("id, name, job_title, weekly_capacity_hours")
+    .eq("tenant_id", user.tenantId)
+    .order("name");
+
+  const staffIds = (staffWithDetails ?? []).map((s) => s.id);
+  const { data: weeklyAssignments } = staffIds.length
+    ? await supabase
+        .from("project_assignments")
+        .select("staff_id, weekly_hours_allocated")
+        .eq("tenant_id", user.tenantId)
+        .in("staff_id", staffIds)
+    : { data: [] };
+
+  const weeklyHoursByStaff = (weeklyAssignments ?? []).reduce<Record<string, number>>(
+    (acc, row) => {
+      acc[row.staff_id] = (acc[row.staff_id] ?? 0) + Number(row.weekly_hours_allocated);
+      return acc;
+    },
+    {}
+  );
 
   // Calculate free capacity per staff for each period
   const capacityData = staffProfiles.map((sp) => {
     const allocationSum =
-      assignments
+      effectiveWeekAssignments
         .filter((a) => a.staff_id === sp.id)
-        .reduce((sum, a) => sum + Number(a.allocation_percentage), 0) ?? 0;
+        .reduce((sum, a) => sum + Number(a.weekly_hours_allocated), 0) ?? 0;
     const staffAssignments = assignments.filter((a) => a.staff_id === sp.id);
     const staffLeaves = leaveRequests.filter((lr) => lr.staff_id === sp.id);
     const today = startOfDay(new Date());
@@ -66,12 +105,22 @@ export default async function CapacityPage() {
           | { start_date: string | null; end_date: string | null }[]
           | null;
         const project = Array.isArray(proj) ? proj[0] : proj;
+        if ((project as { status?: string | null } | null)?.status && (project as { status?: string | null }).status !== "active") {
+          return sum;
+        }
+        const weekStart = assignment.week_start ?? null;
+        if (weekStart) {
+          const weekDate = new Date(`${weekStart}T00:00:00Z`);
+          if (weekDate < today || weekDate > periodEnd) return sum;
+          return sum + Number(assignment.weekly_hours_allocated ?? 0);
+        }
+
         const projectStart = project?.start_date ? new Date(`${project.start_date}T00:00:00Z`) : today;
         const projectEnd = project?.end_date ? new Date(`${project.end_date}T00:00:00Z`) : periodEnd;
         const overlap = getOverlapRange(today, periodEnd, projectStart, projectEnd);
         if (!overlap) return sum;
         const overlapWorkingDays = countWorkingDaysInRange(overlap.start, overlap.end);
-        const assignmentHours = (Number(assignment.allocation_percentage) / 100) * sp.weekly_capacity_hours * (overlapWorkingDays / 5);
+        const assignmentHours = Number(assignment.weekly_hours_allocated ?? 0) * (overlapWorkingDays / 5);
         return sum + assignmentHours;
       }, 0);
 
@@ -95,7 +144,10 @@ export default async function CapacityPage() {
         return (Array.isArray(u) ? u[0]?.email : u?.email) ?? "Unknown";
       })(),
       weeklyCapacity: sp.weekly_capacity_hours,
-      allocationSum,
+      allocationSumPercent:
+        sp.weekly_capacity_hours > 0
+          ? (allocationSum / Number(sp.weekly_capacity_hours)) * 100
+          : 0,
       free1m: periodFreeHours["1m"] ?? 0,
       free2m: periodFreeHours["2m"] ?? 0,
       free3m: periodFreeHours["3m"] ?? 0,
@@ -108,6 +160,53 @@ export default async function CapacityPage() {
   return (
     <div className="space-y-6">
       <h1 className="app-page-title">Capacity Planner</h1>
+
+      {/* Staff Weekly Capacity & Project Load */}
+      <div className="app-card">
+        <h2 className="border-b border-zinc-200 px-4 py-3 font-semibold text-zinc-900">
+          Staff Weekly Capacity &amp; Project Load
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="app-table min-w-full">
+            <thead>
+              <tr className="border-b border-zinc-200 bg-zinc-50">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Job Title</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Weekly Capacity (hrs)</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Assigned hrs/wk</th>
+                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Utilization %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(staffWithDetails ?? []).map((s) => {
+                const assigned = weeklyHoursByStaff[s.id] ?? 0;
+                const capacity = Number(s.weekly_capacity_hours);
+                const utilization = capacity > 0 ? (assigned / capacity) * 100 : 0;
+                return (
+                  <tr key={s.id} className="border-b border-zinc-100">
+                    <td className="px-4 py-3 text-sm font-medium text-zinc-900">{s.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-700">{s.job_title ?? "—"}</td>
+                    <td className="px-4 py-3 text-right text-sm text-zinc-800">{capacity}h</td>
+                    <td className="px-4 py-3 text-right text-sm text-zinc-800">{assigned.toFixed(1)}h</td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={utilization > 100 ? "text-red-600" : utilization >= 80 ? "text-amber-600" : "text-green-600"}>
+                        {utilization.toFixed(0)}%
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {(!staffWithDetails || staffWithDetails.length === 0) && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">
+                    No staff profiles found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="app-card">
         <h2 className="border-b border-zinc-200 px-4 py-3 font-semibold text-zinc-900">
@@ -155,7 +254,7 @@ export default async function CapacityPage() {
                     {row.weeklyCapacity}h
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
-                    {row.allocationSum}%
+                    {row.allocationSumPercent.toFixed(0)}%
                   </td>
                   <td className={`px-4 py-3 text-right text-sm ${row.free1m < 0 ? "font-semibold text-red-700" : "text-zinc-800"}`}>
                     {row.free1m.toFixed(0)}h
@@ -183,9 +282,11 @@ export default async function CapacityPage() {
       {/* Timeline view - simplified */}
       <div className="app-card p-4">
         <h2 className="mb-4 font-semibold text-zinc-900">Project allocations</h2>
-        {assignments.length > 0 ? (
+        {effectiveWeekAssignments.filter((a) => Number(a.weekly_hours_allocated) > 0).length > 0 ? (
           <div className="space-y-2">
-            {assignments.map((a) => {
+            {effectiveWeekAssignments
+              .filter((a) => Number(a.weekly_hours_allocated) > 0)
+              .map((a) => {
               const staff = staffProfiles.find((s) => s.id === a.staff_id);
               const proj = a.projects as
                 | { name: string; start_date: string | null; end_date: string | null }
@@ -204,7 +305,7 @@ export default async function CapacityPage() {
                   </span>
                   <span className="text-sm font-medium text-zinc-900">{projectName ?? "Unknown"}</span>
                   <span className="text-sm font-semibold text-zinc-800">
-                    {a.allocation_percentage}%
+                    {Number(a.weekly_hours_allocated).toFixed(1)}h
                   </span>
                 </div>
               );
