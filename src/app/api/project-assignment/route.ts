@@ -248,11 +248,14 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     }));
 
     // Source blockers suppress this recurring assignment on moved weeks.
+    // allocation_percentage must be 0 so the BEFORE INSERT trigger computes
+    // weekly_hours_allocated = (0 / 100) * capacity = 0.  A non-zero
+    // allocation_percentage would cause the trigger to override the 0 we intend.
     const sourceBlockerRows = sourceWeeks.map((week) => ({
       tenant_id: user.tenantId,
       project_id: existing.project_id,
       staff_id: existing.staff_id,
-      allocation_percentage: existing.allocation_percentage,
+      allocation_percentage: 0,
       weekly_hours_allocated: 0,
       week_start: week,
     }));
@@ -286,48 +289,44 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
 
   // Week-specific assignment: move the selected row (or series of pinned rows).
-  // Use upsert+source-blockers so cross-staff moves always remove from source and
-  // can merge safely into existing destination rows.
+  // We upsert the destination row first, then DELETE the source row by its id.
+  // A 0-hour blocker upsert does NOT work because the BEFORE INSERT trigger
+  // unconditionally recomputes weekly_hours_allocated from allocation_percentage,
+  // so the 0 we write is overwritten before it lands in the table.
   if (move_scope === "single") {
     const sourceWeek = sourceWeekStart!;
     const targetWeek = toDateString(
       addDays(normalizeToMonday(sourceWeek), weekShiftDays)
     );
 
-    const targetRows = [
-      {
-        tenant_id: user.tenantId,
-        project_id: existing.project_id,
-        staff_id: targetStaffId,
-        allocation_percentage: existing.allocation_percentage,
-        weekly_hours_allocated: effectiveWeeklyHours,
-        week_start: targetWeek,
-      },
-    ];
-
-    const sourceBlockerRows = [
-      {
-        tenant_id: user.tenantId,
-        project_id: existing.project_id,
-        staff_id: existing.staff_id,
-        allocation_percentage: existing.allocation_percentage,
-        weekly_hours_allocated: 0,
-        week_start: sourceWeek,
-      },
-    ];
-
+    // 1. Create/update the destination row for the target staff member.
     const { error: upsertTargetErr } = await admin
       .from("project_assignments")
-      .upsert(targetRows, { onConflict: "project_id,staff_id,week_start" });
+      .upsert(
+        [
+          {
+            tenant_id: user.tenantId,
+            project_id: existing.project_id,
+            staff_id: targetStaffId,
+            allocation_percentage: existing.allocation_percentage,
+            weekly_hours_allocated: effectiveWeeklyHours,
+            week_start: targetWeek,
+          },
+        ],
+        { onConflict: "project_id,staff_id,week_start" }
+      );
     if (upsertTargetErr) {
       return NextResponse.json({ error: upsertTargetErr.message }, { status: 500 });
     }
 
-    const { error: upsertSourceErr } = await admin
+    // 2. Remove the source row from Person A entirely (DELETE is immune to the trigger).
+    const { error: deleteSourceErr } = await admin
       .from("project_assignments")
-      .upsert(sourceBlockerRows, { onConflict: "project_id,staff_id,week_start" });
-    if (upsertSourceErr) {
-      return NextResponse.json({ error: upsertSourceErr.message }, { status: 500 });
+      .delete()
+      .eq("id", assignment_id)
+      .eq("tenant_id", user.tenantId);
+    if (deleteSourceErr) {
+      return NextResponse.json({ error: deleteSourceErr.message }, { status: 500 });
     }
 
     scheduleForecastRecalculation(user.tenantId);
@@ -374,6 +373,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     .map((row) => row.week_start)
     .filter((week): week is string => Boolean(week));
 
+  // 1. Upsert destination rows for the target staff member.
   const targetRows = sourceWeeks.map((week) => ({
     tenant_id: user.tenantId,
     project_id: existing.project_id,
@@ -383,15 +383,6 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     week_start: toDateString(addDays(normalizeToMonday(week), weekShiftDays)),
   }));
 
-  const sourceBlockerRows = sourceWeeks.map((week) => ({
-    tenant_id: user.tenantId,
-    project_id: existing.project_id,
-    staff_id: existing.staff_id,
-    allocation_percentage: existing.allocation_percentage,
-    weekly_hours_allocated: 0,
-    week_start: week,
-  }));
-
   const { error: upsertTargetErr } = await admin
     .from("project_assignments")
     .upsert(targetRows, { onConflict: "project_id,staff_id,week_start" });
@@ -399,11 +390,16 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: upsertTargetErr.message }, { status: 500 });
   }
 
-  const { error: upsertSourceErr } = await admin
+  // 2. DELETE the source rows from Person A.  The BEFORE INSERT trigger overrides any
+  //    0-hour blocker upsert, so deletion is the only reliable way to clear them.
+  const sourceRowIds = selectedRows.map((row) => row.id);
+  const { error: deleteSourceErr } = await admin
     .from("project_assignments")
-    .upsert(sourceBlockerRows, { onConflict: "project_id,staff_id,week_start" });
-  if (upsertSourceErr) {
-    return NextResponse.json({ error: upsertSourceErr.message }, { status: 500 });
+    .delete()
+    .in("id", sourceRowIds)
+    .eq("tenant_id", user.tenantId);
+  if (deleteSourceErr) {
+    return NextResponse.json({ error: deleteSourceErr.message }, { status: 500 });
   }
 
   // Fire-and-forget forecast recalculation
