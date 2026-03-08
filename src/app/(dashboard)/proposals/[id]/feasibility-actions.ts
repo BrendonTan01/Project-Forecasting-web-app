@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { addUtcDays, toDateString, toUtcDate, toWeekMonday, weekEndFromWeekStart } from "@/lib/utils/week";
 import {
   PROPOSAL_OPTIMIZATION_COMPARISON_MODES,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
@@ -58,16 +60,6 @@ export type FeasibilityResult = {
 export type FeasibilityError = {
   error: string;
 };
-
-// Returns the Monday of the week containing the given date
-function getMondayOf(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
 
 function toISODate(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -136,7 +128,14 @@ type FeasibilityBaseData = {
     officeId: string | null;
   }>;
   overlappingProjects: Array<{ id: string; start_date: string | null; end_date: string | null }>;
-  assignments: Array<{ staff_id: string; allocation_percentage: number; project_id: string }>;
+  assignments: Array<{
+    staff_id: string;
+    project_id: string;
+    weekly_hours_allocated: number;
+    week_start: string | null;
+    projects: { start_date: string | null; end_date: string | null; status: string | null } | null;
+  }>;
+  availability: Array<{ staff_id: string; week_start: string; available_hours: number }>;
   leaves: Array<{ staff_id: string; start_date: string; end_date: string }>;
   officeNames: string[];
 };
@@ -221,11 +220,21 @@ async function getFeasibilityBaseData(
     const { data: assignmentRows } = projectIds.length > 0
       ? await supabase
           .from("project_assignments")
-          .select("staff_id, allocation_percentage, project_id")
+          .select("staff_id, project_id, weekly_hours_allocated, week_start, projects(start_date, end_date, status)")
           .eq("tenant_id", tenantId)
           .in("project_id", projectIds)
           .in("staff_id", staffIds)
       : { data: [] };
+
+    const proposalWindowStartMonday = toWeekMonday(proposal.proposed_start_date);
+    const proposalWindowEndMonday = toWeekMonday(proposal.proposed_end_date);
+    const { data: availabilityRows } = await supabase
+      .from("staff_availability")
+      .select("staff_id, week_start, available_hours")
+      .eq("tenant_id", tenantId)
+      .in("staff_id", staffIds)
+      .gte("week_start", proposalWindowStartMonday)
+      .lte("week_start", proposalWindowEndMonday);
 
     const { data: leaveRows } = await supabase
       .from("leave_requests")
@@ -246,10 +255,22 @@ async function getFeasibilityBaseData(
     },
     staff,
     overlappingProjects: overlappingProjects ?? [],
-    assignments: (assignmentRows ?? []).map((assignment) => ({
-      staff_id: assignment.staff_id,
-      allocation_percentage: Number(assignment.allocation_percentage),
-      project_id: assignment.project_id,
+    assignments: (assignmentRows ?? []).map((assignment) => {
+      const projectRecord = Array.isArray(assignment.projects)
+        ? (assignment.projects[0] ?? null)
+        : assignment.projects ?? null;
+      return {
+        staff_id: assignment.staff_id,
+        project_id: assignment.project_id,
+        weekly_hours_allocated: Number(assignment.weekly_hours_allocated ?? 0),
+        week_start: assignment.week_start ?? null,
+        projects: projectRecord,
+      };
+    }),
+    availability: (availabilityRows ?? []).map((row) => ({
+      staff_id: row.staff_id,
+      week_start: row.week_start,
+      available_hours: Number(row.available_hours ?? 0),
     })),
     leaves: leaveRows ?? [],
     officeNames,
@@ -304,13 +325,31 @@ function computeFeasibilityCore(
   const staffUsedById = new Set<string>();
   let rawTotalAchievable = 0;
   let rawTotalOverallocatedHours = 0;
-  const firstMonday = getMondayOf(propStart);
+  const firstMonday = toUtcDate(toWeekMonday(baseData.proposal.proposed_start_date));
   const weekCursor = new Date(firstMonday);
+  const availabilityByStaffWeek = new Map<string, Map<string, number>>();
+  for (const row of baseData.availability) {
+    if (!availabilityByStaffWeek.has(row.staff_id)) {
+      availabilityByStaffWeek.set(row.staff_id, new Map());
+    }
+    availabilityByStaffWeek.get(row.staff_id)!.set(row.week_start, row.available_hours);
+  }
 
   while (weekCursor <= propEnd) {
     const weekStart = new Date(weekCursor);
-    const weekEnd = new Date(weekCursor);
-    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6); // Sunday
+    const weekStartStr = toDateString(weekStart);
+    const weekEnd = toUtcDate(weekEndFromWeekStart(weekStartStr));
+    const effectiveAssignmentsForWeek = filterEffectiveAssignmentsForWeek(
+      baseData.assignments,
+      weekStartStr
+    );
+    const committedByStaff = new Map<string, number>();
+    for (const assignment of effectiveAssignmentsForWeek) {
+      committedByStaff.set(
+        assignment.staff_id,
+        (committedByStaff.get(assignment.staff_id) ?? 0) + assignment.weekly_hours_allocated
+      );
+    }
 
     // Clamp to proposal bounds for partial weeks
     const clampStart = weekStart < propStart ? propStart : weekStart;
@@ -330,20 +369,11 @@ function computeFeasibilityCore(
     let totalFreeCapacity = 0;
 
     for (const sp of baseData.staff) {
-      const weeklyCapacity = sp.weeklyCapacityHours;
+      const weeklyCapacity =
+        availabilityByStaffWeek.get(sp.id)?.get(weekStartStr) ?? sp.weeklyCapacityHours;
       const dailyCapacity = weeklyCapacity / 5;
       const effectiveCapacity = weeklyCapacity * weekFraction;
-
-      // Sum up allocated hours from overlapping projects this week
-      let allocatedHours = 0;
-      for (const a of baseData.assignments) {
-        if (a.staff_id !== sp.id) continue;
-        const pd = projectDates[a.project_id];
-        if (!pd) continue;
-        // Check if this project overlaps this week
-        if (pd.start > weekEnd || pd.end < weekStart) continue;
-        allocatedHours += (a.allocation_percentage / 100) * weeklyCapacity * weekFraction;
-      }
+      const allocatedHours = committedByStaff.get(sp.id) ?? 0;
 
       // Subtract leave
       const leaveHrs = leaveHoursInWeek(baseData.leaves, sp.id, weekStart, weekEnd, dailyCapacity);
@@ -394,7 +424,7 @@ function computeFeasibilityCore(
     }).length;
 
     weeks.push({
-      weekStart: toISODate(weekStart),
+      weekStart: weekStartStr,
       weekEnd: toISODate(weekEnd),
       requiredHours: Math.round(requiredHours * 10) / 10,
       achievableHours: round1(achievableHours),
@@ -406,7 +436,7 @@ function computeFeasibilityCore(
       activeProjectCount,
     });
 
-    weekCursor.setUTCDate(weekCursor.getUTCDate() + 7);
+    weekCursor.setTime(addUtcDays(weekCursor, 7).getTime());
   }
 
   const roundedWeeklyTotalRequired = weeks.reduce((s, w) => s + w.requiredHours, 0);
