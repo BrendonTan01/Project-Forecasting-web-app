@@ -240,4 +240,9 @@ export interface HiringRecommendation {
   skill: string;
   staff_needed: number;
   recommended_hiring_window_weeks: number;
+  shortage_start_week?: string;
+  demand_sources?: Array<{
+    project_name: string;
+    hours_per_week: number;
+  }>;
 }

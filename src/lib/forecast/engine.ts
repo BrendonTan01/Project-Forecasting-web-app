@@ -66,6 +66,7 @@ type AssignmentWithProject = {
 };
 
 type RawProjectRelation = {
+  name?: string | null;
   start_date: string | null;
   end_date: string | null;
   status: string;
@@ -396,6 +397,7 @@ type ProjectSkillRequirementRow = {
   skill_id: string;
   required_hours_per_week: number;
   projects: RawProjectRelation | null;
+  project_name?: string;
 };
 
 type StaffSkillRow = {
@@ -462,7 +464,7 @@ export async function computeHiringRecommendations(
 
     admin
       .from("project_skill_requirements")
-      .select("project_id, skill_id, required_hours_per_week, projects(status, start_date, end_date)")
+      .select("project_id, skill_id, required_hours_per_week, projects(name, status, start_date, end_date)")
       .eq("tenant_id", tenantId),
 
     admin
@@ -480,12 +482,16 @@ export async function computeHiringRecommendations(
 
   const skills = (skillRows ?? []) as SkillRow[];
   const rawRequirements = (requirementRows ?? []) as RawProjectSkillRequirementRow[];
-  const requirements: ProjectSkillRequirementRow[] = rawRequirements.map((row) => ({
-    project_id: row.project_id,
-    skill_id: row.skill_id,
-    required_hours_per_week: Number(row.required_hours_per_week ?? 0),
-    projects: normalizeProjectRelation(row.projects),
-  }));
+  const requirements: ProjectSkillRequirementRow[] = rawRequirements.map((row) => {
+    const proj = normalizeProjectRelation(row.projects);
+    return {
+      project_id: row.project_id,
+      skill_id: row.skill_id,
+      required_hours_per_week: Number(row.required_hours_per_week ?? 0),
+      projects: proj,
+      project_name: proj?.name ?? undefined,
+    };
+  });
   const rawStaffSkills = (staffSkillRows ?? []) as RawStaffSkillRow[];
   const staffSkills: StaffSkillRow[] = rawStaffSkills.map((row) => {
     const staffProfile = normalizeStaffProfileRelation(row.staff_profiles);
@@ -578,11 +584,30 @@ export async function computeHiringRecommendations(
           Math.ceil(demandOverCapacity / STANDARD_STAFF_CAPACITY)
         );
         const breachStartWeekIndex = i - (CONSECUTIVE_WEEKS_TRIGGER - 1);
+        const shortageStartWeek = toDateString(addDays(weekMonday, breachStartWeekIndex * 7));
+
+        const demandSources = activeRequirements
+          .filter((req) => {
+            if (req.skill_id !== skill.id) return false;
+            const proj = req.projects;
+            const projectStart = proj?.start_date ?? null;
+            const projectEnd = proj?.end_date ?? null;
+            return (
+              (projectStart === null || projectStart <= weekEndStr) &&
+              (projectEnd === null || projectEnd >= weekStartStr)
+            );
+          })
+          .map((req) => ({
+            project_name: req.project_name ?? "Unknown Project",
+            hours_per_week: req.required_hours_per_week,
+          }));
 
         recommendations.push({
           skill: skill.name,
           staff_needed: staffNeeded,
           recommended_hiring_window_weeks: Math.max(1, breachStartWeekIndex),
+          shortage_start_week: shortageStartWeek,
+          demand_sources: demandSources,
         });
         break;
       }
