@@ -23,6 +23,7 @@ import type { ProjectHealthStatus } from "@/lib/types";
 import StaffDashboard from "./StaffDashboard";
 import WeeklyTrendChart from "./WeeklyTrendChart";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
+import { ForecastOverview } from "@/components/api-views/ForecastOverview";
 
 // Period: last 30 days for utilisation
 function getPeriodDates() {
@@ -738,6 +739,12 @@ export default async function DashboardPage({
           </table>
         </div>
       </div>
+
+      {/* Forecast overview — summary cards + utilization forecast chart */}
+      <section>
+        <h2 className="mb-3 font-semibold text-zinc-900">Forecast Overview</h2>
+        <ForecastOverview weeks={12} />
+      </section>
 
       {/* Weekly utilisation trend */}
       <div className="app-card p-4">
