@@ -1,4 +1,5 @@
 import type { ForecastWeek } from "./types";
+import { getDemandUtilizationPercent } from "./forecastMetrics";
 
 // TODO: If the API ever returns best_case_utilization, expected_utilization,
 // worst_case_utilization as direct percentage fields, replace the derived
@@ -47,7 +48,7 @@ function buildPoints(
     .map((w, i) => {
       // Derive utilization % from demand / capacity
       // TODO: Replace with direct utilization field if API exposes it
-      const pct = w.total_capacity > 0 ? (getter(w) / w.total_capacity) * 100 : 0;
+      const pct = getDemandUtilizationPercent(getter(w), w.total_capacity);
       return `${toX(i, weeks.length).toFixed(1)},${toY(pct, maxPct).toFixed(1)}`;
     })
     .join(" ");
@@ -86,7 +87,7 @@ export function UtilizationForecastChart({ weeks }: Props) {
 
   const allPcts = weeks.flatMap((w) =>
     w.total_capacity > 0
-      ? LINES.map((l) => (l.getter(w) / w.total_capacity) * 100)
+      ? LINES.map((l) => getDemandUtilizationPercent(l.getter(w), w.total_capacity))
       : [0]
   );
   const rawMax = Math.max(...allPcts, 100);
@@ -179,9 +180,7 @@ export function UtilizationForecastChart({ weeks }: Props) {
         {LINES.map((line) =>
           weeks.map((w, i) => {
             const pct =
-              w.total_capacity > 0
-                ? (line.getter(w) / w.total_capacity) * 100
-                : 0;
+              getDemandUtilizationPercent(line.getter(w), w.total_capacity);
             const cx = toX(i, weeks.length);
             const cy = toY(pct, maxPct);
             return (

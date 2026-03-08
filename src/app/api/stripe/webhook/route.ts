@@ -32,10 +32,7 @@ async function verifyStripeWebhook(
   if (!signature || !webhookSecret || !stripeKey) return null;
 
   try {
-    // Use runtime require to avoid bundling `stripe` when billing is not enabled.
-    // eslint-disable-next-line no-eval
-    const runtimeRequire = eval("require") as (id: string) => any;
-    const Stripe = runtimeRequire("stripe");
+    const { default: Stripe } = await import("stripe");
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-02-24.acacia" });
     const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     return event as StripeEvent;

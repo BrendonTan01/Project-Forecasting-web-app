@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { hasPermission } from "@/lib/permissions";
 import {
   getProjectHealthStatus,
   getProjectHealthLabel,
@@ -30,6 +31,8 @@ export default async function ProjectDetailPage({
   const { id } = await params;
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  const canManageProjects = hasPermission(user.role, "projects:manage");
+  const canManageAssignments = hasPermission(user.role, "assignments:manage");
 
   const supabase = await createClient();
 
@@ -108,7 +111,7 @@ export default async function ProjectDetailPage({
           </Link>
           <h1 className="app-page-title mt-2">{project.name}</h1>
         </div>
-        {user.role === "administrator" && (
+        {canManageProjects && (
           <div className="flex gap-2">
             <Link
               href={`/projects/${id}/edit`}
@@ -166,7 +169,7 @@ export default async function ProjectDetailPage({
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold text-zinc-900">Assigned staff</h2>
-          {user.role === "administrator" && (
+          {canManageAssignments && (
             <Link
               href={`/projects/${id}/assignments`}
               className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 
 const proposalStatusConfig: Record<string, { label: string; colour: string }> = {
   draft: { label: "Draft", colour: "bg-zinc-100 text-zinc-700" },
@@ -21,6 +22,7 @@ export default async function ProposalsPage({
 }) {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  const canManageProposals = hasPermission(user.role, "proposals:manage");
 
   const { status } = await searchParams;
   const supabase = await createClient();
@@ -55,7 +57,7 @@ export default async function ProposalsPage({
             Future opportunities — assess staff availability before bidding.
           </p>
         </div>
-        {user.role === "administrator" && (
+        {canManageProposals && (
           <Link
             href="/proposals/new"
             className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"

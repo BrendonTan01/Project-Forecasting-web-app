@@ -33,8 +33,6 @@ export function ProposalImpactPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
     fetch(`/api/proposal-impact?proposalId=${encodeURIComponent(proposalId)}`)
       .then((res) => {
@@ -44,11 +42,13 @@ export function ProposalImpactPanel({
       .then((json: SimulationResult) => {
         if (!cancelled) {
           setData(json);
+          setError(null);
           setLoading(false);
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
+          setData(null);
           setError(typeof err === "string" ? err : "Failed to load impact data");
           setLoading(false);
         }

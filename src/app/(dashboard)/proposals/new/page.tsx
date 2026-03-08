@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { ProposalForm } from "../ProposalForm";
 
 export default async function NewProposalPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
-  if (user.role !== "administrator") {
+  if (!hasPermission(user.role, "proposals:manage")) {
     redirect("/proposals");
   }
 

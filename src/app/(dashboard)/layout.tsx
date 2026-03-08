@@ -19,7 +19,6 @@ export default async function DashboardLayout({
   const navLinks = isStaff
     ? [
         { href: "/dashboard", label: "Dashboard" },
-        { href: "/projects", label: "Projects" },
         { href: "/time-entry", label: "Time Entry" },
         { href: "/leave", label: "Leave" },
         { href: "/alerts", label: "Alerts" },
@@ -29,7 +28,6 @@ export default async function DashboardLayout({
         { href: "/projects", label: "Projects" },
         { href: "/proposals", label: "Proposals" },
         { href: "/staff", label: "Staff" },
-        { href: "/capacity", label: "Capacity" },
         { href: "/capacity-planner", label: "Capacity Planner" },
         { href: "/forecast", label: "Forecast" },
         { href: "/time-entry", label: "Time Entry" },

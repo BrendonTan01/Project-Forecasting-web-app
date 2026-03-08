@@ -40,7 +40,7 @@ export async function createLeaveRequest(input: CreateLeaveInput) {
 
   if (error) return { error: error.message };
   revalidatePath("/leave");
-  revalidatePath("/capacity");
+  revalidatePath("/capacity-planner");
   await writeAuditLog({
     tenantId: user.tenantId,
     userId: user.id,
@@ -73,7 +73,7 @@ export async function updateLeaveRequestStatus(
 
   if (error) return { error: error.message };
   revalidatePath("/leave");
-  revalidatePath("/capacity");
+  revalidatePath("/capacity-planner");
   await writeAuditLog({
     tenantId: user.tenantId,
     userId: user.id,
@@ -122,7 +122,7 @@ export async function deleteLeaveRequest(leaveRequestId: string) {
 
   if (error) return { error: error.message };
   revalidatePath("/leave");
-  revalidatePath("/capacity");
+  revalidatePath("/capacity-planner");
   await writeAuditLog({
     tenantId: user.tenantId,
     userId: user.id,

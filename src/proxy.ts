@@ -8,6 +8,8 @@ const PROTECTED_PREFIXES = [
   "/proposals",
   "/staff",
   "/capacity",
+  "/capacity-planner",
+  "/forecast",
   "/time-entry",
   "/alerts",
   "/settings",

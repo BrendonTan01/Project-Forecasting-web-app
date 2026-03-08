@@ -1,35 +1,13 @@
 import type { ForecastWeek, HiringRecommendation } from "./types";
+import {
+  deriveForecastKpis,
+  getRiskAccentColor,
+  getUtilizationAccentColor,
+} from "./forecastMetrics";
 
 interface Props {
   weeks: ForecastWeek[];
   hiringRecommendations: HiringRecommendation[];
-}
-
-function deriveKpis(weeks: ForecastWeek[], hiringRecommendations: HiringRecommendation[]) {
-  const currentUtilization = weeks.length > 0 ? weeks[0].utilization_rate * 100 : 0;
-
-  const validWeeks = weeks.filter((w) => w.total_capacity > 0);
-  const expectedUtilization =
-    validWeeks.length > 0
-      ? validWeeks.reduce(
-          (sum, w) => sum + (w.expected_demand / w.total_capacity) * 100,
-          0
-        ) / validWeeks.length
-      : 0;
-
-  const staffingRisk =
-    hiringRecommendations.length > 2
-      ? "High"
-      : hiringRecommendations.length > 0
-        ? "Medium"
-        : "None";
-
-  const totalStaffNeeded = hiringRecommendations.reduce(
-    (sum, r) => sum + r.staff_needed,
-    0
-  );
-
-  return { currentUtilization, expectedUtilization, staffingRisk, totalStaffNeeded };
 }
 
 function KpiCard({
@@ -56,21 +34,7 @@ function KpiCard({
 
 export function DashboardKpiCards({ weeks, hiringRecommendations }: Props) {
   const { currentUtilization, expectedUtilization, staffingRisk, totalStaffNeeded } =
-    deriveKpis(weeks, hiringRecommendations);
-
-  const currentUtilColor =
-    currentUtilization > 110
-      ? "#b45309"
-      : currentUtilization < 60
-        ? "#6b7280"
-        : "#047857";
-
-  const riskColor =
-    staffingRisk === "High"
-      ? "#b91c1c"
-      : staffingRisk === "Medium"
-        ? "#b45309"
-        : "#047857";
+    deriveForecastKpis(weeks, hiringRecommendations);
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -78,7 +42,7 @@ export function DashboardKpiCards({ weeks, hiringRecommendations }: Props) {
         label="Current Utilization"
         value={`${currentUtilization.toFixed(1)}%`}
         subtext="This week · confirmed projects"
-        valueColor={currentUtilColor}
+        valueColor={getUtilizationAccentColor(currentUtilization)}
       />
       <KpiCard
         label="Expected Utilization"
@@ -94,10 +58,10 @@ export function DashboardKpiCards({ weeks, hiringRecommendations }: Props) {
             ? `${hiringRecommendations.length} skill gap${hiringRecommendations.length !== 1 ? "s" : ""} flagged`
             : "No active shortages"
         }
-        valueColor={riskColor}
+        valueColor={getRiskAccentColor(staffingRisk)}
       />
       <KpiCard
-        label="Hiring Outlook"
+        label="Hiring Recommendations"
         value={totalStaffNeeded > 0 ? `+${totalStaffNeeded}` : "0"}
         subtext={
           totalStaffNeeded > 0

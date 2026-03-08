@@ -1,4 +1,5 @@
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ProjectForm } from "../ProjectForm";
@@ -6,7 +7,7 @@ import { ProjectForm } from "../ProjectForm";
 export default async function NewProjectPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
-  if (user.role !== "administrator") {
+  if (!hasPermission(user.role, "projects:manage")) {
     redirect("/projects");
   }
 

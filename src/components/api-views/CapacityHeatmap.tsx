@@ -49,8 +49,6 @@ function CellDetailModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
     fetch(
       `/api/capacity-heatmap/detail?officeId=${encodeURIComponent(cell.officeId)}&weekStart=${encodeURIComponent(cell.weekStart)}`
     )
@@ -58,10 +56,14 @@ function CellDetailModal({
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<CellDetailResponse>;
       })
-      .then(setDetail)
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load detail")
-      )
+      .then((nextDetail) => {
+        setDetail(nextDetail);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        setDetail(null);
+        setError(err instanceof Error ? err.message : "Failed to load detail");
+      })
       .finally(() => setLoading(false));
   }, [cell.officeId, cell.weekStart]);
 
@@ -241,16 +243,19 @@ export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
 
   useEffect(() => {
-    setLoading(true);
     fetch(`/api/capacity-heatmap?weeks=${weeks}`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<CapacityHeatmapResponse>;
       })
-      .then(setData)
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load heatmap")
-      )
+      .then((nextData) => {
+        setData(nextData);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        setData(null);
+        setError(err instanceof Error ? err.message : "Failed to load heatmap");
+      })
       .finally(() => setLoading(false));
   }, [weeks]);
 
@@ -385,6 +390,7 @@ export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
 
       {selectedCell && (
         <CellDetailModal
+          key={`${selectedCell.officeId}:${selectedCell.weekStart}`}
           cell={selectedCell}
           onClose={() => setSelectedCell(null)}
         />

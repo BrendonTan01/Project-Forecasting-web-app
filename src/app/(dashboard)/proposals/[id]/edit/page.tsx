@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { ProposalForm } from "../../ProposalForm";
 
 export default async function EditProposalPage({
@@ -12,7 +13,7 @@ export default async function EditProposalPage({
   const { id } = await params;
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
-  if (user.role !== "administrator") {
+  if (!hasPermission(user.role, "proposals:manage")) {
     redirect("/proposals");
   }
 

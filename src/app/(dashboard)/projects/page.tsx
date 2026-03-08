@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
+import { hasPermission } from "@/lib/permissions";
 import {
   getProjectHealthStatus,
   getProjectHealthLabel,
@@ -35,6 +36,7 @@ export default async function ProjectsPage({
 }) {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  const canManageProjects = hasPermission(user.role, "projects:manage");
 
   const { status } = await searchParams;
 
@@ -116,7 +118,7 @@ export default async function ProjectsPage({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="app-page-title">Projects</h1>
-        {user.role === "administrator" && (
+        {canManageProjects && (
           <Link
             href="/projects/new"
             className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"

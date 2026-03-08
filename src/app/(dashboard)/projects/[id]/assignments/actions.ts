@@ -82,7 +82,7 @@ export async function upsertProjectAssignment(
   if (error) return { error: error.message };
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}/assignments`);
-  revalidatePath("/capacity");
+  revalidatePath("/capacity-planner");
   revalidatePath("/dashboard");
   scheduleForecastRecalculation(user.tenantId);
   scheduleHiringPredictionsRecalculation(user.tenantId);
@@ -118,7 +118,7 @@ export async function removeProjectAssignment(projectId: string, assignmentId: s
   if (error) return { error: error.message };
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/projects/${projectId}/assignments`);
-  revalidatePath("/capacity");
+  revalidatePath("/capacity-planner");
   revalidatePath("/dashboard");
   scheduleForecastRecalculation(user.tenantId);
   scheduleHiringPredictionsRecalculation(user.tenantId);

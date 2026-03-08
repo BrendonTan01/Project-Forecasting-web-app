@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import AssignmentForm from "./AssignmentForm";
@@ -13,7 +14,7 @@ export default async function AssignmentsPage({
   const { id } = await params;
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
-  if (user.role !== "administrator") {
+  if (!hasPermission(user.role, "assignments:manage")) {
     redirect(`/projects/${id}`);
   }
 

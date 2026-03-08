@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { DeleteProposalButton } from "./DeleteProposalButton";
 import { ProposalSimulationSection } from "./ProposalSimulationSection";
 import { computeFeasibility } from "./feasibility-actions";
@@ -35,6 +36,7 @@ export default async function ProposalDetailPage({
   const { id } = await params;
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  const canManageProposals = hasPermission(user.role, "proposals:manage");
 
   const supabase = await createClient();
 
@@ -108,7 +110,7 @@ export default async function ProposalDetailPage({
           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${badge.colour}`}>
             {badge.label}
           </span>
-          {user.role === "administrator" && (
+          {canManageProposals && (
             <>
               <Link
                 href={`/proposals/${id}/edit`}
