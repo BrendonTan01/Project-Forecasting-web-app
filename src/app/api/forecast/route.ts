@@ -7,17 +7,31 @@ import {
   computeHiringRecommendations,
 } from "@/lib/forecast/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { ForecastExplanationEntry } from "@/lib/types";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
 const PROPOSAL_PIPELINE_STATUSES = ["draft", "submitted", "won"] as const;
 
 type ProposalDemandRow = {
+  name: string | null;
   estimated_hours_per_week: number | null;
   estimated_hours: number | null;
   proposed_start_date: string | null;
   proposed_end_date: string | null;
   win_probability: number | null;
+};
+
+type LeaveRequestRow = {
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+};
+
+type StaffNameRow = {
+  id: string;
+  name: string;
+  weekly_capacity_hours: number;
 };
 
 function toUtcDate(dateString: string): Date {
@@ -103,21 +117,42 @@ export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient();
 
-    const [forecastRows, { data: proposalRows }, skillShortages, hiringRecommendations] =
-      await Promise.all([
+    const [
+      forecastRows,
+      { data: proposalRows },
+      skillShortages,
+      hiringRecommendations,
+      { data: leaveRows },
+      { data: staffNameRows },
+    ] = await Promise.all([
       runForecastForTenant(user.tenantId, weeks),
       admin
         .from("project_proposals")
         .select(
-          "estimated_hours_per_week, estimated_hours, proposed_start_date, proposed_end_date, win_probability"
+          "name, estimated_hours_per_week, estimated_hours, proposed_start_date, proposed_end_date, win_probability"
         )
         .eq("tenant_id", user.tenantId)
         .in("status", [...PROPOSAL_PIPELINE_STATUSES]),
       computeSkillShortages(user.tenantId, weeks),
       computeHiringRecommendations(user.tenantId, weeks),
+      admin
+        .from("leave_requests")
+        .select("staff_id, start_date, end_date")
+        .eq("tenant_id", user.tenantId)
+        .eq("status", "approved"),
+      admin
+        .from("staff_profiles")
+        .select("id, name, weekly_capacity_hours")
+        .eq("tenant_id", user.tenantId),
     ]);
 
     const proposals = (proposalRows ?? []) as ProposalDemandRow[];
+    const leaveRequests = (leaveRows ?? []) as LeaveRequestRow[];
+
+    const staffMap = new Map<string, StaffNameRow>();
+    for (const s of (staffNameRows ?? []) as StaffNameRow[]) {
+      staffMap.set(s.id, s);
+    }
 
     const responseWeeks = forecastRows
       .sort((a, b) => a.week_start.localeCompare(b.week_start))
@@ -129,12 +164,44 @@ export async function GET(request: NextRequest) {
 
         let rawProposalDemand = 0;
         let expectedProposalDemand = 0;
+        const explanations: ForecastExplanationEntry[] = [];
+
         for (const proposal of proposals) {
           const rawHours = getRawProposalHoursForWeek(proposal, weekStart, weekEnd);
           const winProbability = Math.min(100, Math.max(0, Number(proposal.win_probability ?? 50)));
           const expectedHours = rawHours * (winProbability / 100);
           rawProposalDemand += rawHours;
           expectedProposalDemand += expectedHours;
+          if (rawHours > 0) {
+            explanations.push({
+              type: "proposal",
+              name: proposal.name ?? "Unnamed Proposal",
+              impact_hours: Math.round(rawHours * 100) / 100,
+            });
+          }
+        }
+
+        for (const leave of leaveRequests) {
+          const overlapStart = leave.start_date > weekStart ? leave.start_date : weekStart;
+          const overlapEnd = leave.end_date < weekEnd ? leave.end_date : weekEnd;
+          if (overlapStart > overlapEnd) continue;
+          const overlapDays =
+            Math.floor(
+              (new Date(`${overlapEnd}T00:00:00Z`).getTime() -
+                new Date(`${overlapStart}T00:00:00Z`).getTime()) /
+                86400000
+            ) + 1;
+          const staffMember = staffMap.get(leave.staff_id);
+          if (!staffMember) continue;
+          const impactHours =
+            (Math.min(overlapDays, 5) / 5) * staffMember.weekly_capacity_hours;
+          if (impactHours > 0) {
+            explanations.push({
+              type: "leave",
+              staff: staffMember.name,
+              impact_hours: -Math.round(impactHours * 100) / 100,
+            });
+          }
         }
 
         return {
@@ -148,6 +215,7 @@ export async function GET(request: NextRequest) {
           best_case_demand: Math.round(row.total_project_hours * 100) / 100,
           expected_demand: Math.round((row.total_project_hours + expectedProposalDemand) * 100) / 100,
           worst_case_demand: Math.round((row.total_project_hours + rawProposalDemand) * 100) / 100,
+          forecast_explanation: explanations,
         };
       });
 
