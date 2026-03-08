@@ -138,6 +138,9 @@ export async function GET(request: NextRequest) {
           staffing_gap: row.staffing_gap,
           raw_proposal_demand: Math.round(rawProposalDemand * 100) / 100,
           expected_proposal_demand: Math.round(expectedProposalDemand * 100) / 100,
+          best_case_demand: Math.round(row.total_project_hours * 100) / 100,
+          expected_demand: Math.round((row.total_project_hours + expectedProposalDemand) * 100) / 100,
+          worst_case_demand: Math.round((row.total_project_hours + rawProposalDemand) * 100) / 100,
         };
       });
 
