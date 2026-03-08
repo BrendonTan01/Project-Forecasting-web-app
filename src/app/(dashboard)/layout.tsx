@@ -23,6 +23,7 @@ export default async function DashboardLayout({
     { href: "/staff", label: "Staff" },
     { href: "/capacity-planner", label: "Capacity Planner" },
     { href: "/forecast", label: "Forecast" },
+    { href: "/hiring-insights", label: "Hiring Insights" },
     { href: "/time-entry", label: "Time Entry" },
     { href: "/leave", label: "Leave" },
     { href: "/alerts", label: "Alerts" },

@@ -2,23 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/primitives";
-
-interface DemandSource {
-  project_name: string;
-  hours_per_week: number;
-}
-
-interface HiringRecommendation {
-  skill: string;
-  staff_needed: number;
-  recommended_hiring_window_weeks: number;
-  shortage_start_week?: string;
-  demand_sources?: DemandSource[];
-}
-
-interface ForecastResponse {
-  hiring_recommendations: HiringRecommendation[];
-}
+import type { ForecastResponse, HiringRecommendation } from "@/components/dashboard/types";
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {

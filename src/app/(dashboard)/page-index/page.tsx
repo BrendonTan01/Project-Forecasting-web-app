@@ -42,6 +42,7 @@ const sections: RouteSection[] = [
       { path: "/dashboard" },
       { path: "/alerts" },
       { path: "/forecast" },
+      { path: "/hiring-insights" },
       { path: "/capacity-planner" },
       { path: "/time-entry" },
       { path: "/leave" },

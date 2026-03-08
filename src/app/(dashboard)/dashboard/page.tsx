@@ -3,7 +3,6 @@ import Link from "next/link";
 import { UtilizationTable } from "@/components/api-views/UtilizationTable";
 import { StaffingGapsTable } from "@/components/api-views/StaffingGapsTable";
 import { ForecastTable } from "@/components/api-views/ForecastTable";
-import { StaffingIntelligenceTable } from "@/components/api-views/StaffingIntelligenceTable";
 import {
   calculateUtilisation,
   getUtilisationStatus,
@@ -502,15 +501,6 @@ export default async function DashboardPage({
         <h2 className="font-semibold text-zinc-900">Staffing Gaps</h2>
         <p className="text-xs text-zinc-500">Weeks where demand exceeds capacity and estimated additional staff needed.</p>
         <StaffingGapsTable weeks={12} />
-      </div>
-
-      {/* Staffing Intelligence */}
-      <div className="app-card p-4 space-y-3">
-        <h2 className="font-semibold text-zinc-900">Staffing Intelligence</h2>
-        <p className="text-xs text-zinc-500">
-          Hiring recommendations, sustained utilization warnings, and underutilization alerts.
-        </p>
-        <StaffingIntelligenceTable weeks={12} />
       </div>
 
       {/* Upcoming Project Load */}
