@@ -5,7 +5,10 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { writeAuditLog } from "@/lib/audit/log";
-import { scheduleForecastRecalculation } from "@/lib/forecast/engine";
+import {
+  scheduleForecastRecalculation,
+  scheduleHiringPredictionsRecalculation,
+} from "@/lib/forecast/engine";
 
 export type ProjectFormData = {
   name: string;
@@ -51,6 +54,7 @@ export async function createProject(data: ProjectFormData) {
     newValue: { name: data.name, status: data.status },
   });
   scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
   return { success: true, id: project.id };
 }
 
@@ -90,6 +94,7 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
     newValue: updateData,
   });
   scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
   return { success: true };
 }
 
@@ -119,5 +124,6 @@ export async function deleteProject(id: string) {
     entityId: id,
   });
   scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
   return { success: true };
 }

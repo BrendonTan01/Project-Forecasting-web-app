@@ -109,6 +109,24 @@ export interface ForecastResult {
   created_at?: string;
 }
 
+export type HiringRecommendationType =
+  | "overload"
+  | "sustained_overload"
+  | "underutilization"
+  | "none";
+
+export interface HiringPrediction {
+  id: string;
+  tenant_id: string;
+  week_start: string;
+  utilization_rate: number;
+  hours_over_capacity: number;
+  recommended_hires: number;
+  recommendation_type: HiringRecommendationType;
+  message: string;
+  created_at?: string;
+}
+
 export interface TimeEntry {
   id: string;
   tenant_id: string;

@@ -1,8 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ForecastResult } from "@/lib/types";
+import type { ForecastResult, HiringPrediction, HiringRecommendationType } from "@/lib/types";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
+const FALLBACK_WEEKLY_HOURS = 40;
+
+const OVERLOAD_THRESHOLD = 1.0;
+const SUSTAINED_OVERLOAD_THRESHOLD = 0.95;
+const SUSTAINED_OVERLOAD_WEEKS = 3;
+const UNDERUTILIZATION_THRESHOLD = 0.65;
+const UNDERUTILIZATION_WEEKS = 4;
 
 /** Returns the ISO date string (YYYY-MM-DD) for the Monday of the current week. */
 function getCurrentWeekMonday(): Date {
@@ -22,6 +29,19 @@ function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+function formatMonthYear(dateString: string): string {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function formatHours(hours: number): string {
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
 }
 
 type AssignmentWithProject = {
@@ -60,6 +80,11 @@ type AvailabilityRow = {
   week_start: string;
   available_hours: number;
 };
+
+type ForecastPredictionInput = Pick<
+  ForecastResult,
+  "week_start" | "utilization_rate" | "total_capacity" | "total_project_hours"
+>;
 
 function normalizeProjectRelation(
   projects: RawProjectRelation | RawProjectRelation[] | null
@@ -236,5 +261,117 @@ export async function runForecastForTenant(
 export function scheduleForecastRecalculation(tenantId: string): void {
   runForecastForTenant(tenantId).catch(() => {
     // Intentionally silent — forecast is best-effort and must not break mutations
+  });
+}
+
+export function deriveHiringPredictionsFromForecast(
+  tenantId: string,
+  forecastRows: ForecastPredictionInput[],
+  averageStaffCapacity: number
+): Omit<HiringPrediction, "id" | "created_at">[] {
+  const safeAverageStaffCapacity =
+    averageStaffCapacity > 0 ? averageStaffCapacity : FALLBACK_WEEKLY_HOURS;
+  const orderedRows = [...forecastRows].sort((a, b) => a.week_start.localeCompare(b.week_start));
+
+  return orderedRows.map((row, index) => {
+    const utilizationRate = Number(row.utilization_rate ?? 0);
+    const totalProjectHours = Number(row.total_project_hours ?? 0);
+    const totalCapacity = Number(row.total_capacity ?? 0);
+
+    const isOverload = utilizationRate > OVERLOAD_THRESHOLD;
+    const hasThreeWeekHighUtilization =
+      index >= SUSTAINED_OVERLOAD_WEEKS - 1 &&
+      orderedRows
+        .slice(index - (SUSTAINED_OVERLOAD_WEEKS - 1), index + 1)
+        .every((week) => Number(week.utilization_rate ?? 0) > SUSTAINED_OVERLOAD_THRESHOLD);
+    const hasFourWeekUnderutilization =
+      index >= UNDERUTILIZATION_WEEKS - 1 &&
+      orderedRows
+        .slice(index - (UNDERUTILIZATION_WEEKS - 1), index + 1)
+        .every((week) => Number(week.utilization_rate ?? 0) < UNDERUTILIZATION_THRESHOLD);
+
+    const hoursOverCapacity = isOverload ? Math.max(0, totalProjectHours - totalCapacity) : 0;
+    let recommendedHires = 0;
+    let recommendationType: HiringRecommendationType = "none";
+    let message = "No hiring action needed this week.";
+
+    if (isOverload) {
+      recommendedHires = Math.ceil(hoursOverCapacity / safeAverageStaffCapacity);
+      recommendationType = "overload";
+      const consultantLabel = recommendedHires === 1 ? "consultant" : "consultants";
+      message = `Team capacity exceeded by ${formatHours(hoursOverCapacity)} hours. Hire ${recommendedHires} ${consultantLabel} before ${formatMonthYear(row.week_start)}.`;
+    } else if (hasThreeWeekHighUtilization) {
+      recommendedHires = 1;
+      recommendationType = "sustained_overload";
+      message = "Utilization above 95% for 3 weeks. Consider hiring to prevent overload.";
+    } else if (hasFourWeekUnderutilization) {
+      recommendationType = "underutilization";
+      message = "Team utilization below 65% for 4 weeks. Current staffing may exceed demand.";
+    }
+
+    return {
+      tenant_id: tenantId,
+      week_start: row.week_start,
+      utilization_rate: Math.round(utilizationRate * 1000) / 1000,
+      hours_over_capacity: Math.round(hoursOverCapacity * 100) / 100,
+      recommended_hires: recommendedHires,
+      recommendation_type: recommendationType,
+      message,
+    };
+  });
+}
+
+/**
+ * Runs hiring prediction calculations for a tenant and persists rows into
+ * hiring_predictions.
+ */
+export async function runHiringPredictionsForTenant(
+  tenantId: string,
+  weeks: number = DEFAULT_WEEKS
+): Promise<HiringPrediction[]> {
+  const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
+  const admin = createAdminClient();
+
+  const [forecastRows, { data: staffProfiles }] = await Promise.all([
+    runForecastForTenant(tenantId, clampedWeeks),
+    admin
+      .from("staff_profiles")
+      .select("weekly_capacity_hours")
+      .eq("tenant_id", tenantId),
+  ]);
+
+  const profiles = staffProfiles ?? [];
+  const averageStaffCapacity =
+    profiles.length > 0
+      ? profiles.reduce((sum, profile) => sum + Number(profile.weekly_capacity_hours ?? 0), 0) /
+        profiles.length
+      : FALLBACK_WEEKLY_HOURS;
+  const upsertRows = deriveHiringPredictionsFromForecast(
+    tenantId,
+    forecastRows,
+    averageStaffCapacity
+  );
+
+  const { data: upserted, error } = await admin
+    .from("hiring_predictions")
+    .upsert(upsertRows, { onConflict: "tenant_id,week_start" })
+    .select(
+      "id, tenant_id, week_start, utilization_rate, hours_over_capacity, recommended_hires, recommendation_type, message, created_at"
+    );
+
+  if (error) {
+    throw new Error(`Hiring predictions upsert failed: ${error.message}`);
+  }
+
+  return (upserted ?? []) as HiringPrediction[];
+}
+
+/**
+ * Fire-and-forget wrapper. Triggers hiring insight recalculation in the
+ * background without blocking the calling server action.
+ */
+export function scheduleHiringPredictionsRecalculation(tenantId: string): void {
+  runHiringPredictionsForTenant(tenantId).catch(() => {
+    // Intentionally silent — hiring predictions are best-effort.
   });
 }

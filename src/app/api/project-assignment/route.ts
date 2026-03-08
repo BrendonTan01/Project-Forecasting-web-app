@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { scheduleForecastRecalculation } from "@/lib/forecast/engine";
+import {
+  scheduleForecastRecalculation,
+  scheduleHiringPredictionsRecalculation,
+} from "@/lib/forecast/engine";
 
 type MoveScope = "single" | "future" | "all";
 
@@ -210,6 +213,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     }
 
     scheduleForecastRecalculation(user.tenantId);
+    scheduleHiringPredictionsRecalculation(user.tenantId);
     return NextResponse.json({ assignment: updated });
   }
 
@@ -267,6 +271,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     }
 
     scheduleForecastRecalculation(user.tenantId);
+    scheduleHiringPredictionsRecalculation(user.tenantId);
     return NextResponse.json({
       assignment: {
         id: existing.id,
@@ -298,6 +303,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     }
 
     scheduleForecastRecalculation(user.tenantId);
+    scheduleHiringPredictionsRecalculation(user.tenantId);
     return NextResponse.json({ assignment: updated });
   }
 
@@ -351,6 +357,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 
   // Fire-and-forget forecast recalculation
   scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
 
   return NextResponse.json({
     assignment: {

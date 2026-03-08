@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
-import { scheduleForecastRecalculation } from "@/lib/forecast/engine";
+import {
+  scheduleForecastRecalculation,
+  scheduleHiringPredictionsRecalculation,
+} from "@/lib/forecast/engine";
 
 export async function upsertProjectAssignment(
   projectId: string,
@@ -82,6 +85,7 @@ export async function upsertProjectAssignment(
   revalidatePath("/capacity");
   revalidatePath("/dashboard");
   scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
   return { success: true };
 }
 
@@ -117,5 +121,6 @@ export async function removeProjectAssignment(projectId: string, assignmentId: s
   revalidatePath("/capacity");
   revalidatePath("/dashboard");
   scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
   return { success: true };
 }
