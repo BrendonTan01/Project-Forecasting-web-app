@@ -33,6 +33,7 @@ export function ProposalSimulationSection({
 
   function handleSimulateReject() {
     setSimulationActive(false);
+    setImpactData(null);
   }
 
   return (
@@ -40,8 +41,9 @@ export function ProposalSimulationSection({
       <ProposalImpactPanel
         proposalId={proposalId}
         onSimulateAccept={handleSimulateAccept}
-        onSimulateReject={handleSimulateReject}
+        onResetSimulation={handleSimulateReject}
         simulationActive={simulationActive}
+        simulationData={impactData}
       />
 
       <div className="app-card p-4">
