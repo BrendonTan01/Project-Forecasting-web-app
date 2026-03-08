@@ -46,6 +46,17 @@ function feasibilityBgColor(ratio: number): string {
   return "bg-red-50";
 }
 
+function hasSimulationUtilizationData(
+  data: SimulationResult | null | undefined
+): data is SimulationResult & { current_utilization: number; simulated_utilization: number } {
+  return (
+    data !== null &&
+    data !== undefined &&
+    data.current_utilization !== undefined &&
+    data.simulated_utilization !== undefined
+  );
+}
+
 function OverallBadge({ percent }: { percent: number }) {
   const ratio = percent / 100;
   const bg = feasibilityBgColor(ratio);
@@ -264,6 +275,9 @@ export function FeasibilityAnalysis({
   const optimizationModesTooltip = PROPOSAL_OPTIMIZATION_MODES.map(
     (mode) => `${PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}: ${PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[mode]}`
   ).join("\n");
+  const simulationWithRates =
+    simulationActive && hasSimulationUtilizationData(simulationData) ? simulationData : null;
+  const simulationCapacityRisk = simulationWithRates?.capacity_risk ?? false;
 
   return (
     <div className="space-y-4">
@@ -495,35 +509,35 @@ export function FeasibilityAnalysis({
               </p>
 
               {/* Simulation banner */}
-              {simulationActive && simulationData && (
+              {simulationWithRates && (
                 <div
                   className={`mb-4 flex items-start gap-3 rounded-md px-4 py-3 text-sm ${
-                    simulationData.capacity_risk
+                    simulationCapacityRisk
                       ? "bg-red-50 text-red-800"
                       : "bg-amber-50 text-amber-800"
                   }`}
                 >
                   <span className="mt-0.5 shrink-0 text-base leading-none">
-                    {simulationData.capacity_risk ? "⚠" : "ℹ"}
+                    {simulationCapacityRisk ? "⚠" : "ℹ"}
                   </span>
                   <div className="space-y-0.5">
                     <p className="font-medium">
-                      {simulationData.capacity_risk
+                      {simulationCapacityRisk
                         ? "Capacity risk detected if this proposal is accepted"
                         : "Simulation active — proposal accepted"}
                     </p>
                     <p>
                       Team utilization shifts from{" "}
                       <span className="font-semibold">
-                        {(simulationData.current_utilization * 100).toFixed(1)}%
+                        {(simulationWithRates.current_utilization * 100).toFixed(1)}%
                       </span>{" "}
                       to{" "}
                       <span className="font-semibold">
-                        {(simulationData.simulated_utilization * 100).toFixed(1)}%
+                        {(simulationWithRates.simulated_utilization * 100).toFixed(1)}%
                       </span>{" "}
                       avg across the forecast period.
-                      {simulationData.overload_week !== null && (
-                        <> Team exceeds 90% utilization from week {simulationData.overload_week}.</>
+                      {simulationWithRates.overload_week !== null && (
+                        <> Team exceeds 90% utilization from week {simulationWithRates.overload_week}.</>
                       )}
                     </p>
                   </div>
@@ -546,24 +560,24 @@ export function FeasibilityAnalysis({
                 </div>
 
                 {/* Simulation reference lines */}
-                {simulationActive && simulationData && (
+              {simulationWithRates && (
                   <>
                     {/* Simulated utilization line */}
                     <div
                       className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-red-400"
-                      style={{ bottom: `${simulationData.simulated_utilization * 220}px` }}
+                    style={{ bottom: `${simulationWithRates.simulated_utilization * 220}px` }}
                     >
                       <span className="absolute right-0 -translate-y-full rounded-sm bg-red-400 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                        Simulated {(simulationData.simulated_utilization * 100).toFixed(0)}%
+                        Simulated {(simulationWithRates.simulated_utilization * 100).toFixed(0)}%
                       </span>
                     </div>
                     {/* Current utilization line */}
                     <div
                       className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-zinc-400"
-                      style={{ bottom: `${simulationData.current_utilization * 220}px` }}
+                    style={{ bottom: `${simulationWithRates.current_utilization * 220}px` }}
                     >
                       <span className="absolute left-0 -translate-y-full rounded-sm bg-zinc-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                        Current {(simulationData.current_utilization * 100).toFixed(0)}%
+                        Current {(simulationWithRates.current_utilization * 100).toFixed(0)}%
                       </span>
                     </div>
                   </>
