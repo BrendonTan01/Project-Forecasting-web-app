@@ -394,8 +394,8 @@ type SkillRow = { id: string; name: string };
 type ProjectSkillRequirementRow = {
   project_id: string;
   skill_id: string;
-  required_hours_per_week: number | string;
-  projects: { status: string; start_date: string | null; end_date: string | null } | null;
+  required_hours_per_week: number;
+  projects: RawProjectRelation | null;
 };
 
 type StaffSkillRow = {
@@ -403,6 +403,34 @@ type StaffSkillRow = {
   skill_id: string;
   staff_profiles: { id: string; weekly_capacity_hours: number } | null;
 };
+
+type RawProjectSkillRequirementRow = {
+  project_id: string;
+  skill_id: string;
+  required_hours_per_week: number | string | null;
+  projects: RawProjectRelation | RawProjectRelation[] | null;
+};
+
+type RawStaffProfileRelation = {
+  id: string;
+  weekly_capacity_hours: number | string | null;
+};
+
+type RawStaffSkillRow = {
+  staff_id: string;
+  skill_id: string;
+  staff_profiles: RawStaffProfileRelation | RawStaffProfileRelation[] | null;
+};
+
+function normalizeStaffProfileRelation(
+  staffProfile: RawStaffProfileRelation | RawStaffProfileRelation[] | null
+): RawStaffProfileRelation | null {
+  if (Array.isArray(staffProfile)) {
+    return staffProfile[0] ?? null;
+  }
+
+  return staffProfile ?? null;
+}
 
 /**
  * Detects skills that have sustained demand pressure and returns hiring
@@ -451,8 +479,27 @@ export async function computeHiringRecommendations(
   ]);
 
   const skills = (skillRows ?? []) as SkillRow[];
-  const requirements = (requirementRows ?? []) as ProjectSkillRequirementRow[];
-  const staffSkills = (staffSkillRows ?? []) as StaffSkillRow[];
+  const rawRequirements = (requirementRows ?? []) as RawProjectSkillRequirementRow[];
+  const requirements: ProjectSkillRequirementRow[] = rawRequirements.map((row) => ({
+    project_id: row.project_id,
+    skill_id: row.skill_id,
+    required_hours_per_week: Number(row.required_hours_per_week ?? 0),
+    projects: normalizeProjectRelation(row.projects),
+  }));
+  const rawStaffSkills = (staffSkillRows ?? []) as RawStaffSkillRow[];
+  const staffSkills: StaffSkillRow[] = rawStaffSkills.map((row) => {
+    const staffProfile = normalizeStaffProfileRelation(row.staff_profiles);
+    return {
+      staff_id: row.staff_id,
+      skill_id: row.skill_id,
+      staff_profiles: staffProfile
+        ? {
+            id: staffProfile.id,
+            weekly_capacity_hours: Number(staffProfile.weekly_capacity_hours ?? 0),
+          }
+        : null,
+    };
+  });
   const availability = (availabilityRows ?? []) as AvailabilityRow[];
 
   if (skills.length === 0) {
@@ -468,13 +515,13 @@ export async function computeHiringRecommendations(
   }
 
   const activeRequirements = requirements.filter((r) => {
-    const proj = Array.isArray(r.projects) ? r.projects[0] : r.projects;
+    const proj = r.projects;
     return proj?.status === "active";
   });
 
   const skillToStaff = new Map<string, { staffId: string; weeklyCapacityHours: number }[]>();
   for (const row of staffSkills) {
-    const profile = Array.isArray(row.staff_profiles) ? row.staff_profiles[0] : row.staff_profiles;
+    const profile = row.staff_profiles;
     if (!profile) continue;
     if (!skillToStaff.has(row.skill_id)) {
       skillToStaff.set(row.skill_id, []);
@@ -499,13 +546,13 @@ export async function computeHiringRecommendations(
       let weekDemand = 0;
       for (const req of activeRequirements) {
         if (req.skill_id !== skill.id) continue;
-        const proj = Array.isArray(req.projects) ? req.projects[0] : req.projects;
+        const proj = req.projects;
         const projectStart = proj?.start_date ?? null;
         const projectEnd = proj?.end_date ?? null;
         const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
         const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
         if (startsBeforeWeekEnds && endsAfterWeekStarts) {
-          weekDemand += Number(req.required_hours_per_week ?? 0);
+          weekDemand += req.required_hours_per_week;
         }
       }
 
@@ -599,8 +646,27 @@ export async function computeSkillShortages(
   ]);
 
   const skills = (skillRows ?? []) as SkillRow[];
-  const requirements = (requirementRows ?? []) as ProjectSkillRequirementRow[];
-  const staffSkills = (staffSkillRows ?? []) as StaffSkillRow[];
+  const rawRequirements = (requirementRows ?? []) as RawProjectSkillRequirementRow[];
+  const requirements: ProjectSkillRequirementRow[] = rawRequirements.map((row) => ({
+    project_id: row.project_id,
+    skill_id: row.skill_id,
+    required_hours_per_week: Number(row.required_hours_per_week ?? 0),
+    projects: normalizeProjectRelation(row.projects),
+  }));
+  const rawStaffSkills = (staffSkillRows ?? []) as RawStaffSkillRow[];
+  const staffSkills: StaffSkillRow[] = rawStaffSkills.map((row) => {
+    const staffProfile = normalizeStaffProfileRelation(row.staff_profiles);
+    return {
+      staff_id: row.staff_id,
+      skill_id: row.skill_id,
+      staff_profiles: staffProfile
+        ? {
+            id: staffProfile.id,
+            weekly_capacity_hours: Number(staffProfile.weekly_capacity_hours ?? 0),
+          }
+        : null,
+    };
+  });
   const availability = (availabilityRows ?? []) as AvailabilityRow[];
 
   if (skills.length === 0) {
@@ -618,14 +684,14 @@ export async function computeSkillShortages(
 
   // Build skill-to-requirements index (active projects only)
   const activeRequirements = requirements.filter((r) => {
-    const proj = Array.isArray(r.projects) ? r.projects[0] : r.projects;
+    const proj = r.projects;
     return proj?.status === "active";
   });
 
   // Build skill-to-staffProfiles index: skill_id -> [{staffId, weeklyCapacityHours}]
   const skillToStaff = new Map<string, { staffId: string; weeklyCapacityHours: number }[]>();
   for (const row of staffSkills) {
-    const profile = Array.isArray(row.staff_profiles) ? row.staff_profiles[0] : row.staff_profiles;
+    const profile = row.staff_profiles;
     if (!profile) continue;
     if (!skillToStaff.has(row.skill_id)) {
       skillToStaff.set(row.skill_id, []);
@@ -655,13 +721,13 @@ export async function computeSkillShortages(
       let weekDemand = 0;
       for (const req of activeRequirements) {
         if (req.skill_id !== skill.id) continue;
-        const proj = Array.isArray(req.projects) ? req.projects[0] : req.projects;
+        const proj = req.projects;
         const projectStart = proj?.start_date ?? null;
         const projectEnd = proj?.end_date ?? null;
         const startsBeforeWeekEnds = projectStart === null || projectStart <= weekEndStr;
         const endsAfterWeekStarts = projectEnd === null || projectEnd >= weekStartStr;
         if (startsBeforeWeekEnds && endsAfterWeekStarts) {
-          weekDemand += Number(req.required_hours_per_week ?? 0);
+          weekDemand += req.required_hours_per_week;
         }
       }
 
