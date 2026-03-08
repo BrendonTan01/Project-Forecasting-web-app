@@ -231,3 +231,9 @@ export interface SkillShortage {
   available_capacity: number;
   shortage: number;
 }
+
+export interface HiringRecommendation {
+  skill: string;
+  staff_needed: number;
+  recommended_hiring_window_weeks: number;
+}

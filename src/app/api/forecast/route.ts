@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
-import { runForecastForTenant, computeSkillShortages } from "@/lib/forecast/engine";
+import {
+  runForecastForTenant,
+  computeSkillShortages,
+  computeHiringRecommendations,
+} from "@/lib/forecast/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const DEFAULT_WEEKS = 12;
@@ -99,7 +103,8 @@ export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient();
 
-    const [forecastRows, { data: proposalRows }, skillShortages] = await Promise.all([
+    const [forecastRows, { data: proposalRows }, skillShortages, hiringRecommendations] =
+      await Promise.all([
       runForecastForTenant(user.tenantId, weeks),
       admin
         .from("project_proposals")
@@ -109,6 +114,7 @@ export async function GET(request: NextRequest) {
         .eq("tenant_id", user.tenantId)
         .in("status", [...PROPOSAL_PIPELINE_STATUSES]),
       computeSkillShortages(user.tenantId, weeks),
+      computeHiringRecommendations(user.tenantId, weeks),
     ]);
 
     const proposals = (proposalRows ?? []) as ProposalDemandRow[];
@@ -145,7 +151,11 @@ export async function GET(request: NextRequest) {
         };
       });
 
-    return NextResponse.json({ weeks: responseWeeks, skill_shortages: skillShortages });
+    return NextResponse.json({
+      weeks: responseWeeks,
+      skill_shortages: skillShortages,
+      hiring_recommendations: hiringRecommendations,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Forecast calculation failed";
     return NextResponse.json({ error: message }, { status: 500 });
