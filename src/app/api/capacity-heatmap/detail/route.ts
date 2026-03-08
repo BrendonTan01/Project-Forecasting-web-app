@@ -37,6 +37,7 @@ export type CellDetailResponse = {
   totalCapacity: number;
   totalAllocated: number;
   remainingCapacity: number;
+  leaveImpactHours?: number;
 };
 
 type RawProject = {
@@ -101,6 +102,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     { data: officeUsers, error: officeUsersErr },
     { data: assignmentRows, error: assignErr },
     { data: availRows, error: availErr },
+    { data: leaveRows },
   ] = await Promise.all([
     admin
       .from("offices")
@@ -127,6 +129,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select("staff_id, week_start, available_hours")
       .eq("tenant_id", user.tenantId)
       .eq("week_start", weekStart),
+
+    admin
+      .from("leave_requests")
+      .select("staff_id, start_date, end_date")
+      .eq("tenant_id", user.tenantId)
+      .eq("status", "approved"),
   ]);
 
   if (officeErr || !officeRow) {
@@ -272,6 +280,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const totalAllocated = staff.reduce((sum, s) => sum + s.allocatedHours, 0);
   const remainingCapacity = Math.round((totalCapacity - totalAllocated) * 100) / 100;
 
+  // Compute leave impact for office staff overlapping this week (same logic as forecast API)
+  type LeaveRow = { staff_id: string; start_date: string; end_date: string };
+  let leaveImpactHours = 0;
+  const staffCapMap = new Map(
+    (resolvedStaffRows ?? []).map((s) => [s.id, availLookup.get(s.id) ?? Number(s.weekly_capacity_hours)])
+  );
+  for (const leave of (leaveRows ?? []) as LeaveRow[]) {
+    if (!officeStaffIds.has(leave.staff_id)) continue;
+    const overlapStart = leave.start_date > weekStart ? leave.start_date : weekStart;
+    const overlapEnd = leave.end_date < weekEnd ? leave.end_date : weekEnd;
+    if (overlapStart > overlapEnd) continue;
+    const overlapDays =
+      Math.floor(
+        (new Date(`${overlapEnd}T00:00:00Z`).getTime() -
+          new Date(`${overlapStart}T00:00:00Z`).getTime()) /
+          86400000
+      ) + 1;
+    const weeklyCap = staffCapMap.get(leave.staff_id) ?? 0;
+    leaveImpactHours += (Math.min(overlapDays, 5) / 5) * weeklyCap;
+  }
+  leaveImpactHours = Math.round(leaveImpactHours * 100) / 100;
+
   const response: CellDetailResponse = {
     officeName: officeRow.name,
     weekStart,
@@ -280,6 +310,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     totalCapacity: Math.round(totalCapacity * 100) / 100,
     totalAllocated: Math.round(totalAllocated * 100) / 100,
     remainingCapacity,
+    leaveImpactHours: leaveImpactHours > 0 ? leaveImpactHours : undefined,
   };
 
   return NextResponse.json(response);

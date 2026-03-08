@@ -11,18 +11,14 @@ function formatWeekLabel(weekStart: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function getCellStyle(utilization: number): {
-  bg: string;
-  text: string;
-  clickable: boolean;
-} {
+function getCellStyle(utilization: number): { bg: string; text: string } {
   if (utilization > 95) {
-    return { bg: "bg-red-100 hover:bg-red-200", text: "text-red-800", clickable: true };
+    return { bg: "bg-red-100 hover:bg-red-200", text: "text-red-800" };
   }
   if (utilization >= 80) {
-    return { bg: "bg-yellow-100", text: "text-yellow-800", clickable: false };
+    return { bg: "bg-yellow-100 hover:bg-yellow-200", text: "text-yellow-800" };
   }
-  return { bg: "bg-green-100", text: "text-green-800", clickable: false };
+  return { bg: "bg-green-100 hover:bg-green-200", text: "text-green-800" };
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -236,38 +232,74 @@ function CellDetailModal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
-  const [data, setData] = useState<CapacityHeatmapResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+export type CapacityHeatmapProps = {
+  weeks?: number;
+  officeIds?: string[];
+  skillId?: string | null;
+  data?: CapacityHeatmapResponse | null;
+  onCellClick?: (cell: SelectedCell) => void;
+};
+
+export function CapacityHeatmap({
+  weeks = 12,
+  officeIds,
+  skillId,
+  data: externalData,
+  onCellClick,
+}: CapacityHeatmapProps) {
+  const [internalData, setInternalData] = useState<CapacityHeatmapResponse | null>(null);
+  const [loading, setLoading] = useState(externalData == null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
 
+  const useExternalDetail = typeof onCellClick === "function";
+  const data = externalData ?? internalData;
+
   useEffect(() => {
-    fetch(`/api/capacity-heatmap?weeks=${weeks}`)
+    if (externalData != null) {
+      setInternalData(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    const params = new URLSearchParams({ weeks: String(weeks) });
+    if (skillId) params.set("skillId", skillId);
+    fetch(`/api/capacity-heatmap?${params.toString()}`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<CapacityHeatmapResponse>;
       })
       .then((nextData) => {
-        setData(nextData);
+        setInternalData(nextData);
         setError(null);
       })
       .catch((err: unknown) => {
-        setData(null);
+        setInternalData(null);
         setError(err instanceof Error ? err.message : "Failed to load heatmap");
       })
       .finally(() => setLoading(false));
-  }, [weeks]);
+  }, [weeks, skillId, externalData]);
 
-  const handleCellClick = useCallback((cell: HeatmapCell) => {
-    setSelectedCell({
-      officeId: cell.officeId,
-      office: cell.office,
-      weekStart: cell.weekStart,
-      week: cell.week,
-      utilization: cell.utilization,
-    });
-  }, []);
+  const handleCellClick = useCallback(
+    (cell: HeatmapCell) => {
+      const payload: SelectedCell = {
+        officeId: cell.officeId,
+        office: cell.office,
+        weekStart: cell.weekStart,
+        week: cell.week,
+        utilization: cell.utilization,
+      };
+      if (useExternalDetail && onCellClick) {
+        onCellClick(payload);
+      } else {
+        setSelectedCell(payload);
+      }
+    },
+    [useExternalDetail, onCellClick]
+  );
+
+  const handleCloseModal = useCallback(() => setSelectedCell(null), []);
 
   if (loading) {
     return (
@@ -289,9 +321,19 @@ export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
     return <p className="text-sm text-zinc-500">No office data available.</p>;
   }
 
+  // Filter by office when officeIds provided
+  const filteredOffices =
+    officeIds && officeIds.length > 0
+      ? data.offices.filter((o) => officeIds.includes(o.id))
+      : data.offices;
+  const filteredCells =
+    officeIds && officeIds.length > 0
+      ? data.cells.filter((c) => officeIds.includes(c.officeId))
+      : data.cells;
+
   // Build lookup: officeId → weekStart → cell
   const cellIndex = new Map<string, HeatmapCell>();
-  for (const cell of data.cells) {
+  for (const cell of filteredCells) {
     cellIndex.set(`${cell.officeId}::${cell.weekStart}`, cell);
   }
 
@@ -317,7 +359,7 @@ export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
             </tr>
           </thead>
           <tbody>
-            {data.offices.map((office, officeIdx) => (
+            {filteredOffices.map((office, officeIdx) => (
               <tr
                 key={office.id}
                 className={officeIdx % 2 === 0 ? "bg-white" : "bg-zinc-50/50"}
@@ -338,30 +380,17 @@ export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
                     );
                   }
 
-                  const { bg, text, clickable } = getCellStyle(cell.utilization);
-
-                  if (clickable) {
-                    return (
-                      <td key={ws} className="px-1.5 py-1.5 text-center">
-                        <button
-                          onClick={() => handleCellClick(cell)}
-                          className={`block w-full rounded px-2 py-1 text-xs font-semibold tabular-nums transition-colors ${bg} ${text} cursor-pointer`}
-                          title={`${office.name} — Week ${cell.week}: ${cell.utilization.toFixed(1)}% (click for details)`}
-                        >
-                          {cell.utilization.toFixed(1)}%
-                        </button>
-                      </td>
-                    );
-                  }
-
+                  const { bg, text } = getCellStyle(cell.utilization);
                   return (
                     <td key={ws} className="px-1.5 py-1.5 text-center">
-                      <span
-                        className={`block rounded px-2 py-1 text-xs font-medium tabular-nums ${bg} ${text}`}
-                        title={`${office.name} — Week ${cell.week}: ${cell.utilization.toFixed(1)}%`}
+                      <button
+                        type="button"
+                        onClick={() => handleCellClick(cell)}
+                        className={`block w-full rounded px-2 py-1 text-xs font-semibold tabular-nums transition-colors ${bg} ${text} cursor-pointer`}
+                        title={`${office.name} — Week ${cell.week}: ${cell.utilization.toFixed(1)}% (click for details)`}
                       >
                         {cell.utilization.toFixed(1)}%
-                      </span>
+                      </button>
                     </td>
                   );
                 })}
@@ -383,16 +412,17 @@ export function CapacityHeatmap({ weeks = 12 }: { weeks?: number }) {
           </span>
           <span className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-3 w-3 rounded bg-red-100" />
-            <span className="text-zinc-600">&gt; 95% — click for details</span>
+            <span className="text-zinc-600">&gt; 95%</span>
           </span>
+          <span className="text-xs text-zinc-400">(click cell for details)</span>
         </div>
       </div>
 
-      {selectedCell && (
+      {!useExternalDetail && selectedCell && (
         <CellDetailModal
           key={`${selectedCell.officeId}:${selectedCell.weekStart}`}
           cell={selectedCell}
-          onClose={() => setSelectedCell(null)}
+          onClose={handleCloseModal}
         />
       )}
     </>
