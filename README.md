@@ -88,6 +88,10 @@ Open [http://localhost:3000](http://localhost:3000).
 | `/time-entry` | Weekly timesheet |
 | `/alerts` | Alerts list |
 
+## Documentation
+
+- `docs/FORECASTING_APPLICATION.md` - Forecasting product purpose, feature summary, canonical data paths, assumptions, limitations, and testing checklist.
+
 ## Multi-Tenant
 
 - All tables include `tenant_id`
