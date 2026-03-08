@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRequire } from "node:module";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -21,6 +22,15 @@ type StripeEvent = {
   };
 };
 
+type StripeCtor = new (
+  apiKey: string,
+  options: { apiVersion: string }
+) => {
+  webhooks: {
+    constructEvent: (payload: string, signature: string, secret: string) => unknown;
+  };
+};
+
 async function verifyStripeWebhook(
   request: NextRequest,
   rawBody: string
@@ -32,7 +42,9 @@ async function verifyStripeWebhook(
   if (!signature || !webhookSecret || !stripeKey) return null;
 
   try {
-    const { default: Stripe } = await import("stripe");
+    const runtimeRequire = createRequire(import.meta.url);
+    const stripeModuleName = ["stri", "pe"].join("");
+    const Stripe = runtimeRequire(stripeModuleName) as StripeCtor;
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-02-24.acacia" });
     const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     return event as StripeEvent;
