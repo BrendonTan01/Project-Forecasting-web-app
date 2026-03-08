@@ -6,7 +6,6 @@ import { ForecastTable } from "@/components/api-views/ForecastTable";
 import { StaffingIntelligenceTable } from "@/components/api-views/StaffingIntelligenceTable";
 import {
   calculateUtilisation,
-  formatUtilisation,
   getUtilisationStatus,
 } from "@/lib/utils/utilisation";
 import {
@@ -23,7 +22,7 @@ import type { ProjectHealthStatus } from "@/lib/types";
 import StaffDashboard from "./StaffDashboard";
 import WeeklyTrendChart from "./WeeklyTrendChart";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
-import { ForecastOverview } from "@/components/api-views/ForecastOverview";
+import DashboardOverviewClient from "@/components/dashboard/DashboardOverviewClient";
 
 // Period: last 30 days for utilisation
 function getPeriodDates() {
@@ -37,11 +36,6 @@ function formatCountWithPercentage(count: number, total: number): string {
   const percentage = total > 0 ? (count / total) * 100 : 0;
   return `${count} (${percentage.toFixed(1)}%)`;
 }
-
-type OfficeBreakdownRow = {
-  officeLabel: string;
-  value: string;
-};
 
 type BidMetricCard = {
   title: string;
@@ -103,107 +97,6 @@ function buildDashboardUrl(health: "all" | ProjectHealthStatus, sort: TrackingSo
   if (sort !== "risk") params.set("sort", sort);
   const query = params.toString();
   return query ? `/dashboard?${query}` : "/dashboard";
-}
-
-function KpiCard({
-  title,
-  value,
-  valueClassName,
-  officeRows,
-  isAdmin,
-  tooltip,
-}: {
-  title: string;
-  value: string;
-  valueClassName?: string;
-  officeRows: OfficeBreakdownRow[];
-  isAdmin: boolean;
-  tooltip: {
-    meaning: string;
-    betterDirection: string;
-    formula: string;
-  };
-}) {
-  const valueClasses = valueClassName ?? "text-zinc-900";
-
-  if (!isAdmin) {
-    return (
-      <div className="app-card p-4">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-zinc-500">{title}</p>
-          <span className="group relative inline-flex">
-            <span
-              className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold text-zinc-500"
-              aria-label={`How ${title} is calculated`}
-              tabIndex={0}
-            >
-              i
-            </span>
-            <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-72 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-700 shadow-lg group-hover:block group-focus-within:block">
-              <p>
-                <span className="font-semibold text-zinc-900">Meaning:</span> {tooltip.meaning}
-              </p>
-              <p className="mt-1">
-                <span className="font-semibold text-zinc-900">Better:</span> {tooltip.betterDirection}
-              </p>
-              <p className="mt-1">
-                <span className="font-semibold text-zinc-900">Calculated as:</span> {tooltip.formula}
-              </p>
-            </div>
-          </span>
-        </div>
-        <p className={`text-2xl font-semibold ${valueClasses}`}>{value}</p>
-      </div>
-    );
-  }
-
-  return (
-    <details className="group app-card">
-      <summary className="cursor-pointer list-none p-4 [&::-webkit-details-marker]:hidden">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-zinc-500">{title}</p>
-          <span className="group/tooltip relative inline-flex">
-            <span
-              className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold text-zinc-500"
-              aria-label={`How ${title} is calculated`}
-              tabIndex={0}
-            >
-              i
-            </span>
-            <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 hidden w-72 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-700 shadow-lg group-hover/tooltip:block group-focus-within/tooltip:block">
-              <p>
-                <span className="font-semibold text-zinc-900">Meaning:</span> {tooltip.meaning}
-              </p>
-              <p className="mt-1">
-                <span className="font-semibold text-zinc-900">Better:</span> {tooltip.betterDirection}
-              </p>
-              <p className="mt-1">
-                <span className="font-semibold text-zinc-900">Calculated as:</span> {tooltip.formula}
-              </p>
-            </div>
-          </span>
-        </div>
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <p className={`text-2xl font-semibold ${valueClasses}`}>{value}</p>
-          <span className="text-xs font-medium text-zinc-500 group-open:text-zinc-700">
-            {officeRows.length > 0 ? "Office breakdown" : "No office data"}
-          </span>
-        </div>
-      </summary>
-      {officeRows.length > 0 && (
-        <div className="border-t border-zinc-200 px-4 py-3">
-          <ul className="space-y-1">
-            {officeRows.map((row) => (
-              <li key={row.officeLabel} className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-zinc-700">{row.officeLabel}</span>
-                <span className="font-medium text-zinc-900">{row.value}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </details>
-  );
 }
 
 export default async function DashboardPage({
@@ -296,16 +189,11 @@ export default async function DashboardPage({
   });
   const trackingSortToggleTarget: TrackingSortOption = selectedSort === "tracking_desc" ? "tracking_asc" : "tracking_desc";
 
-  // Calculate metrics per staff
+  // Calculate metrics per staff (for alerts and free capacity)
   const staffMetrics = staffProfiles.map((sp) => {
     const userRelation = getRelationOne((sp as { users?: unknown }).users) as {
       email?: string | null;
-      office_id?: string | null;
-      offices?: { id: string; name: string; country: string } | { id: string; name: string; country: string }[] | null;
     } | null;
-    const officeRelation = getRelationOne(userRelation?.offices) as { id: string; name: string; country: string } | null;
-    const hoursLogged = timeEntries.filter((e) => e.staff_id === sp.id).reduce((s, e) => s + Number(e.hours), 0);
-    const billableHours = timeEntries.filter((e) => e.staff_id === sp.id && e.billable_flag).reduce((s, e) => s + Number(e.hours), 0);
     const weeklyAssignedHours = effectiveAssignments
       .filter((a) => a.staff_id === sp.id)
       .reduce((sum, a) => sum + Number(a.weekly_hours_allocated), 0);
@@ -314,21 +202,18 @@ export default async function DashboardPage({
         ? (weeklyAssignedHours / Number(sp.weekly_capacity_hours)) * 100
         : 0;
 
-    // Capacity for 30 days: weekly_capacity * 4.3 weeks
     const capacityHours = sp.weekly_capacity_hours * (30 / 7);
+    const billableHours = timeEntries
+      .filter((e) => e.staff_id === sp.id && e.billable_flag)
+      .reduce((s, e) => s + Number(e.hours), 0);
     const utilisation = calculateUtilisation(billableHours, capacityHours);
     const status = getUtilisationStatus(utilisation);
 
     return {
       id: sp.id,
       email: userRelation?.email ?? "Unknown",
-      officeId: userRelation?.office_id ?? "unassigned",
-      officeLabel: officeRelation ? `${officeRelation.name} (${officeRelation.country})` : "Unassigned",
       capacityHours,
-      billableHours,
-      totalHours: hoursLogged,
       allocationSum,
-      utilisation,
       status,
     };
   });
@@ -336,52 +221,10 @@ export default async function DashboardPage({
   const underutilised = staffMetrics.filter((s) => s.status === "underutilised").length;
   const overallocated = staffMetrics.filter((s) => s.status === "overallocated").length;
 
-  const totalCapacity = staffMetrics.reduce((s, m) => s + m.capacityHours, 0);
-  const totalBillable = staffMetrics.reduce((s, m) => s + m.billableHours, 0);
-  const totalHours = staffMetrics.reduce((s, m) => s + m.totalHours, 0);
-  const overallUtilisation = calculateUtilisation(totalBillable, totalCapacity);
-  const billableRatio = totalHours > 0 ? totalBillable / totalHours : 0;
-
-  // Capacity next 30/60/90 days (simplified: free = capacity - allocated - leave)
   const freeCapacity30 = staffMetrics.reduce((s, m) => {
     const allocated = (m.allocationSum / 100) * m.capacityHours;
     return s + Math.max(0, m.capacityHours - allocated);
   }, 0);
-
-  const officeBreakdown = Object.values(
-    staffMetrics.reduce<Record<string, {
-      officeLabel: string;
-      staffCount: number;
-      overallocatedCount: number;
-      underutilisedCount: number;
-      totalCapacity: number;
-      totalBillable: number;
-      totalHours: number;
-      freeCapacity30: number;
-    }>>((acc, metric) => {
-      if (!acc[metric.officeId]) {
-        acc[metric.officeId] = {
-          officeLabel: metric.officeLabel,
-          staffCount: 0,
-          overallocatedCount: 0,
-          underutilisedCount: 0,
-          totalCapacity: 0,
-          totalBillable: 0,
-          totalHours: 0,
-          freeCapacity30: 0,
-        };
-      }
-      const office = acc[metric.officeId];
-      office.staffCount += 1;
-      office.totalCapacity += metric.capacityHours;
-      office.totalBillable += metric.billableHours;
-      office.totalHours += metric.totalHours;
-      office.freeCapacity30 += Math.max(0, metric.capacityHours - (metric.allocationSum / 100) * metric.capacityHours);
-      if (metric.status === "overallocated") office.overallocatedCount += 1;
-      if (metric.status === "underutilised") office.underutilisedCount += 1;
-      return acc;
-    }, {})
-  ).sort((a, b) => a.officeLabel.localeCompare(b.officeLabel));
 
   const isAdmin = user.role === "administrator";
 
@@ -445,81 +288,15 @@ export default async function DashboardPage({
     <div className="space-y-6">
       <h1 className="app-page-title">Executive Dashboard</h1>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiCard
-          title="Utilisation rate"
-          value={formatUtilisation(overallUtilisation)}
-          tooltip={{
-            meaning: "Shows how much of available capacity was spent on billable work in the last 30 days.",
-            betterDirection: "Around the healthy target band is better (very low underuses capacity, very high risks overload).",
-            formula: "Total billable hours / total capacity hours over the last 30 days.",
-          }}
-          officeRows={officeBreakdown.map((office) => ({
-            officeLabel: office.officeLabel,
-            value: formatUtilisation(calculateUtilisation(office.totalBillable, office.totalCapacity)),
-          }))}
-          isAdmin={isAdmin}
-        />
-        <KpiCard
-          title="Billable ratio"
-          value={totalHours > 0 ? `${(billableRatio * 100).toFixed(1)}%` : "N/A"}
-          tooltip={{
-            meaning: "Indicates what share of all logged hours is billable.",
-            betterDirection: "Higher is generally better for revenue efficiency, if quality and sustainability are maintained.",
-            formula: "Total billable hours / total logged hours over the last 30 days.",
-          }}
-          officeRows={officeBreakdown.map((office) => ({
-            officeLabel: office.officeLabel,
-            value: office.totalHours > 0 ? `${((office.totalBillable / office.totalHours) * 100).toFixed(1)}%` : "N/A",
-          }))}
-          isAdmin={isAdmin}
-        />
-        <KpiCard
-          title="Staff over-utilised (billable)"
-          value={formatCountWithPercentage(overallocated, staffMetrics.length)}
-          valueClassName={overallocated > 0 ? "text-amber-700" : "text-zinc-900"}
-          tooltip={{
-            meaning: "Counts staff whose billable utilisation is above the over-allocation threshold.",
-            betterDirection: "Lower is better (fewer people overloaded).",
-            formula: "Count of staff where utilisation status is overallocated, shown with % of total staff.",
-          }}
-          officeRows={officeBreakdown.map((office) => ({
-            officeLabel: office.officeLabel,
-            value: formatCountWithPercentage(office.overallocatedCount, office.staffCount),
-          }))}
-          isAdmin={isAdmin}
-        />
-        <KpiCard
-          title="Staff underutilised"
-          value={formatCountWithPercentage(underutilised, staffMetrics.length)}
-          valueClassName={underutilised > 0 ? "text-amber-700" : "text-zinc-900"}
-          tooltip={{
-            meaning: "Counts staff whose billable utilisation is below the under-utilisation threshold.",
-            betterDirection: "Lower is generally better (less idle billable capacity), while avoiding overloading others.",
-            formula: "Count of staff where utilisation status is underutilised, shown with % of total staff.",
-          }}
-          officeRows={officeBreakdown.map((office) => ({
-            officeLabel: office.officeLabel,
-            value: formatCountWithPercentage(office.underutilisedCount, office.staffCount),
-          }))}
-          isAdmin={isAdmin}
-        />
-        <KpiCard
-          title="Free capacity (30d)"
-          value={`${freeCapacity30.toFixed(0)}h`}
-          tooltip={{
-            meaning: "Estimated unallocated hours available across staff over the next 30 days.",
-            betterDirection: "Contextual: too low may limit ability to take work, too high may indicate unused capacity.",
-            formula: "Sum across staff of max(0, capacity hours - allocated hours) for a 30-day period.",
-          }}
-          officeRows={officeBreakdown.map((office) => ({
-            officeLabel: office.officeLabel,
-            value: `${office.freeCapacity30.toFixed(0)}h`,
-          }))}
-          isAdmin={isAdmin}
-        />
-      </div>
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-semibold text-zinc-900">At-a-glance overview</h2>
+          <p className="text-sm text-zinc-600">
+            Visual summary for executives with key forecast, utilization, and capacity signals.
+          </p>
+        </div>
+        <DashboardOverviewClient weeks={12} />
+      </section>
 
       {/* Bid metrics for future proposals */}
       <div className="app-card p-4">
@@ -692,59 +469,6 @@ export default async function DashboardPage({
           )}
         </div>
       )}
-
-      {/* Capacity heatmap */}
-      <div className="app-card p-4">
-        <h2 className="mb-4 font-semibold text-zinc-900">Capacity heatmap</h2>
-        <p className="mb-4 text-sm text-zinc-700">
-          Staff utilisation (last 30 days). Green: healthy, Amber: under/over
-        </p>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
-                <th className="pb-2">Staff</th>
-                <th className="pb-2 text-right">Utilisation</th>
-                <th className="pb-2 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {staffMetrics.map((m) => {
-                const statusColour =
-                  m.status === "overallocated"
-                    ? "text-amber-700 font-medium"
-                    : m.status === "underutilised"
-                      ? "text-amber-700 font-medium"
-                      : "text-emerald-700 font-medium";
-                return (
-                  <tr key={m.id} className="border-b border-zinc-100">
-                    <td className="py-2">
-                      <Link
-                        href={`/staff/${m.id}`}
-                        className="app-link text-zinc-900"
-                      >
-                        {m.email}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-right text-zinc-900">
-                      {formatUtilisation(m.utilisation)}
-                    </td>
-                    <td className={`py-2 text-right ${statusColour}`}>
-                      {m.status === "healthy" ? "OK" : m.status}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Forecast overview — summary cards + utilization forecast chart */}
-      <section>
-        <h2 className="mb-3 font-semibold text-zinc-900">Forecast Overview</h2>
-        <ForecastOverview weeks={12} />
-      </section>
 
       {/* Weekly utilisation trend */}
       <div className="app-card p-4">

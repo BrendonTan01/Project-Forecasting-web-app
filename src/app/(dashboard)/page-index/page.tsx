@@ -40,11 +40,9 @@ const sections: RouteSection[] = [
     title: "Dashboard and Planning",
     routes: [
       { path: "/dashboard" },
-      { path: "/dashboard/overview", note: "Alias route currently redirects to /dashboard." },
       { path: "/alerts" },
       { path: "/forecast" },
       { path: "/capacity-planner" },
-      { path: "/capacity", note: "Alias route currently redirects to /capacity-planner." },
       { path: "/time-entry" },
       { path: "/leave" },
     ],
