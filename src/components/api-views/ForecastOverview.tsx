@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type ExplanationEntry =
+  | { type: "proposal"; name: string; impact_hours: number }
+  | { type: "leave"; staff: string; impact_hours: number }
+  | { type: "project"; name: string; impact_hours: number };
+
 interface ForecastWeek {
   week_start: string;
   total_capacity: number;
@@ -14,6 +19,7 @@ interface ForecastWeek {
   best_case_demand: number;
   expected_demand: number;
   worst_case_demand: number;
+  forecast_explanation?: ExplanationEntry[];
 }
 
 interface HiringRecommendation {
@@ -124,6 +130,155 @@ const LINES = [
     getter: (w: ForecastWeek) => w.worst_case_demand,
   },
 ];
+
+// ── Explanation helpers ───────────────────────────────────────────────────────
+
+type AggregatedEntry = {
+  type: "proposal" | "leave" | "project";
+  displayName: string;
+  impact_hours: number;
+};
+
+function aggregateExplanations(weeks: ForecastWeek[]): AggregatedEntry[] {
+  const map = new Map<string, AggregatedEntry>();
+  for (const week of weeks) {
+    for (const entry of week.forecast_explanation ?? []) {
+      const displayName =
+        entry.type === "leave" ? entry.staff : entry.name;
+      const key = `${entry.type}::${displayName}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.impact_hours =
+          Math.round((existing.impact_hours + entry.impact_hours) * 100) / 100;
+      } else {
+        map.set(key, {
+          type: entry.type,
+          displayName,
+          impact_hours: Math.round(entry.impact_hours * 100) / 100,
+        });
+      }
+    }
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => Math.abs(b.impact_hours) - Math.abs(a.impact_hours)
+  );
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
+const ICON_CONFIG: Record<
+  "proposal" | "leave" | "project",
+  { color: string; svg: React.ReactNode }
+> = {
+  proposal: {
+    color: "#1d4ed8",
+    svg: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="1" width="10" height="14" rx="1.5" />
+        <line x1="5.5" y1="5" x2="10.5" y2="5" />
+        <line x1="5.5" y1="8" x2="10.5" y2="8" />
+        <line x1="5.5" y1="11" x2="8.5" y2="11" />
+      </svg>
+    ),
+  },
+  leave: {
+    color: "#dc2626",
+    svg: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="2" y="3" width="12" height="11" rx="1.5" />
+        <line x1="5" y1="1.5" x2="5" y2="4.5" />
+        <line x1="11" y1="1.5" x2="11" y2="4.5" />
+        <line x1="2" y1="7" x2="14" y2="7" />
+        <line x1="8" y1="10" x2="8" y2="10" strokeWidth={2} />
+      </svg>
+    ),
+  },
+  project: {
+    color: "#10b981",
+    svg: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M2 5.5A1.5 1.5 0 013.5 4h2.086a1.5 1.5 0 011.06.44l.915.914A1.5 1.5 0 008.62 6H12.5A1.5 1.5 0 0114 7.5V12a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 12V5.5z" />
+      </svg>
+    ),
+  },
+};
+
+// ── Forecast explanation panel ────────────────────────────────────────────────
+
+function ForecastExplanationPanel({ weeks }: { weeks: ForecastWeek[] }) {
+  const entries = aggregateExplanations(weeks);
+
+  return (
+    <div className="flex flex-col h-full">
+      <h4 className="text-xs font-semibold text-zinc-700 mb-0.5">
+        Forecast Drivers
+      </h4>
+      <p className="text-xs text-zinc-400 mb-3">
+        Aggregated across all weeks
+      </p>
+
+      {entries.length === 0 ? (
+        <p className="text-xs text-zinc-400 italic">No explanation data.</p>
+      ) : (
+        <ul className="overflow-y-auto flex-1 space-y-2 pr-1" style={{ maxHeight: 240 }}>
+          {entries.map((entry, idx) => {
+            const config = ICON_CONFIG[entry.type];
+            const sign = entry.impact_hours >= 0 ? "+" : "−";
+            const absHours = Math.abs(entry.impact_hours);
+            return (
+              <li key={idx} className="flex items-start gap-2">
+                <span
+                  className="mt-0.5 w-4 h-4 shrink-0"
+                  style={{ color: config.color }}
+                >
+                  {config.svg}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-xs font-medium text-zinc-700 truncate leading-tight">
+                    {entry.displayName}
+                  </span>
+                  <span className="text-[10px] capitalize text-zinc-400">
+                    {entry.type}
+                  </span>
+                </span>
+                <span
+                  className="text-xs font-semibold tabular-nums shrink-0 mt-0.5"
+                  style={{ color: config.color }}
+                >
+                  {sign}{absHours}h
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function UtilizationChart({ weeks }: { weeks: ForecastWeek[] }) {
   if (weeks.length === 0) {
@@ -427,7 +582,7 @@ export function ForecastOverview({ weeks = 12 }: { weeks?: number }) {
         />
       </div>
 
-      {/* Utilization forecast chart */}
+      {/* Utilization forecast chart + explanation panel */}
       <div className="app-card p-4">
         <h3 className="mb-1 text-sm font-semibold text-zinc-700">
           Utilization Forecast
@@ -435,7 +590,14 @@ export function ForecastOverview({ weeks = 12 }: { weeks?: number }) {
         <p className="mb-4 text-xs text-zinc-500">
           Projected team utilization over the next {weeks} weeks across three demand scenarios
         </p>
-        <UtilizationChart weeks={data.weeks} />
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-0">
+            <UtilizationChart weeks={data.weeks} />
+          </div>
+          <div className="w-64 shrink-0 border-l border-zinc-100 pl-4">
+            <ForecastExplanationPanel weeks={data.weeks} />
+          </div>
+        </div>
       </div>
     </div>
   );
