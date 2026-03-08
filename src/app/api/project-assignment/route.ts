@@ -189,6 +189,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
 
   // Move all assignments: keep recurrence if currently recurring.
+  // This path is retained for backward compatibility if older clients still send "all".
   if (move_scope === "all") {
     const updatePayload: Record<string, unknown> = {
       staff_id: targetStaffId,
@@ -285,26 +286,62 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
   }
 
   // Week-specific assignment: move the selected row (or series of pinned rows).
+  // Use upsert+source-blockers so cross-staff moves always remove from source and
+  // can merge safely into existing destination rows.
   if (move_scope === "single") {
-    const { data: updated, error: updateErr } = await admin
-      .from("project_assignments")
-      .update({
-        staff_id: targetStaffId,
-        week_start: targetWeekStart,
-        weekly_hours_allocated: effectiveWeeklyHours,
-      })
-      .eq("id", assignment_id)
-      .eq("tenant_id", user.tenantId)
-      .select("id, staff_id, project_id, weekly_hours_allocated, week_start, allocation_percentage")
-      .single();
+    const sourceWeek = sourceWeekStart!;
+    const targetWeek = toDateString(
+      addDays(normalizeToMonday(sourceWeek), weekShiftDays)
+    );
 
-    if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    const targetRows = [
+      {
+        tenant_id: user.tenantId,
+        project_id: existing.project_id,
+        staff_id: targetStaffId,
+        allocation_percentage: existing.allocation_percentage,
+        weekly_hours_allocated: effectiveWeeklyHours,
+        week_start: targetWeek,
+      },
+    ];
+
+    const sourceBlockerRows = [
+      {
+        tenant_id: user.tenantId,
+        project_id: existing.project_id,
+        staff_id: existing.staff_id,
+        allocation_percentage: existing.allocation_percentage,
+        weekly_hours_allocated: 0,
+        week_start: sourceWeek,
+      },
+    ];
+
+    const { error: upsertTargetErr } = await admin
+      .from("project_assignments")
+      .upsert(targetRows, { onConflict: "project_id,staff_id,week_start" });
+    if (upsertTargetErr) {
+      return NextResponse.json({ error: upsertTargetErr.message }, { status: 500 });
+    }
+
+    const { error: upsertSourceErr } = await admin
+      .from("project_assignments")
+      .upsert(sourceBlockerRows, { onConflict: "project_id,staff_id,week_start" });
+    if (upsertSourceErr) {
+      return NextResponse.json({ error: upsertSourceErr.message }, { status: 500 });
     }
 
     scheduleForecastRecalculation(user.tenantId);
     scheduleHiringPredictionsRecalculation(user.tenantId);
-    return NextResponse.json({ assignment: updated });
+    return NextResponse.json({
+      assignment: {
+        id: existing.id,
+        staff_id: targetStaffId,
+        project_id: existing.project_id,
+        weekly_hours_allocated: effectiveWeeklyHours,
+        week_start: targetWeek,
+        allocation_percentage: existing.allocation_percentage,
+      },
+    });
   }
 
   const { data: relatedRows, error: relatedErr } = await admin
@@ -333,26 +370,40 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const transformedRows = selectedRows.map((row) => ({
-    id: row.id,
-    week_start: toDateString(addDays(normalizeToMonday(row.week_start!), weekShiftDays)),
+  const sourceWeeks = selectedRows
+    .map((row) => row.week_start)
+    .filter((week): week is string => Boolean(week));
+
+  const targetRows = sourceWeeks.map((week) => ({
+    tenant_id: user.tenantId,
+    project_id: existing.project_id,
     staff_id: targetStaffId,
+    allocation_percentage: existing.allocation_percentage,
+    weekly_hours_allocated: effectiveWeeklyHours,
+    week_start: toDateString(addDays(normalizeToMonday(week), weekShiftDays)),
   }));
 
-  for (const row of transformedRows) {
-    const { error: moveErr } = await admin
-      .from("project_assignments")
-      .update({
-        staff_id: row.staff_id,
-        week_start: row.week_start,
-        weekly_hours_allocated: effectiveWeeklyHours,
-      })
-      .eq("id", row.id)
-      .eq("tenant_id", user.tenantId);
+  const sourceBlockerRows = sourceWeeks.map((week) => ({
+    tenant_id: user.tenantId,
+    project_id: existing.project_id,
+    staff_id: existing.staff_id,
+    allocation_percentage: existing.allocation_percentage,
+    weekly_hours_allocated: 0,
+    week_start: week,
+  }));
 
-    if (moveErr) {
-      return NextResponse.json({ error: moveErr.message }, { status: 500 });
-    }
+  const { error: upsertTargetErr } = await admin
+    .from("project_assignments")
+    .upsert(targetRows, { onConflict: "project_id,staff_id,week_start" });
+  if (upsertTargetErr) {
+    return NextResponse.json({ error: upsertTargetErr.message }, { status: 500 });
+  }
+
+  const { error: upsertSourceErr } = await admin
+    .from("project_assignments")
+    .upsert(sourceBlockerRows, { onConflict: "project_id,staff_id,week_start" });
+  if (upsertSourceErr) {
+    return NextResponse.json({ error: upsertSourceErr.message }, { status: 500 });
   }
 
   // Fire-and-forget forecast recalculation

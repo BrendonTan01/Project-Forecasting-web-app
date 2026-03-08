@@ -137,10 +137,7 @@ export default function CapacityPlannerClient({
   }, []);
 
   const executeMove = useCallback(
-    async (
-      pending: PendingMove,
-      moveScope: "single" | "future" | "all"
-    ) => {
+    async (pending: PendingMove, moveScope: "single" | "future") => {
       setPendingMove(null);
       const { drag, toStaffId, toWeekStart } = pending;
       setLoading(true);
@@ -319,6 +316,28 @@ export default function CapacityPlannerClient({
       {pendingMove && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded border border-zinc-200 bg-white p-4 shadow-lg">
+            {(() => {
+              const fromStaffName =
+                data.staff.find((s) => s.id === pendingMove.drag.fromStaffId)?.name ??
+                "Unknown staff";
+              const toStaffName =
+                data.staff.find((s) => s.id === pendingMove.toStaffId)?.name ??
+                "Unknown staff";
+              return (
+                <div className="mb-3 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                  <div>
+                    <span className="font-medium">{fromStaffName}</span> (
+                    {formatWeekLabel(pendingMove.drag.fromWeekStart)}){" "}
+                    {"\u2192"}{" "}
+                    <span className="font-medium">{toStaffName}</span> (
+                    {formatWeekLabel(pendingMove.toWeekStart)})
+                  </div>
+                  <div className="text-zinc-500">
+                    {pendingMove.drag.weeklyHoursAllocated.toFixed(1)}h allocation
+                  </div>
+                </div>
+              );
+            })()}
             <h3 className="text-sm font-semibold text-zinc-900">
               Move assignment scope
             </h3>
@@ -338,12 +357,6 @@ export default function CapacityPlannerClient({
                 onClick={() => executeMove(pendingMove, "future")}
               >
                 Move this and all future weeks
-              </button>
-              <button
-                className="w-full rounded border border-zinc-300 px-3 py-2 text-left text-sm hover:bg-zinc-50"
-                onClick={() => executeMove(pendingMove, "all")}
-              >
-                Move all assignments (past, this, future)
               </button>
             </div>
 
