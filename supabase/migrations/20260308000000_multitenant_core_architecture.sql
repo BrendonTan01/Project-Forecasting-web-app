@@ -77,8 +77,14 @@ ALTER TABLE public.project_assignments
 ALTER COLUMN weekly_hours_allocated SET NOT NULL;
 
 ALTER TABLE public.project_assignments
+DROP CONSTRAINT IF EXISTS project_assignments_tenant_id_fkey;
+
+ALTER TABLE public.project_assignments
 ADD CONSTRAINT project_assignments_tenant_id_fkey
   FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.project_assignments
+DROP CONSTRAINT IF EXISTS project_assignments_weekly_hours_allocated_check;
 
 ALTER TABLE public.project_assignments
 ADD CONSTRAINT project_assignments_weekly_hours_allocated_check

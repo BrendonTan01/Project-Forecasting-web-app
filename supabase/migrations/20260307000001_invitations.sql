@@ -15,14 +15,15 @@ CREATE TABLE IF NOT EXISTS public.invitations (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_invitations_tenant_id  ON public.invitations(tenant_id);
-CREATE INDEX idx_invitations_token      ON public.invitations(token);
-CREATE INDEX idx_invitations_email      ON public.invitations(tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_invitations_tenant_id  ON public.invitations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_token      ON public.invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email      ON public.invitations(tenant_id, email);
 
 -- Enable RLS
 ALTER TABLE public.invitations ENABLE ROW LEVEL SECURITY;
 
 -- Administrators can view all invitations for their tenant
+DROP POLICY IF EXISTS "Administrators can view invitations" ON public.invitations;
 CREATE POLICY "Administrators can view invitations"
   ON public.invitations FOR SELECT
   TO authenticated
@@ -32,6 +33,7 @@ CREATE POLICY "Administrators can view invitations"
   );
 
 -- Administrators can create invitations for their tenant
+DROP POLICY IF EXISTS "Administrators can create invitations" ON public.invitations;
 CREATE POLICY "Administrators can create invitations"
   ON public.invitations FOR INSERT
   TO authenticated
@@ -41,6 +43,7 @@ CREATE POLICY "Administrators can create invitations"
   );
 
 -- Administrators can update invitations (e.g. revoke by setting expires_at to past)
+DROP POLICY IF EXISTS "Administrators can update invitations" ON public.invitations;
 CREATE POLICY "Administrators can update invitations"
   ON public.invitations FOR UPDATE
   TO authenticated
@@ -50,6 +53,7 @@ CREATE POLICY "Administrators can update invitations"
   );
 
 -- Administrators can delete invitations for their tenant
+DROP POLICY IF EXISTS "Administrators can delete invitations" ON public.invitations;
 CREATE POLICY "Administrators can delete invitations"
   ON public.invitations FOR DELETE
   TO authenticated
@@ -60,6 +64,7 @@ CREATE POLICY "Administrators can delete invitations"
 
 -- Anon can read a single invitation by token (needed during the invite acceptance flow
 -- before the user is authenticated — the invite page validates token + expiry)
+DROP POLICY IF EXISTS "Anon can read invitation by token" ON public.invitations;
 CREATE POLICY "Anon can read invitation by token"
   ON public.invitations FOR SELECT
   TO anon

@@ -14,13 +14,14 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_subscriptions_tenant_id         ON public.subscriptions(tenant_id);
-CREATE INDEX idx_subscriptions_stripe_customer   ON public.subscriptions(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_id       ON public.subscriptions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer ON public.subscriptions(stripe_customer_id);
 
 -- Enable RLS
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated users can view their own tenant's subscription
+DROP POLICY IF EXISTS "Users can view own subscription" ON public.subscriptions;
 CREATE POLICY "Users can view own subscription"
   ON public.subscriptions FOR SELECT
   TO authenticated
@@ -46,6 +47,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_tenant_created ON public.tenants;
 CREATE TRIGGER on_tenant_created
   AFTER INSERT ON public.tenants
   FOR EACH ROW

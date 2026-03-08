@@ -1,0 +1,4 @@
+-- Compatibility migration to match remote history.
+-- The labour scope changes are defined in:
+--   20260225000004_proposal_labour_scope.sql
+-- Keep this file as a no-op so `supabase db push` can reconcile local/remote versions.

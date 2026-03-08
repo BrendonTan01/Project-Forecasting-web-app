@@ -13,15 +13,16 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_log_tenant_id     ON public.audit_log(tenant_id);
-CREATE INDEX idx_audit_log_tenant_ts     ON public.audit_log(tenant_id, created_at DESC);
-CREATE INDEX idx_audit_log_entity        ON public.audit_log(tenant_id, entity_type, entity_id);
-CREATE INDEX idx_audit_log_user_id       ON public.audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_id ON public.audit_log(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_ts ON public.audit_log(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity    ON public.audit_log(tenant_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id   ON public.audit_log(user_id);
 
 -- Enable RLS
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
 -- Administrators can read their own tenant's audit log
+DROP POLICY IF EXISTS "Administrators can view audit log" ON public.audit_log;
 CREATE POLICY "Administrators can view audit log"
   ON public.audit_log FOR SELECT
   TO authenticated
