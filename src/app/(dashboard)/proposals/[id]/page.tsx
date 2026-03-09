@@ -43,7 +43,7 @@ export default async function ProposalDetailPage({
   const [{ data: proposal }, { data: offices }, { data: staffRates }] = await Promise.all([
     supabase
       .from("project_proposals")
-      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, office_scope, optimization_mode, status, notes")
+      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, win_probability, office_scope, optimization_mode, status, notes")
       .eq("id", id)
       .eq("tenant_id", user.tenantId)
       .single(),
@@ -145,6 +145,12 @@ export default async function ProposalDetailPage({
           <p className="text-sm font-medium text-zinc-500">Hours per week</p>
           <p className="mt-1 font-semibold text-zinc-900">
             {fmtHours(proposal.estimated_hours_per_week)}
+          </p>
+        </div>
+        <div className="app-card p-4">
+          <p className="text-sm font-medium text-zinc-500">Win probability</p>
+          <p className="mt-1 font-semibold text-zinc-900">
+            {Math.min(100, Math.max(0, Number(proposal.win_probability ?? 50)))}%
           </p>
         </div>
         <div className="app-card p-4">

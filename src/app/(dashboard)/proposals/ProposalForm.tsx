@@ -25,6 +25,7 @@ type ProposalFormProps = {
     proposed_end_date?: string | null;
     estimated_hours?: number | null;
     estimated_hours_per_week?: number | null;
+    win_probability?: number | null;
     office_scope?: string[] | null;
     optimization_mode?: string | null;
     status: "draft" | "submitted" | "won" | "lost";
@@ -94,6 +95,9 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
   const [totalHours, setTotalHours] = useState(proposal?.estimated_hours?.toString() ?? "");
   const [hoursPerWeek, setHoursPerWeek] = useState(proposal?.estimated_hours_per_week?.toString() ?? "");
+  const [winProbability, setWinProbability] = useState(() =>
+    `${Math.min(100, Math.max(0, Number(proposal?.win_probability ?? 50)))}`
+  );
   const [startDate, setStartDate] = useState(proposal?.proposed_start_date ?? "");
   const [endDate, setEndDate] = useState(proposal?.proposed_end_date ?? "");
   const [lastEditedHoursField, setLastEditedHoursField] = useState<"total" | "per_week">(() => {
@@ -153,6 +157,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
     const finalTotalHours = parseOptionalNumber(totalHours);
     const finalPerWeek = parseOptionalNumber(hoursPerWeek);
+    const finalWinProbability = parseOptionalNumber(winProbability);
 
     const data: ProposalFormData = {
       name: (formData.get("name") as string)?.trim() ?? "",
@@ -161,6 +166,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       proposed_end_date: endDate || undefined,
       estimated_hours: finalTotalHours,
       estimated_hours_per_week: finalPerWeek,
+      win_probability: finalWinProbability,
       office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
       optimization_mode: optimizationMode,
       status: ((formData.get("status") as string) || "draft") as ProposalFormData["status"],
@@ -181,6 +187,17 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
     if (data.proposed_start_date && data.proposed_end_date && data.proposed_end_date < data.proposed_start_date) {
       setError("Proposed end date cannot be before start date");
+      setSubmitting(false);
+      return;
+    }
+
+    if (
+      data.win_probability === undefined ||
+      Number.isNaN(data.win_probability) ||
+      data.win_probability < 0 ||
+      data.win_probability > 100
+    ) {
+      setError("Win probability must be between 0 and 100");
       setSubmitting(false);
       return;
     }
@@ -409,6 +426,33 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
                 </p>
               )}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Win probability */}
+      <div className="app-card-soft p-4">
+        <h2 className="mb-1 font-medium text-zinc-900">Bid assumptions</h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          Used to compute expected utilization from proposal pipeline demand.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="win_probability" className="mb-1 block text-sm font-medium text-zinc-700">
+              Probability of winning (%)
+            </label>
+            <Input
+              id="win_probability"
+              name="win_probability"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={winProbability}
+              onChange={(e) => setWinProbability(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 50"
+            />
           </div>
         </div>
       </div>

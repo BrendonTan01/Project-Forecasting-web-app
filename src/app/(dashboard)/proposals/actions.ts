@@ -18,11 +18,17 @@ export type ProposalFormData = {
   proposed_end_date?: string;
   estimated_hours?: number;
   estimated_hours_per_week?: number;
+  win_probability?: number;
   office_scope?: string[] | null;
   optimization_mode?: ProposalOptimizationMode;
   status: "draft" | "submitted" | "won" | "lost";
   notes?: string;
 };
+
+function normalizeWinProbability(value?: number): number {
+  if (value === undefined || Number.isNaN(value)) return 50;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
 
 export async function createProposal(data: ProposalFormData) {
   const user = await getCurrentUserWithTenant();
@@ -45,6 +51,7 @@ export async function createProposal(data: ProposalFormData) {
       proposed_end_date: data.proposed_end_date || null,
       estimated_hours: data.estimated_hours ?? null,
       estimated_hours_per_week: data.estimated_hours_per_week ?? null,
+      win_probability: normalizeWinProbability(data.win_probability),
       office_scope: data.office_scope?.length ? data.office_scope : null,
       optimization_mode: normalizeProposalOptimizationMode(data.optimization_mode ?? DEFAULT_PROPOSAL_OPTIMIZATION_MODE),
       status: data.status,
@@ -105,6 +112,7 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
   if (data.proposed_end_date !== undefined) updateData.proposed_end_date = data.proposed_end_date || null;
   if (data.estimated_hours !== undefined) updateData.estimated_hours = data.estimated_hours ?? null;
   if (data.estimated_hours_per_week !== undefined) updateData.estimated_hours_per_week = data.estimated_hours_per_week ?? null;
+  if (data.win_probability !== undefined) updateData.win_probability = normalizeWinProbability(data.win_probability);
   if ("office_scope" in data) updateData.office_scope = data.office_scope?.length ? data.office_scope : null;
   if (data.optimization_mode !== undefined) {
     updateData.optimization_mode = normalizeProposalOptimizationMode(data.optimization_mode);
