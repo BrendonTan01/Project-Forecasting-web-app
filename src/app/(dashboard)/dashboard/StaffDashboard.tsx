@@ -103,7 +103,7 @@ export default async function StaffDashboard() {
         .eq("tenant_id", user.tenantId)
         .eq("staff_id", staffId)
         .in("project_id", projectIds)
-    : { data: [] as { project_id: string; hours: number }[] };
+    : { data: [] as { project_id: string; date: string; hours: number }[] };
 
   const actualByProject = (timeEntries ?? []).reduce<Record<string, number>>((acc, row) => {
     acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours);
