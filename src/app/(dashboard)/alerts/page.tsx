@@ -7,7 +7,9 @@ import {
 } from "@/lib/utils/utilisation";
 import {
   getProjectHealthStatus,
+  getProjectHealthReason,
   getProjectHealthLabel,
+  buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
 import {
@@ -62,6 +64,7 @@ export default async function AlertsPage() {
     },
     {}
   );
+  const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(projectHours, 4);
 
   // Utilisation alerts: underutilised (<60%), overallocated (>110%)
   staffProfiles.forEach((sp) => {
@@ -173,13 +176,20 @@ export default async function AlertsPage() {
   // Projects at risk / overrun
   projects.forEach((p) => {
     const actual = actualByProject[p.id] ?? 0;
-    const health = getProjectHealthStatus(actual, p.estimated_hours);
+    const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date, {
+      endDate: p.end_date,
+      recentWeeklyHours: recentWeeklyHoursByProject[p.id] ?? [],
+    });
+    const healthReason = getProjectHealthReason(actual, p.estimated_hours, p.start_date, {
+      endDate: p.end_date,
+      recentWeeklyHours: recentWeeklyHoursByProject[p.id] ?? [],
+    });
     if (health === "at_risk" || health === "overrun") {
       alerts.push({
         type: "project",
         severity: health === "overrun" ? "error" : "warning",
         title: `Project ${getProjectHealthLabel(health)}`,
-        description: `${p.name}: ${actual}h / ${p.estimated_hours ?? 0}h`,
+        description: `${p.name}: ${healthReason}`,
         link: `/projects/${p.id}`,
         linkLabel: "View project",
       });

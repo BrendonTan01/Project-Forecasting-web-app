@@ -4,8 +4,10 @@ import { getCurrentStaffId, getCurrentUserWithTenant } from "@/lib/supabase/auth
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import {
   getProjectHealthStatus,
+  getProjectHealthReason,
   getProjectHealthLabel,
   getProjectHealthColour,
+  buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import {
   filterEffectiveAssignmentsForWeek,
@@ -31,12 +33,16 @@ type AssignmentRow = {
     client_name: string | null;
     estimated_hours: number | null;
     status: string;
+    start_date: string | null;
+    end_date: string | null;
   } | {
     id: string;
     name: string;
     client_name: string | null;
     estimated_hours: number | null;
     status: string;
+    start_date: string | null;
+    end_date: string | null;
   }[] | null;
 };
 
@@ -78,6 +84,8 @@ export default async function StaffDashboard() {
       client_name: string | null;
       estimated_hours: number | null;
       status: string;
+      start_date: string | null;
+      end_date: string | null;
     } | null;
 
     return {
@@ -91,7 +99,7 @@ export default async function StaffDashboard() {
   const { data: timeEntries } = projectIds.length
     ? await supabase
         .from("time_entries")
-        .select("project_id, hours")
+        .select("project_id, date, hours")
         .eq("tenant_id", user.tenantId)
         .eq("staff_id", staffId)
         .in("project_id", projectIds)
@@ -101,6 +109,14 @@ export default async function StaffDashboard() {
     acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours);
     return acc;
   }, {});
+  const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(
+    (timeEntries ?? []).map((row) => ({
+      project_id: row.project_id,
+      date: row.date,
+      hours: row.hours,
+    })),
+    4
+  );
 
   const projects = Object.values(
     assignments.reduce<Record<string, {
@@ -109,6 +125,8 @@ export default async function StaffDashboard() {
       clientName: string | null;
       status: string;
       estimatedHours: number | null;
+      startDate: string | null;
+      endDate: string | null;
       weeklyHoursAllocated: number;
       actualHours: number;
     }>>((acc, assignment) => {
@@ -120,6 +138,8 @@ export default async function StaffDashboard() {
           clientName: assignment.project.client_name,
           status: assignment.project.status,
           estimatedHours: assignment.project.estimated_hours,
+          startDate: assignment.project.start_date,
+          endDate: assignment.project.end_date,
           weeklyHoursAllocated: 0,
           actualHours: actualByProject[assignment.projectId] ?? 0,
         };
@@ -161,7 +181,19 @@ export default async function StaffDashboard() {
             </thead>
             <tbody>
               {projects.map((project) => {
-                const health = getProjectHealthStatus(project.actualHours, project.estimatedHours);
+                const health = getProjectHealthStatus(project.actualHours, project.estimatedHours, project.startDate, {
+                  endDate: project.endDate,
+                  recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+                });
+                const healthReason = getProjectHealthReason(
+                  project.actualHours,
+                  project.estimatedHours,
+                  project.startDate,
+                  {
+                    endDate: project.endDate,
+                    recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+                  }
+                );
                 const progress = project.estimatedHours && project.estimatedHours > 0
                   ? `${project.actualHours}h / ${project.estimatedHours}h (${((project.actualHours / project.estimatedHours) * 100).toFixed(1)}%)`
                   : `${project.actualHours}h logged`;
@@ -187,7 +219,10 @@ export default async function StaffDashboard() {
                         : "0%"}
                     </td>
                     <td className="px-4 py-3 text-right text-sm text-zinc-800">{progress}</td>
-                    <td className={`px-4 py-3 text-right text-sm font-medium ${getProjectHealthColour(health)}`}>
+                    <td
+                      className={`px-4 py-3 text-right text-sm font-medium ${getProjectHealthColour(health)}`}
+                      title={healthReason}
+                    >
                       {getProjectHealthLabel(health)}
                     </td>
                     <td className="px-4 py-3 text-right">

@@ -41,7 +41,8 @@ Use this for a fast confidence pass before running the full guide.
 2. Open `/projects`.
    - Confirm health coverage is visible:
      - `Emergency Facade Repair` = overrun
-     - `Seismic Analysis` = at-risk
+     - `Seismic Analysis` = overrun
+     - `Floodplain Stress Study` = at-risk
      - `Ad-hoc Support Contract` = no-estimate
 3. Open `/capacity-planner` -> `Staff assignments`.
    - Drag one assignment and choose "Move only this week".
@@ -118,10 +119,12 @@ Log in as `admin@acme.com`.
 2. Open `Emergency Facade Repair`.
    - Expected health: overrun.
 3. Open `Seismic Analysis`.
+   - Expected health: overrun.
+4. Open `Floodplain Stress Study`.
    - Expected health: at-risk.
-4. Open `Ad-hoc Support Contract`.
+5. Open `Ad-hoc Support Contract`.
    - Expected health: no-estimate.
-5. Open a project detail and click "Manage assignments".
+6. Open a project detail and click "Manage assignments".
    - Add/remove one assignment, save.
    - Expected: project detail assigned hours update.
 

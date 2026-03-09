@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildRecentWeeklyHoursByProject, getProjectHealthStatus } from "@/lib/utils/projectHealth";
 
 export async function GET() {
   const user = await getCurrentUserWithTenant();
@@ -27,7 +28,7 @@ export async function GET() {
 
       admin
         .from("time_entries")
-        .select("project_id, hours")
+        .select("project_id, date, hours")
         .eq("tenant_id", user.tenantId),
     ]);
 
@@ -37,23 +38,29 @@ export async function GET() {
       const current = actualHoursMap.get(entry.project_id) ?? 0;
       actualHoursMap.set(entry.project_id, current + (entry.hours ?? 0));
     }
+    const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(timeEntries ?? [], 4);
 
     const atRiskProjects = (projects ?? [])
       .map((project) => {
         const actual_hours = Math.round((actualHoursMap.get(project.id) ?? 0) * 100) / 100;
         const estimated_hours = project.estimated_hours ?? 0;
         const overage_hours = Math.round((actual_hours - estimated_hours) * 100) / 100;
+        const health = getProjectHealthStatus(actual_hours, project.estimated_hours, project.start_date, {
+          endDate: project.end_date,
+          recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+        });
         return {
           id: project.id,
           name: project.name,
           client_name: project.client_name,
           status: project.status,
+          health,
           estimated_hours,
           actual_hours,
           overage_hours,
         };
       })
-      .filter((project) => project.actual_hours > project.estimated_hours);
+      .filter((project) => project.health === "at_risk" || project.health === "overrun");
 
     return NextResponse.json({ projects: atRiskProjects });
   } catch (err) {

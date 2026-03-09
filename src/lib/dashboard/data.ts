@@ -11,7 +11,7 @@ type AssignmentRow = {
     | { start_date: string | null; end_date: string | null; status: string }[]
     | null;
 };
-type ProjectHourRow = { project_id: string; hours: number };
+type ProjectHourRow = { project_id: string; date: string; hours: number };
 
 export const getDashboardWindowData = cache(
   async (tenantId: string, start: string, end: string, cacheScopeKey: string) => {
@@ -60,7 +60,7 @@ export const getDashboardWindowData = cache(
       projectIds.length
         ? supabase
             .from("time_entries")
-            .select("project_id, hours")
+            .select("project_id, date, hours")
             .eq("tenant_id", tenantId)
             .in("project_id", projectIds)
         : Promise.resolve({ data: [] as ProjectHourRow[] }),

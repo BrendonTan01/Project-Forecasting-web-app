@@ -4,8 +4,10 @@ import Link from "next/link";
 import { hasPermission } from "@/lib/permissions";
 import {
   getProjectHealthStatus,
+  getProjectHealthReason,
   getProjectHealthLabel,
   getProjectHealthColour,
+  buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import ProjectStatusFilter from "./ProjectStatusFilter";
 import {
@@ -75,7 +77,7 @@ export default async function ProjectsPage({
   const { data: actualHoursData } = projectIds.length
     ? await supabase
         .from("time_entries")
-        .select("project_id, staff_id, hours, billable_flag")
+        .select("project_id, staff_id, date, hours, billable_flag")
         .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
@@ -86,6 +88,14 @@ export default async function ProjectsPage({
       return acc;
     },
     {}
+  );
+  const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(
+    (actualHoursData ?? []).map((row) => ({
+      project_id: row.project_id,
+      date: row.date,
+      hours: row.hours,
+    })),
+    4
   );
 
   const { data: assignmentsData } = projectIds.length
@@ -335,7 +345,14 @@ export default async function ProjectsPage({
             {projects?.map((project) => {
               const actual = actualByProject[project.id] ?? 0;
               const estimated = project.estimated_hours ?? 0;
-              const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date);
+              const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date, {
+                endDate: project.end_date,
+                recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+              });
+              const healthReason = getProjectHealthReason(actual, project.estimated_hours, project.start_date, {
+                endDate: project.end_date,
+                recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+              });
               const badge = statusConfig[project.status] ?? {
                 label: project.status,
                 colour: "bg-zinc-100 text-zinc-500",
@@ -367,7 +384,10 @@ export default async function ProjectsPage({
                     {formatProjectDate(project.end_date)}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-sm font-medium ${getProjectHealthColour(health)}`}>
+                    <span
+                      className={`text-sm font-medium ${getProjectHealthColour(health)}`}
+                      title={healthReason}
+                    >
                       {getProjectHealthLabel(health)}
                     </span>
                   </td>

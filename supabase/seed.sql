@@ -183,25 +183,38 @@ ON CONFLICT (id) DO NOTHING;
 -- The handle_new_user trigger may not fire on direct auth.users INSERT in seed.
 -- Explicitly populate to ensure tenant_id/role exist for RLS (get_tenant_id, is_manager_or_exec).
 -- ============================================
-INSERT INTO public.users (id, tenant_id, email, role, office_id)
+INSERT INTO public.users (id, tenant_id, email, role, office_id, name)
 SELECT
   id,
   (raw_user_meta_data->>'tenant_id')::uuid,
   email,
   COALESCE(NULLIF(TRIM(raw_user_meta_data->>'role'), ''), 'staff'),
-  (raw_user_meta_data->>'office_id')::uuid
+  (raw_user_meta_data->>'office_id')::uuid,
+  COALESCE(
+    NULLIF(TRIM(raw_user_meta_data->>'full_name'), ''),
+    NULLIF(TRIM(raw_user_meta_data->>'name'), ''),
+    NULLIF(TRIM(split_part(email, '@', 1)), ''),
+    'Unknown'
+  )
 FROM auth.users
 WHERE email LIKE '%@acme.com'
 ON CONFLICT (id) DO UPDATE SET
   tenant_id = EXCLUDED.tenant_id,
   email = EXCLUDED.email,
   role = EXCLUDED.role,
-  office_id = EXCLUDED.office_id;
+  office_id = EXCLUDED.office_id,
+  name = EXCLUDED.name;
 
-INSERT INTO public.staff_profiles (user_id, tenant_id, job_title, weekly_capacity_hours, billable_rate, cost_rate)
+INSERT INTO public.staff_profiles (user_id, tenant_id, name, job_title, weekly_capacity_hours, billable_rate, cost_rate)
 SELECT
   id,
   (raw_user_meta_data->>'tenant_id')::uuid,
+  COALESCE(
+    NULLIF(TRIM(raw_user_meta_data->>'full_name'), ''),
+    NULLIF(TRIM(raw_user_meta_data->>'name'), ''),
+    NULLIF(TRIM(split_part(email, '@', 1)), ''),
+    'Unknown'
+  ),
   NULLIF(TRIM(raw_user_meta_data->>'job_title'), ''),
   COALESCE((raw_user_meta_data->>'weekly_capacity_hours')::numeric, 40),
   NULLIF((raw_user_meta_data->>'billable_rate')::numeric, 0),
@@ -210,6 +223,7 @@ FROM auth.users
 WHERE email LIKE '%@acme.com'
 ON CONFLICT (user_id) DO UPDATE SET
   tenant_id = EXCLUDED.tenant_id,
+  name = EXCLUDED.name,
   job_title = EXCLUDED.job_title,
   weekly_capacity_hours = EXCLUDED.weekly_capacity_hours,
   billable_rate = EXCLUDED.billable_rate,
@@ -475,25 +489,38 @@ INSERT INTO auth.users (
   )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.users (id, tenant_id, email, role, office_id)
+INSERT INTO public.users (id, tenant_id, email, role, office_id, name)
 SELECT
   id,
   (raw_user_meta_data->>'tenant_id')::uuid,
   email,
   COALESCE(NULLIF(TRIM(raw_user_meta_data->>'role'), ''), 'staff'),
-  NULLIF(TRIM(raw_user_meta_data->>'office_id'), 'null')::uuid
+  NULLIF(TRIM(raw_user_meta_data->>'office_id'), 'null')::uuid,
+  COALESCE(
+    NULLIF(TRIM(raw_user_meta_data->>'full_name'), ''),
+    NULLIF(TRIM(raw_user_meta_data->>'name'), ''),
+    NULLIF(TRIM(split_part(email, '@', 1)), ''),
+    'Unknown'
+  )
 FROM auth.users
 WHERE email IN ('staff.parttime@acme.com', 'staff.nooffice@acme.com')
 ON CONFLICT (id) DO UPDATE SET
   tenant_id = EXCLUDED.tenant_id,
   email     = EXCLUDED.email,
   role      = EXCLUDED.role,
-  office_id = EXCLUDED.office_id;
+  office_id = EXCLUDED.office_id,
+  name      = EXCLUDED.name;
 
-INSERT INTO public.staff_profiles (user_id, tenant_id, job_title, weekly_capacity_hours, billable_rate, cost_rate)
+INSERT INTO public.staff_profiles (user_id, tenant_id, name, job_title, weekly_capacity_hours, billable_rate, cost_rate)
 SELECT
   id,
   (raw_user_meta_data->>'tenant_id')::uuid,
+  COALESCE(
+    NULLIF(TRIM(raw_user_meta_data->>'full_name'), ''),
+    NULLIF(TRIM(raw_user_meta_data->>'name'), ''),
+    NULLIF(TRIM(split_part(email, '@', 1)), ''),
+    'Unknown'
+  ),
   NULLIF(TRIM(raw_user_meta_data->>'job_title'), ''),
   COALESCE((raw_user_meta_data->>'weekly_capacity_hours')::numeric, 40),
   NULLIF((raw_user_meta_data->>'billable_rate')::numeric, 0),
@@ -502,6 +529,7 @@ FROM auth.users
 WHERE email IN ('staff.parttime@acme.com', 'staff.nooffice@acme.com')
 ON CONFLICT (user_id) DO UPDATE SET
   tenant_id             = EXCLUDED.tenant_id,
+  name                  = EXCLUDED.name,
   job_title             = EXCLUDED.job_title,
   weekly_capacity_hours = EXCLUDED.weekly_capacity_hours,
   billable_rate         = EXCLUDED.billable_rate,
@@ -529,8 +557,10 @@ VALUES
   ('c0000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000001', 'Ad-hoc Support Contract',  'Various Clients',     NULL, '2026-01-01', '2026-12-31', 'active'),
   -- Health state: overrun (actual > estimated; 30h logged on 20h estimate)
   ('c0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000001', 'Emergency Facade Repair',  'City Properties Ltd', 20,   '2026-02-01', '2026-03-31', 'active'),
-  -- Health state: at_risk (actual > 90% of estimated; 93h logged on 100h estimate)
+  -- Health state: overrun (actual > estimated; 101h logged on 100h estimate)
   ('c0000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000001', 'Seismic Analysis',         'Safe Structures Co',  100,  '2026-01-05', '2026-03-31', 'active'),
+  -- Health state: at_risk (actual > 90% and <= 100%; 95h logged on 100h estimate)
+  ('c0000000-0000-0000-0000-000000000013', 'a0000000-0000-0000-0000-000000000001', 'Floodplain Stress Study',  'Riverworks Alliance', 100,  '2026-01-12', '2026-04-30', 'active'),
   -- Clean baseline: active, no time entries yet
   ('c0000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000001', 'Safety Audit FY2026',      'Industrial Group',    300,  '2026-04-01', '2026-10-31', 'active')
 ON CONFLICT (id) DO NOTHING;
@@ -551,6 +581,8 @@ FROM (VALUES
   -- Seismic Analysis: analyst at 60% + nooffice at 80%
   ('c0000000-0000-0000-0000-000000000011', 'd1000000-0000-0000-0000-000000000006', 60),
   ('c0000000-0000-0000-0000-000000000011', 'd1000000-0000-0000-0000-000000000009', 80),
+  -- Floodplain Stress Study: analyst at 50%
+  ('c0000000-0000-0000-0000-000000000013', 'd1000000-0000-0000-0000-000000000006', 50),
   -- Safety Audit: nooffice at 40%
   -- nooffice total = 60 + 80 + 40 = 180% (overallocated)
   ('c0000000-0000-0000-0000-000000000012', 'd1000000-0000-0000-0000-000000000009', 40)
@@ -601,8 +633,8 @@ FROM (VALUES
   ('d1000000-0000-0000-0000-000000000008', 'c0000000-0000-0000-0000-000000000010', '2026-02-05', 6,  true),
   ('d1000000-0000-0000-0000-000000000008', 'c0000000-0000-0000-0000-000000000010', '2026-02-09', 6,  true),
   -- ------------------------------------------------
-  -- AT-RISK: Seismic Analysis (c011)
-  -- staff.analyst logs 93h on a 100h estimate → at_risk (>90%)
+  -- OVERRUN: Seismic Analysis (c011)
+  -- staff.analyst logs 93h plus nooffice logs 8h non-billable on 100h estimate → overrun
   -- ------------------------------------------------
   ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000011', '2026-01-05', 8,  true),
   ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000011', '2026-01-06', 8,  true),
@@ -616,6 +648,22 @@ FROM (VALUES
   ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000011', '2026-01-23', 8,  true),
   ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000011', '2026-01-26', 8,  true),
   ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000011', '2026-01-27', 5,  true),
+  -- ------------------------------------------------
+  -- AT-RISK: Floodplain Stress Study (c013)
+  -- staff.analyst logs 95h on a 100h estimate → at_risk (>90% and <=100%)
+  -- ------------------------------------------------
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-02', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-03', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-04', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-05', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-06', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-09', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-10', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-11', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-12', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-13', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-16', 8,  true),
+  ('d1000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000013', '2026-03-17', 7,  true),
   -- ------------------------------------------------
   -- NO-ESTIMATE: Ad-hoc Support Contract (c009)
   -- Valid entries on a project with NULL estimated_hours → no_estimate badge
@@ -919,18 +967,19 @@ ON CONFLICT (id) DO NOTHING;
 --
 --   Offices: London HQ, Singapore, Sydney (37.5h/wk), Dubai (empty — scope test)
 --
---   Projects (12 total):
+--   Projects (13 total):
 --     Active:    Bridge Design, HVAC Retrofit, Structural Assessment, MEP Design,
 --                Feasibility Study, Ad-hoc Support Contract, Emergency Facade Repair,
---                Seismic Analysis, Safety Audit FY2026
+--                Seismic Analysis, Floodplain Stress Study, Safety Audit FY2026
 --     On hold:   Waterfront Survey
 --     Completed: Old Warehouse Report
 --     Cancelled: Airport Expansion Prelim
 --
 --   Project health states demonstrated:
 --     on_track:    Bridge Design Phase 1
---     at_risk:     Seismic Analysis (93h logged / 100h estimate)
+--     at_risk:     Floodplain Stress Study (95h logged / 100h estimate)
 --     overrun:     Emergency Facade Repair (30h logged / 20h estimate)
+--                  Seismic Analysis (101h logged / 100h estimate)
 --     no_estimate: Ad-hoc Support Contract (NULL estimated_hours)
 --
 --   Proposals (8 total):

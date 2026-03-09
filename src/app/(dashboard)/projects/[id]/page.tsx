@@ -5,8 +5,10 @@ import { notFound } from "next/navigation";
 import { hasPermission } from "@/lib/permissions";
 import {
   getProjectHealthStatus,
+  getProjectHealthReason,
   getProjectHealthLabel,
   getProjectHealthColour,
+  buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import { DeleteProjectButton } from "./DeleteProjectButton";
 import {
@@ -60,14 +62,29 @@ export default async function ProjectDetailPage({
   // Actual hours
   const { data: timeEntries } = await supabase
     .from("time_entries")
-    .select("staff_id, hours, billable_flag")
+    .select("staff_id, date, hours, billable_flag")
     .eq("project_id", id)
     .eq("tenant_id", user.tenantId);
 
   const actualHours = timeEntries?.reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;
   const billableHours = timeEntries?.filter((e) => e.billable_flag).reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;
   const estimated = project.estimated_hours ?? 0;
-  const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date);
+  const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(
+    (timeEntries ?? []).map((entry) => ({
+      project_id: project.id,
+      date: entry.date,
+      hours: entry.hours,
+    })),
+    4
+  );
+  const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date, {
+    endDate: project.end_date,
+    recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+  });
+  const healthReason = getProjectHealthReason(actualHours, project.estimated_hours, project.start_date, {
+    endDate: project.end_date,
+    recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+  });
 
   const staffIdsWithTime = Array.from(
     new Set((timeEntries ?? []).map((entry) => entry.staff_id).filter(Boolean))
@@ -284,9 +301,10 @@ export default async function ProjectDetailPage({
         </div>
         <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Health</p>
-          <p className={`font-medium ${getProjectHealthColour(health)}`}>
+          <p className={`font-medium ${getProjectHealthColour(health)}`} title={healthReason}>
             {getProjectHealthLabel(health)}
           </p>
+          <p className="mt-1 text-xs text-zinc-600">{healthReason}</p>
         </div>
         <div className="app-card p-4">
           <p className="text-sm font-medium text-zinc-500">Start date</p>

@@ -9,8 +9,10 @@ import {
 } from "@/lib/utils/utilisation";
 import {
   getProjectHealthStatus,
+  getProjectHealthReason,
   getProjectHealthLabel,
   getProjectHealthColour,
+  buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import {
@@ -67,9 +69,15 @@ const trackingHealthFilterOptions: { value: "all" | ProjectHealthStatus; label: 
 function formatTrackingPercentage(
   actualHours: number,
   estimatedHours: number | null,
-  startDate: string | null
+  startDate: string | null,
+  endDate: string | null,
+  recentWeeklyHours: number[]
 ): string {
-  if (startDate && getProjectHealthStatus(actualHours, estimatedHours, startDate) === "not_started") {
+  if (
+    startDate &&
+    getProjectHealthStatus(actualHours, estimatedHours, startDate, { endDate, recentWeeklyHours }) ===
+      "not_started"
+  ) {
     return "Not started";
   }
   if (estimatedHours == null || estimatedHours <= 0) return "N/A";
@@ -138,16 +146,27 @@ export default async function DashboardPage({
     },
     {}
   );
+  const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(projectHours, 4);
 
   const projectsAtRisk = projects.filter((p) => {
     const actual = actualByProject[p.id] ?? 0;
-    const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date);
+    const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date, {
+      endDate: p.end_date,
+      recentWeeklyHours: recentWeeklyHoursByProject[p.id] ?? [],
+    });
     return health === "at_risk" || health === "overrun";
   }) ?? [];
   const allCurrentProjectsTracking = projects
     .map((project) => {
       const actual = actualByProject[project.id] ?? 0;
-      const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date);
+      const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date, {
+        endDate: project.end_date,
+        recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+      });
+      const healthReason = getProjectHealthReason(actual, project.estimated_hours, project.start_date, {
+        endDate: project.end_date,
+        recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
+      });
       return {
         id: project.id,
         name: project.name,
@@ -156,6 +175,7 @@ export default async function DashboardPage({
         endDate: project.end_date,
         actualHours: actual,
         health,
+        healthReason,
       };
     });
   const filteredProjectsTracking = selectedHealthFilter === "all"
@@ -451,9 +471,18 @@ export default async function DashboardPage({
                       <td className="px-3 py-2 text-zinc-800">{formatProjectDate(project.startDate)}</td>
                       <td className="px-3 py-2 text-zinc-800">{formatProjectDate(project.endDate)}</td>
                       <td className="px-3 py-2 text-right text-zinc-800">
-                        {formatTrackingPercentage(project.actualHours, project.estimatedHours, project.startDate)}
+                        {formatTrackingPercentage(
+                          project.actualHours,
+                          project.estimatedHours,
+                          project.startDate,
+                          project.endDate,
+                          recentWeeklyHoursByProject[project.id] ?? []
+                        )}
                       </td>
-                      <td className={`px-3 py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}>
+                      <td
+                        className={`px-3 py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}
+                        title={project.healthReason}
+                      >
                         {getProjectHealthLabel(project.health)}
                       </td>
                     </tr>
@@ -532,14 +561,22 @@ export default async function DashboardPage({
           )}
           {projectsAtRisk.map((p) => {
             const actual = actualByProject[p.id] ?? 0;
-            const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date);
+            const health = getProjectHealthStatus(actual, p.estimated_hours, p.start_date, {
+              endDate: p.end_date,
+              recentWeeklyHours: recentWeeklyHoursByProject[p.id] ?? [],
+            });
+            const healthReason = getProjectHealthReason(actual, p.estimated_hours, p.start_date, {
+              endDate: p.end_date,
+              recentWeeklyHours: recentWeeklyHoursByProject[p.id] ?? [],
+            });
             return (
               <Link
                 key={p.id}
                 href={`/projects/${p.id}`}
                 className={`block rounded p-2 text-sm ${health === "overrun" ? "bg-red-50 text-red-800 hover:bg-red-100" : "bg-amber-50 text-amber-800 hover:bg-amber-100"}`}
+                title={healthReason}
               >
-                Project &quot;{p.name}&quot; {getProjectHealthLabel(health)}
+                Project &quot;{p.name}&quot; {getProjectHealthLabel(health)}: {healthReason}
               </Link>
             );
           })}
