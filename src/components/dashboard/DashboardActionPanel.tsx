@@ -1,9 +1,17 @@
-import type { ForecastWeek, HiringRecommendation, SkillShortage } from "./types";
+import type {
+  ForecastProposal,
+  ForecastWeek,
+  HiringRecommendation,
+  SkillShortage,
+} from "./types";
 
 interface Props {
   weeks: ForecastWeek[];
   hiringRecommendations: HiringRecommendation[];
   skillShortages: SkillShortage[];
+  proposals: ForecastProposal[];
+  selectedProposalIds: string[];
+  onSelectedProposalIdsChange: (ids: string[]) => void;
 }
 
 // ── Staffing Risks ────────────────────────────────────────────────────────────
@@ -19,6 +27,87 @@ function formatWeekLabel(isoDate: string): string {
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${isoDate}T00:00:00Z`));
+}
+
+function formatHours(value: number): string {
+  return Number.isInteger(value) ? `${value}h` : `${value.toFixed(1)}h`;
+}
+
+function getProposalEstimateLabel(proposal: ForecastProposal): string {
+  if (proposal.estimated_hours !== null && proposal.estimated_hours !== undefined) {
+    return formatHours(Number(proposal.estimated_hours));
+  }
+  if (
+    proposal.estimated_hours_per_week !== null &&
+    proposal.estimated_hours_per_week !== undefined
+  ) {
+    return `${formatHours(Number(proposal.estimated_hours_per_week))}/wk`;
+  }
+  return "No estimate";
+}
+
+function ProposalSelectionSection({
+  proposals,
+  selectedProposalIds,
+  onSelectedProposalIdsChange,
+}: {
+  proposals: ForecastProposal[];
+  selectedProposalIds: string[];
+  onSelectedProposalIdsChange: (ids: string[]) => void;
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Proposal Selection
+      </h3>
+      {proposals.length === 0 ? (
+        <p className="text-xs text-zinc-400 italic">No proposals available.</p>
+      ) : (
+        <>
+          <p className="mb-2 text-[11px] text-zinc-500">
+            {selectedProposalIds.length}/{proposals.length} selected
+          </p>
+          <div className="space-y-1 overflow-y-auto pr-1" style={{ maxHeight: 170 }}>
+            {proposals.map((proposal) => {
+              const checked = selectedProposalIds.includes(proposal.id);
+              return (
+                <label
+                  key={proposal.id}
+                  className="flex items-start gap-2 rounded border border-zinc-100 px-2 py-1 text-[11px] text-zinc-700 hover:bg-zinc-50"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                    checked={checked}
+                    onChange={(event) => {
+                      const nextChecked = event.target.checked;
+                      if (nextChecked) {
+                        if (checked) return;
+                        onSelectedProposalIdsChange([...selectedProposalIds, proposal.id]);
+                        return;
+                      }
+                      onSelectedProposalIdsChange(
+                        selectedProposalIds.filter((id) => id !== proposal.id)
+                      );
+                    }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-zinc-700">
+                      {proposal.name}
+                    </span>
+                    <span className="text-zinc-500">
+                      {getProposalEstimateLabel(proposal)}
+                      {!proposal.has_complete_dates ? " · missing dates" : ""}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function StaffingRisksSection({ weeks }: { weeks: ForecastWeek[] }) {
@@ -215,10 +304,24 @@ function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function DashboardActionPanel({ weeks, hiringRecommendations, skillShortages }: Props) {
+export function DashboardActionPanel({
+  weeks,
+  hiringRecommendations,
+  skillShortages,
+  proposals,
+  selectedProposalIds,
+  onSelectedProposalIdsChange,
+}: Props) {
   return (
     <div className="app-card flex h-full flex-col divide-y divide-zinc-100 p-4">
       <div className="pb-4">
+        <ProposalSelectionSection
+          proposals={proposals}
+          selectedProposalIds={selectedProposalIds}
+          onSelectedProposalIdsChange={onSelectedProposalIdsChange}
+        />
+      </div>
+      <div className="py-4">
         <StaffingRisksSection weeks={weeks} />
       </div>
       <div className="py-4">

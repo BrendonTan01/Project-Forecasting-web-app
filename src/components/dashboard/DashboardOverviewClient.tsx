@@ -39,6 +39,7 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
   const [data, setData] = useState<ForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([]);
 
   useEffect(() => {
     fetch(`/api/forecast?weeks=${weeks}`)
@@ -46,7 +47,13 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<ForecastResponse>;
       })
-      .then(setData)
+      .then((nextData) => {
+        setData(nextData);
+        const defaults = nextData.proposals
+          .filter((proposal) => proposal.has_complete_dates)
+          .map((proposal) => proposal.id);
+        setSelectedProposalIds(defaults);
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load forecast")
       )
@@ -85,7 +92,11 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
             <p className="mb-4 text-xs text-zinc-500">
               Projected team utilization over the next {weeks} weeks across three demand scenarios
             </p>
-            <UtilizationForecastChart weeks={data.weeks} proposals={data.proposals} />
+            <UtilizationForecastChart
+              weeks={data.weeks}
+              proposals={data.proposals}
+              selectedProposalIds={selectedProposalIds}
+            />
           </div>
 
           <div className="app-card p-4">
@@ -105,6 +116,9 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
             weeks={data.weeks}
             hiringRecommendations={data.hiring_recommendations}
             skillShortages={data.skill_shortages}
+            proposals={data.proposals}
+            selectedProposalIds={selectedProposalIds}
+            onSelectedProposalIdsChange={setSelectedProposalIds}
           />
         </div>
       </div>
