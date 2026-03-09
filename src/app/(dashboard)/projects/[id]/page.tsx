@@ -25,6 +25,15 @@ function formatProjectDate(value: string | null): string {
   }).format(new Date(value));
 }
 
+function formatCurrency(value: number | null): string {
+  if (value === null) return "-";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export default async function ProjectDetailPage({
   params,
 }: {
@@ -35,6 +44,7 @@ export default async function ProjectDetailPage({
   if (!user) return null;
   const canManageProjects = hasPermission(user.role, "projects:manage");
   const canManageAssignments = hasPermission(user.role, "assignments:manage");
+  const canViewFinancials = hasPermission(user.role, "financials:view");
 
   const supabase = await createClient();
 
@@ -50,7 +60,7 @@ export default async function ProjectDetailPage({
   // Actual hours
   const { data: timeEntries } = await supabase
     .from("time_entries")
-    .select("hours, billable_flag")
+    .select("staff_id, hours, billable_flag")
     .eq("project_id", id)
     .eq("tenant_id", user.tenantId);
 
@@ -58,6 +68,28 @@ export default async function ProjectDetailPage({
   const billableHours = timeEntries?.filter((e) => e.billable_flag).reduce((sum, e) => sum + Number(e.hours), 0) ?? 0;
   const estimated = project.estimated_hours ?? 0;
   const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date);
+
+  const staffIdsWithTime = Array.from(
+    new Set((timeEntries ?? []).map((entry) => entry.staff_id).filter(Boolean))
+  );
+  const { data: timeEntryStaffRates } =
+    canViewFinancials && staffIdsWithTime.length > 0
+      ? await supabase
+          .from("staff_profiles")
+          .select("id, billable_rate, cost_rate")
+          .eq("tenant_id", user.tenantId)
+          .in("id", staffIdsWithTime)
+      : { data: [] as { id: string; billable_rate: number | null; cost_rate: number | null }[] };
+
+  const staffRateById = new Map(
+    (timeEntryStaffRates ?? []).map((row) => [
+      row.id,
+      {
+        billable_rate: row.billable_rate as number | null,
+        cost_rate: row.cost_rate as number | null,
+      },
+    ])
+  );
 
   // Burn rate: use project schedule when available to avoid runtime-dependent calculations.
   const scheduleWeeks = project.start_date && project.end_date
@@ -103,6 +135,95 @@ export default async function ProjectDetailPage({
     })),
     currentWeekStart
   ).filter((row) => row.weekly_hours_allocated > 0);
+
+  const assignmentStaffIds = Array.from(
+    new Set(
+      effectiveAssignments
+        .map((row) => row.staff_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+  const { data: assignmentStaffRates } =
+    canViewFinancials && assignmentStaffIds.length > 0
+      ? await supabase
+          .from("staff_profiles")
+          .select("id, billable_rate, cost_rate")
+          .eq("tenant_id", user.tenantId)
+          .in("id", assignmentStaffIds)
+      : { data: [] as { id: string; billable_rate: number | null; cost_rate: number | null }[] };
+
+  const plannedRatesSource =
+    assignmentStaffRates && assignmentStaffRates.length > 0
+      ? assignmentStaffRates
+      : timeEntryStaffRates ?? [];
+  const plannedBillableRates = plannedRatesSource
+    .map((row) => row.billable_rate)
+    .filter((rate): rate is number => rate !== null && rate !== undefined);
+  const plannedCostRates = plannedRatesSource
+    .map((row) => row.cost_rate)
+    .filter((rate): rate is number => rate !== null && rate !== undefined);
+  const avgPlannedBillableRate =
+    plannedBillableRates.length > 0
+      ? plannedBillableRates.reduce((sum, value) => sum + Number(value), 0) / plannedBillableRates.length
+      : null;
+  const avgPlannedCostRate =
+    plannedCostRates.length > 0
+      ? plannedCostRates.reduce((sum, value) => sum + Number(value), 0) / plannedCostRates.length
+      : null;
+
+  const actualRevenue = canViewFinancials
+    ? (timeEntries ?? []).reduce((sum, entry) => {
+        if (!entry.billable_flag) return sum;
+        const billableRate = staffRateById.get(entry.staff_id)?.billable_rate;
+        if (billableRate === null || billableRate === undefined) return sum;
+        return sum + Number(entry.hours) * Number(billableRate);
+      }, 0)
+    : null;
+  const actualCost = canViewFinancials
+    ? (timeEntries ?? []).reduce((sum, entry) => {
+        const costRate = staffRateById.get(entry.staff_id)?.cost_rate;
+        if (costRate === null || costRate === undefined) return sum;
+        return sum + Number(entry.hours) * Number(costRate);
+      }, 0)
+    : null;
+  const actualMargin =
+    actualRevenue !== null && actualCost !== null ? actualRevenue - actualCost : null;
+
+  const realizedBillableRate =
+    billableHours > 0 && actualRevenue !== null
+      ? actualRevenue / billableHours
+      : avgPlannedBillableRate;
+  const realizedCostRate =
+    actualHours > 0 && actualCost !== null ? actualCost / actualHours : avgPlannedCostRate;
+
+  const estimatedRevenueBudget =
+    canViewFinancials && estimated > 0 && avgPlannedBillableRate !== null
+      ? estimated * avgPlannedBillableRate
+      : null;
+  const estimatedCostBudget =
+    canViewFinancials && estimated > 0 && avgPlannedCostRate !== null
+      ? estimated * avgPlannedCostRate
+      : null;
+  const forecastRevenueAtCompletion =
+    canViewFinancials && estimated > 0 && realizedBillableRate !== null
+      ? estimated * realizedBillableRate
+      : null;
+  const forecastCostAtCompletion =
+    canViewFinancials && estimated > 0 && realizedCostRate !== null
+      ? estimated * realizedCostRate
+      : null;
+  const forecastMarginAtCompletion =
+    forecastRevenueAtCompletion !== null && forecastCostAtCompletion !== null
+      ? forecastRevenueAtCompletion - forecastCostAtCompletion
+      : null;
+  const forecastCostVariance =
+    forecastCostAtCompletion !== null && estimatedCostBudget !== null
+      ? forecastCostAtCompletion - estimatedCostBudget
+      : null;
+  const isCostOverBudget =
+    forecastCostAtCompletion !== null &&
+    estimatedCostBudget !== null &&
+    forecastCostAtCompletion > estimatedCostBudget;
 
   const [{ data: allSkills }, { data: skillRequirementRows }] = await Promise.all([
     supabase
@@ -189,6 +310,62 @@ export default async function ProjectDetailPage({
           </p>
         </div>
       </div>
+
+      {canViewFinancials && (
+        <div className="app-card p-4">
+          <div className="mb-3">
+            <h2 className="font-semibold text-zinc-900">Financial performance</h2>
+            <p className="text-xs text-zinc-500">
+              Uses current billable and cost rates to track actuals and forecast completion at the current run-rate.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Actual revenue</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">{formatCurrency(actualRevenue)}</p>
+            </div>
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Actual cost</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">{formatCurrency(actualCost)}</p>
+            </div>
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Actual margin</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">{formatCurrency(actualMargin)}</p>
+            </div>
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Projected completion cost</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">
+                {formatCurrency(forecastCostAtCompletion)}
+              </p>
+              {forecastCostVariance !== null && (
+                <p className={`text-xs ${isCostOverBudget ? "text-red-600" : "text-emerald-700"}`}>
+                  {isCostOverBudget ? "Over budget" : "Within budget"} by{" "}
+                  {formatCurrency(Math.abs(forecastCostVariance))}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Estimated revenue budget</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-900">{formatCurrency(estimatedRevenueBudget)}</p>
+            </div>
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Estimated cost budget</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-900">{formatCurrency(estimatedCostBudget)}</p>
+            </div>
+            <div className="rounded-md border border-zinc-200 p-3">
+              <p className="text-xs font-medium text-zinc-500">Projected completion margin</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-900">
+                {formatCurrency(forecastMarginAtCompletion)}
+              </p>
+              <p className="text-xs text-zinc-500">
+                Revenue forecast: {formatCurrency(forecastRevenueAtCompletion)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="mb-4 flex items-center justify-between">

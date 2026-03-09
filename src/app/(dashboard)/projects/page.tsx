@@ -29,6 +29,14 @@ function formatProjectDate(value: string | null): string {
   }).format(new Date(value));
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -37,6 +45,7 @@ export default async function ProjectsPage({
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
   const canManageProjects = hasPermission(user.role, "projects:manage");
+  const canViewFinancials = hasPermission(user.role, "financials:view");
 
   const { status } = await searchParams;
 
@@ -66,7 +75,7 @@ export default async function ProjectsPage({
   const { data: actualHoursData } = projectIds.length
     ? await supabase
         .from("time_entries")
-        .select("project_id, hours")
+        .select("project_id, staff_id, hours, billable_flag")
         .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
@@ -86,6 +95,32 @@ export default async function ProjectsPage({
         .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
+
+  const timeEntryStaffIds = Array.from(
+    new Set((actualHoursData ?? []).map((row) => row.staff_id).filter(Boolean))
+  );
+  const assignmentStaffIds = Array.from(
+    new Set((assignmentsData ?? []).map((row) => row.staff_id).filter(Boolean))
+  );
+  const allFinancialStaffIds = Array.from(new Set([...timeEntryStaffIds, ...assignmentStaffIds]));
+
+  const { data: staffRates } =
+    canViewFinancials && allFinancialStaffIds.length > 0
+      ? await supabase
+          .from("staff_profiles")
+          .select("id, billable_rate, cost_rate")
+          .eq("tenant_id", user.tenantId)
+          .in("id", allFinancialStaffIds)
+      : { data: [] as { id: string; billable_rate: number | null; cost_rate: number | null }[] };
+  const staffRateById = new Map(
+    (staffRates ?? []).map((row) => [
+      row.id,
+      {
+        billable_rate: row.billable_rate as number | null,
+        cost_rate: row.cost_rate as number | null,
+      },
+    ])
+  );
 
   const currentWeekStart = getCurrentWeekMondayString();
   const effectiveAssignments = filterEffectiveAssignmentsForWeek(
@@ -114,6 +149,111 @@ export default async function ProjectsPage({
     {}
   );
 
+  const assignmentStaffByProject = effectiveAssignments.reduce<Record<string, string[]>>(
+    (acc, row) => {
+      if (!acc[row.project_id]) acc[row.project_id] = [];
+      acc[row.project_id].push(row.staff_id);
+      return acc;
+    },
+    {}
+  );
+
+  const financialByProject = canViewFinancials
+    ? (actualHoursData ?? []).reduce<
+        Record<string, { actualCost: number; actualRevenue: number; actualHours: number; billableHours: number }>
+      >((acc, row) => {
+        const entry = acc[row.project_id] ?? {
+          actualCost: 0,
+          actualRevenue: 0,
+          actualHours: 0,
+          billableHours: 0,
+        };
+        const hours = Number(row.hours ?? 0);
+        const rates = staffRateById.get(row.staff_id);
+        entry.actualHours += hours;
+        if (row.billable_flag) {
+          entry.billableHours += hours;
+          if (rates?.billable_rate !== null && rates?.billable_rate !== undefined) {
+            entry.actualRevenue += hours * Number(rates.billable_rate);
+          }
+        }
+        if (rates?.cost_rate !== null && rates?.cost_rate !== undefined) {
+          entry.actualCost += hours * Number(rates.cost_rate);
+        }
+        acc[row.project_id] = entry;
+        return acc;
+      }, {})
+    : {};
+
+  const projectFinancialRisk = (projects ?? []).reduce<
+    Record<
+      string,
+      {
+        projectedCostAtCompletion: number | null;
+        estimatedCostBudget: number | null;
+        variance: number | null;
+        isOverBudget: boolean;
+      }
+    >
+  >((acc, project) => {
+    if (!canViewFinancials) {
+      acc[project.id] = {
+        projectedCostAtCompletion: null,
+        estimatedCostBudget: null,
+        variance: null,
+        isOverBudget: false,
+      };
+      return acc;
+    }
+    const estimated = Number(project.estimated_hours ?? 0);
+    const realized = financialByProject[project.id] ?? {
+      actualCost: 0,
+      actualRevenue: 0,
+      actualHours: 0,
+      billableHours: 0,
+    };
+    const assignedStaffIds = assignmentStaffByProject[project.id] ?? [];
+    const assignedCostRates = assignedStaffIds
+      .map((id) => staffRateById.get(id)?.cost_rate)
+      .filter((rate): rate is number => rate !== null && rate !== undefined);
+    const avgAssignedCostRate =
+      assignedCostRates.length > 0
+        ? assignedCostRates.reduce((sum, rate) => sum + Number(rate), 0) / assignedCostRates.length
+        : null;
+    const realizedCostRate =
+      realized.actualHours > 0
+        ? realized.actualCost / realized.actualHours
+        : avgAssignedCostRate;
+
+    const estimatedCostBudget =
+      estimated > 0 && avgAssignedCostRate !== null ? estimated * avgAssignedCostRate : null;
+    const projectedCostAtCompletion =
+      estimated > 0 && realizedCostRate !== null ? estimated * realizedCostRate : null;
+    const variance =
+      projectedCostAtCompletion !== null && estimatedCostBudget !== null
+        ? projectedCostAtCompletion - estimatedCostBudget
+        : null;
+    const isOverBudget = variance !== null && variance > 0;
+
+    acc[project.id] = {
+      projectedCostAtCompletion,
+      estimatedCostBudget,
+      variance,
+      isOverBudget,
+    };
+    return acc;
+  }, {});
+
+  const overBudgetProjects = canViewFinancials
+    ? (projects ?? []).filter((project) => projectFinancialRisk[project.id]?.isOverBudget).length
+    : 0;
+  const totalProjectedOverrun = canViewFinancials
+    ? (projects ?? []).reduce((sum, project) => {
+        const variance = projectFinancialRisk[project.id]?.variance;
+        return variance && variance > 0 ? sum + variance : sum;
+      }, 0)
+    : 0;
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -135,6 +275,23 @@ export default async function ProjectsPage({
           {status ? ` (${statusConfig[status]?.label ?? status})` : ""}
         </p>
       </div>
+
+      {canViewFinancials && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div className="app-card p-3">
+            <p className="text-xs font-medium text-zinc-500">Projects over budget</p>
+            <p className="mt-1 text-xl font-semibold text-zinc-900">{overBudgetProjects}</p>
+          </div>
+          <div className="app-card p-3">
+            <p className="text-xs font-medium text-zinc-500">Projected overrun</p>
+            <p className="mt-1 text-xl font-semibold text-red-700">{formatCurrency(totalProjectedOverrun)}</p>
+          </div>
+          <div className="app-card p-3">
+            <p className="text-xs font-medium text-zinc-500">Tracked projects</p>
+            <p className="mt-1 text-xl font-semibold text-zinc-900">{projects?.length ?? 0}</p>
+          </div>
+        </div>
+      )}
 
       <div className="app-card overflow-hidden">
         <table className="app-table min-w-full">
@@ -167,6 +324,11 @@ export default async function ProjectsPage({
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Assigned Staff
               </th>
+              {canViewFinancials && (
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                  Financial risk
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -223,6 +385,21 @@ export default async function ProjectsPage({
                           .join(", ")
                       : "—"}
                   </td>
+                  {canViewFinancials && (
+                    <td className="px-4 py-3 text-sm text-zinc-700">
+                      {projectFinancialRisk[project.id]?.variance === null ? (
+                        "Insufficient data"
+                      ) : projectFinancialRisk[project.id]?.isOverBudget ? (
+                        <span className="font-medium text-red-700">
+                          Over by {formatCurrency(projectFinancialRisk[project.id].variance ?? 0)}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-emerald-700">
+                          Within by {formatCurrency(Math.abs(projectFinancialRisk[project.id].variance ?? 0))}
+                        </span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}

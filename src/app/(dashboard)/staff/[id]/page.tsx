@@ -32,7 +32,7 @@ export default async function StaffProfilePage({
 
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
-    .select("id, user_id, job_title, weekly_capacity_hours, billable_rate, cost_rate, users (email, office_id, offices (name, country, timezone))")
+    .select("id, user_id, job_title, weekly_capacity_hours, users (email, office_id, offices (name, country, timezone))")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();

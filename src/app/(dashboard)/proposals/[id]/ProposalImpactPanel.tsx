@@ -11,6 +11,8 @@ export type SimulationResult = {
   expected_revenue?: number | null;
   expected_cost?: number | null;
   expected_margin?: number | null;
+  expected_margin_percent?: number | null;
+  financially_viable?: boolean | null;
 };
 // Future extension point: if proposal role-demand data is modeled in simulation,
 // add `required_roles` back into this contract and render it here.
@@ -203,7 +205,7 @@ export function ProposalImpactPanel({
 
           <div className="rounded-md border border-zinc-200 p-3">
             <h3 className="text-sm font-semibold text-zinc-800">Financial Impact</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-md border border-zinc-200 p-3">
                 <p className="text-xs font-medium text-zinc-500">Expected revenue</p>
                 <p className="mt-1 text-lg font-semibold text-zinc-900">
@@ -220,6 +222,40 @@ export function ProposalImpactPanel({
                 <p className="text-xs font-medium text-zinc-500">Expected margin</p>
                 <p className="mt-1 text-lg font-semibold text-zinc-900">
                   {fmtCurrency(simulationData.expected_margin)}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {simulationData.expected_margin_percent !== null &&
+                  simulationData.expected_margin_percent !== undefined
+                    ? `${simulationData.expected_margin_percent.toFixed(1)}% margin`
+                    : "Margin % unavailable"}
+                </p>
+              </div>
+              <div className="rounded-md border border-zinc-200 p-3">
+                <p className="text-xs font-medium text-zinc-500">Financial viability</p>
+                <p
+                  className={`mt-1 text-lg font-semibold ${
+                    simulationData.financially_viable === null ||
+                    simulationData.financially_viable === undefined
+                      ? "text-zinc-700"
+                      : simulationData.financially_viable
+                        ? "text-emerald-700"
+                        : "text-red-700"
+                  }`}
+                >
+                  {simulationData.financially_viable === null ||
+                  simulationData.financially_viable === undefined
+                    ? "Unknown"
+                    : simulationData.financially_viable
+                      ? "Worth considering"
+                      : "Financial risk"}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {simulationData.financially_viable === null ||
+                  simulationData.financially_viable === undefined
+                    ? "Insufficient data to evaluate."
+                    : simulationData.financially_viable
+                      ? "Expected margin is non-negative."
+                      : "Expected margin is negative."}
                 </p>
               </div>
             </div>

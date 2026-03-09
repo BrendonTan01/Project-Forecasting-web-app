@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { hasPermission } from "@/lib/permissions";
 import { ProfileSettingsForm } from "./ProfileSettingsForm";
+import { CostRatesManager } from "./CostRatesManager";
+import { getRelationOne } from "@/lib/utils/supabase-relations";
 
 export default async function SettingsPage() {
   const user = await getCurrentUserWithTenant();
@@ -11,10 +13,15 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
   const canManageSkills = hasPermission(user.role, "assignments:manage");
+  const canManageRates = user.role !== "staff";
 
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
-    .select("id, job_title, weekly_capacity_hours, billable_rate, cost_rate")
+    .select(
+      user.role === "staff"
+        ? "id, job_title, weekly_capacity_hours"
+        : "id, job_title, weekly_capacity_hours, billable_rate, cost_rate"
+    )
     .eq("user_id", user.id)
     .eq("tenant_id", user.tenantId)
     .single();
@@ -25,8 +32,40 @@ export default async function SettingsPage() {
     .eq("tenant_id", user.tenantId)
     .order("name");
 
+  const { data: staffRates } = canManageRates
+    ? await supabase
+        .from("staff_profiles")
+        .select("id, user_id, billable_rate, cost_rate, users(email, role, office_id, offices(name, country))")
+        .eq("tenant_id", user.tenantId)
+    : { data: null };
+
+  const managedRateRows = (staffRates ?? [])
+    .map((row) => {
+      const u = getRelationOne((row as { users?: unknown }).users) as
+        | { email: string; role: string; office_id: string | null; offices?: { name: string; country: string } | { name: string; country: string }[] | null }
+        | null;
+      const office = u?.offices ? (getRelationOne(u.offices) as { name: string; country: string } | null) : null;
+      return {
+        staff_id: row.id,
+        user_id: row.user_id,
+        email: u?.email ?? "Unknown",
+        role: u?.role ?? "staff",
+        office_id: u?.office_id ?? null,
+        office_label: office ? `${office.name} (${office.country})` : "Unassigned",
+        billable_rate: row.billable_rate as number | null,
+        cost_rate: row.cost_rate as number | null,
+      };
+    })
+    .filter((row) => {
+      if (user.role === "administrator") return true;
+      if (user.role !== "manager") return false;
+      if (row.user_id === user.id) return true;
+      return row.role === "staff" && row.office_id !== null && row.office_id === user.officeId;
+    })
+    .sort((a, b) => a.email.localeCompare(b.email));
+
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="app-page-title">Profile settings</h1>
         {canManageSkills && (
@@ -59,6 +98,8 @@ export default async function SettingsPage() {
         role={user.role}
         offices={offices ?? []}
       />
+
+      {canManageRates && <CostRatesManager rows={managedRateRows} />}
     </div>
   );
 }

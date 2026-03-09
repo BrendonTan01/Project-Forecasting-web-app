@@ -16,6 +16,8 @@ export type SimulationResult = {
   expected_revenue: number | null;
   expected_cost: number | null;
   expected_margin: number | null;
+  expected_margin_percent: number | null;
+  financially_viable: boolean | null;
 };
 
 function roundCurrency(value: number): number {
@@ -218,6 +220,11 @@ export async function simulateProposalImpact(
     expectedRevenue !== null && expectedCost !== null
       ? roundCurrency(expectedRevenue - expectedCost)
       : null;
+  const expectedMarginPercent =
+    expectedRevenue !== null && expectedRevenue > 0 && expectedMargin !== null
+      ? Math.round((expectedMargin / expectedRevenue) * 10000) / 100
+      : null;
+  const financiallyViable = expectedMargin !== null ? expectedMargin >= 0 : null;
 
   return {
     proposal_id: proposalId,
@@ -228,5 +235,7 @@ export async function simulateProposalImpact(
     expected_revenue: expectedRevenue,
     expected_cost: expectedCost,
     expected_margin: expectedMargin,
+    expected_margin_percent: expectedMarginPercent,
+    financially_viable: financiallyViable,
   };
 }

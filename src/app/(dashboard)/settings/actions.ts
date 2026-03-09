@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserWithTenant, getStaffIdByUserId } from "@/lib/supabase/auth-helpers";
 import { revalidatePath } from "next/cache";
 import {
@@ -63,6 +64,79 @@ export async function updateProfileSettings(data: ProfileFormData) {
   revalidatePath("/settings");
   revalidatePath("/staff");
   revalidatePath("/dashboard");
+  scheduleForecastRecalculation(user.tenantId);
+  scheduleHiringPredictionsRecalculation(user.tenantId);
+  return { success: true };
+}
+
+export type StaffCostUpdateData = {
+  billable_rate?: number | null;
+  cost_rate?: number | null;
+};
+
+function normalizeOptionalPositiveRate(value: number | null | undefined): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
+export async function updateManagedStaffCosts(staffId: string, data: StaffCostUpdateData) {
+  const user = await getCurrentUserWithTenant();
+  if (!user) return { error: "Unauthorized" };
+  if (user.role === "staff") return { error: "Forbidden" };
+  if (!staffId) return { error: "Missing staff id" };
+
+  const supabase = await createClient();
+  const { data: targetProfile } = await supabase
+    .from("staff_profiles")
+    .select("id, user_id, users(role, office_id, email)")
+    .eq("id", staffId)
+    .eq("tenant_id", user.tenantId)
+    .maybeSingle();
+
+  if (!targetProfile) return { error: "Staff profile not found" };
+
+  const relation = targetProfile.users as
+    | { role: string; office_id: string | null; email?: string | null }
+    | { role: string; office_id: string | null; email?: string | null }[]
+    | null;
+  const targetUser = Array.isArray(relation) ? relation[0] : relation;
+  if (!targetUser) return { error: "User record not found" };
+
+  const managerCanEdit =
+    targetProfile.user_id === user.id ||
+    (targetUser.role === "staff" &&
+      user.officeId !== null &&
+      targetUser.office_id !== null &&
+      targetUser.office_id === user.officeId);
+  const canEdit = user.role === "administrator" || (user.role === "manager" && managerCanEdit);
+
+  if (!canEdit) return { error: "You can only edit your own or managed staff rates." };
+
+  const updatePayload: Record<string, number | null> = {};
+  const normalizedBillable = normalizeOptionalPositiveRate(data.billable_rate);
+  const normalizedCost = normalizeOptionalPositiveRate(data.cost_rate);
+  if (normalizedBillable !== undefined) updatePayload.billable_rate = normalizedBillable;
+  if (normalizedCost !== undefined) updatePayload.cost_rate = normalizedCost;
+
+  if (Object.keys(updatePayload).length === 0) {
+    return { error: "No rate changes provided." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("staff_profiles")
+    .update(updatePayload)
+    .eq("id", staffId)
+    .eq("tenant_id", user.tenantId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/staff");
+  revalidatePath(`/staff/${staffId}`);
+  revalidatePath("/projects");
   scheduleForecastRecalculation(user.tenantId);
   scheduleHiringPredictionsRecalculation(user.tenantId);
   return { success: true };
