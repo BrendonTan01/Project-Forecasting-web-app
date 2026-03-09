@@ -16,6 +16,11 @@ type Props = {
   initialResult: FeasibilityResult | { error: string } | null;
 };
 
+function normalizeScopeKey(scope: string[] | null): string {
+  if (!scope || scope.length === 0) return "";
+  return [...scope].sort().join(",");
+}
+
 export function ProposalSimulationSection({
   proposalId,
   allOffices,
@@ -26,6 +31,8 @@ export function ProposalSimulationSection({
   const [simulationActive, setSimulationActive] = useState(false);
   const [impactData, setImpactData] = useState<SimulationResult | null>(null);
   const [effectiveOfficeScope, setEffectiveOfficeScope] = useState<string[] | null>(initialOfficeScope);
+  const [lastSimulatedScopeKey, setLastSimulatedScopeKey] = useState<string | null>(null);
+  const [lastSimulatedScopeLabel, setLastSimulatedScopeLabel] = useState<string | null>(null);
   const scopeLabel =
     effectiveOfficeScope && effectiveOfficeScope.length > 0
       ? allOffices
@@ -33,15 +40,22 @@ export function ProposalSimulationSection({
           .map((office) => office.name)
           .join(", ")
       : "All offices";
+  const currentScopeKey = normalizeScopeKey(effectiveOfficeScope);
+  const simulationStale =
+    impactData !== null && lastSimulatedScopeKey !== null && lastSimulatedScopeKey !== currentScopeKey;
 
   function handleSimulateAccept(data: SimulationResult) {
     setImpactData(data);
     setSimulationActive(true);
+    setLastSimulatedScopeKey(currentScopeKey);
+    setLastSimulatedScopeLabel(scopeLabel);
   }
 
   function handleSimulateReject() {
     setSimulationActive(false);
     setImpactData(null);
+    setLastSimulatedScopeKey(null);
+    setLastSimulatedScopeLabel(null);
   }
 
   return (
@@ -50,6 +64,8 @@ export function ProposalSimulationSection({
         proposalId={proposalId}
         officeScopeIds={effectiveOfficeScope}
         officeScopeLabel={scopeLabel}
+        simulationStale={simulationStale}
+        staleScopeLabel={lastSimulatedScopeLabel}
         onSimulateAccept={handleSimulateAccept}
         onResetSimulation={handleSimulateReject}
         simulationActive={simulationActive}

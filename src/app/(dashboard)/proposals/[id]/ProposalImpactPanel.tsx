@@ -23,6 +23,8 @@ type Props = {
   proposalId: string;
   officeScopeIds: string[] | null;
   officeScopeLabel: string;
+  simulationStale: boolean;
+  staleScopeLabel: string | null;
   onSimulateAccept: (data: SimulationResult) => void;
   onResetSimulation: () => void;
   simulationActive: boolean;
@@ -46,6 +48,8 @@ export function ProposalImpactPanel({
   proposalId,
   officeScopeIds,
   officeScopeLabel,
+  simulationStale,
+  staleScopeLabel,
   onSimulateAccept,
   onResetSimulation,
   simulationActive,
@@ -128,6 +132,15 @@ export function ProposalImpactPanel({
 
       {error && (
         <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {!error && simulationStale && simulationData && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Office scope changed. Current results are from{" "}
+          <span className="font-medium">{staleScopeLabel ?? "a previous scope"}</span>.
+          Run <span className="font-medium">Simulate Accept</span> again to refresh for{" "}
+          <span className="font-medium">{officeScopeLabel}</span>.
+        </div>
       )}
 
       {!error && simulationData === null && (
