@@ -49,6 +49,7 @@ GRANT EXECUTE ON FUNCTION public.can_manage_staff_profile(UUID) TO authenticated
 
 DROP POLICY IF EXISTS "Managers can manage staff profiles" ON public.staff_profiles;
 DROP POLICY IF EXISTS "Administrators can manage staff profiles" ON public.staff_profiles;
+DROP POLICY IF EXISTS "Managers can update managed staff profiles" ON public.staff_profiles;
 
 CREATE POLICY "Administrators can manage staff profiles"
   ON public.staff_profiles FOR ALL
