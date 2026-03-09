@@ -1,4 +1,7 @@
-import type { ForecastWeek } from "./types";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import type { ForecastProposal, ForecastWeek } from "./types";
 import { getDemandUtilizationPercent } from "./forecastMetrics";
 
 // TODO: If the API ever returns best_case_utilization, expected_utilization,
@@ -7,6 +10,7 @@ import { getDemandUtilizationPercent } from "./forecastMetrics";
 
 interface Props {
   weeks: ForecastWeek[];
+  proposals?: ForecastProposal[];
 }
 
 const CHART = {
@@ -57,37 +61,100 @@ function buildPoints(
 const LINES = [
   {
     key: "best_case" as const,
-    label: "Best Case",
+    label: "Committed Work Only",
     // TODO: Replace with best_case_utilization if API provides it directly
-    getter: (w: ForecastWeek) => w.best_case_demand,
     color: "#10b981",
   },
   {
     key: "expected" as const,
-    label: "Expected",
+    label: "Pipeline Expected",
     // TODO: Replace with expected_utilization if API provides it directly
-    getter: (w: ForecastWeek) => w.expected_demand,
     color: "#1d4ed8",
   },
   {
     key: "worst_case" as const,
-    label: "Worst Case",
+    label: "All Pipeline Won",
     // TODO: Replace with worst_case_utilization if API provides it directly
-    getter: (w: ForecastWeek) => w.worst_case_demand,
     color: "#f59e0b",
   },
 ];
 
-export function UtilizationForecastChart({ weeks }: Props) {
+function formatHours(value: number): string {
+  return Number.isInteger(value) ? `${value}h` : `${value.toFixed(1)}h`;
+}
+
+function getProposalEstimateLabel(proposal: ForecastProposal): string {
+  if (proposal.estimated_hours !== null && proposal.estimated_hours !== undefined) {
+    return formatHours(Number(proposal.estimated_hours));
+  }
+  if (
+    proposal.estimated_hours_per_week !== null &&
+    proposal.estimated_hours_per_week !== undefined
+  ) {
+    return `${formatHours(Number(proposal.estimated_hours_per_week))}/wk`;
+  }
+  return "No estimate";
+}
+
+function getDefaultSelectedProposalIds(proposals: ForecastProposal[]): string[] {
+  return proposals
+    .filter((proposal) => proposal.has_complete_dates)
+    .map((proposal) => proposal.id);
+}
+
+export function UtilizationForecastChart({ weeks, proposals = [] }: Props) {
+  const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>(
+    () => getDefaultSelectedProposalIds(proposals)
+  );
+
+  useEffect(() => {
+    setSelectedProposalIds(getDefaultSelectedProposalIds(proposals));
+  }, [proposals]);
+
+  const selectedProposalIdSet = useMemo(
+    () => new Set(selectedProposalIds),
+    [selectedProposalIds]
+  );
+
   if (weeks.length === 0) {
     return (
       <p className="text-sm text-zinc-500">No forecast data available.</p>
     );
   }
 
+  function getScenarioDemand(week: ForecastWeek, scenario: "best_case" | "expected" | "worst_case"): number {
+    // Backward compatibility for responses without proposal-level breakdown.
+    if (!week.proposal_demands || proposals.length === 0) {
+      if (scenario === "best_case") return week.best_case_demand;
+      if (scenario === "expected") return week.expected_demand;
+      return week.worst_case_demand;
+    }
+
+    const selectedDemands = week.proposal_demands.filter((d) =>
+      selectedProposalIdSet.has(d.proposal_id)
+    );
+    const expectedProposalDemand = selectedDemands.reduce(
+      (sum, demand) => sum + Number(demand.expected_hours ?? 0),
+      0
+    );
+    const rawProposalDemand = selectedDemands.reduce(
+      (sum, demand) => sum + Number(demand.raw_hours ?? 0),
+      0
+    );
+
+    if (scenario === "best_case") return week.total_project_hours;
+    if (scenario === "expected") return week.total_project_hours + expectedProposalDemand;
+    return week.total_project_hours + rawProposalDemand;
+  }
+
+  const lineSeries = LINES.map((line) => ({
+    ...line,
+    getter: (week: ForecastWeek) => getScenarioDemand(week, line.key),
+  }));
+
   const allPcts = weeks.flatMap((w) =>
     w.total_capacity > 0
-      ? LINES.map((l) => getDemandUtilizationPercent(l.getter(w), w.total_capacity))
+      ? lineSeries.map((l) => getDemandUtilizationPercent(l.getter(w), w.total_capacity))
       : [0]
   );
   const rawMax = Math.max(...allPcts, 100);
@@ -97,7 +164,53 @@ export function UtilizationForecastChart({ weeks }: Props) {
   for (let v = 0; v <= maxPct; v += 50) yGridValues.push(v);
 
   return (
-    <div>
+    <div className="relative">
+      {proposals.length > 0 && (
+        <div className="absolute right-2 top-2 z-10 w-72 rounded-md border border-zinc-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+          <p className="text-[11px] font-semibold text-zinc-700">
+            Proposal selection
+          </p>
+          <p className="mt-0.5 text-[10px] text-zinc-500">
+            {selectedProposalIds.length}/{proposals.length} selected
+          </p>
+          <div className="mt-2 max-h-28 space-y-1 overflow-y-auto pr-1">
+            {proposals.map((proposal) => {
+              const checked = selectedProposalIdSet.has(proposal.id);
+              return (
+                <label
+                  key={proposal.id}
+                  className="flex items-start gap-2 rounded px-1 py-0.5 text-[11px] text-zinc-700 hover:bg-zinc-50"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                    checked={checked}
+                    onChange={(event) => {
+                      const nextChecked = event.target.checked;
+                      setSelectedProposalIds((prev) => {
+                        if (nextChecked) {
+                          if (prev.includes(proposal.id)) return prev;
+                          return [...prev, proposal.id];
+                        }
+                        return prev.filter((id) => id !== proposal.id);
+                      });
+                    }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-zinc-700">
+                      {proposal.name}
+                    </span>
+                    <span className="text-zinc-500">
+                      {getProposalEstimateLabel(proposal)}
+                      {!proposal.has_complete_dates ? " · missing dates" : ""}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <svg
         viewBox={`0 0 ${CHART.viewW} ${CHART.viewH}`}
         width="100%"
@@ -164,7 +277,7 @@ export function UtilizationForecastChart({ weeks }: Props) {
         )}
 
         {/* Scenario polylines */}
-        {LINES.map((line) => (
+        {lineSeries.map((line) => (
           <polyline
             key={line.key}
             points={buildPoints(weeks, line.getter, maxPct)}
@@ -177,7 +290,7 @@ export function UtilizationForecastChart({ weeks }: Props) {
         ))}
 
         {/* Data point circles with native tooltips */}
-        {LINES.map((line) =>
+        {lineSeries.map((line) =>
           weeks.map((w, i) => {
             const pct =
               getDemandUtilizationPercent(line.getter(w), w.total_capacity);

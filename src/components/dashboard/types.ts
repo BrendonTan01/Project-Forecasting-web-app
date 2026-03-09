@@ -10,7 +10,22 @@ export interface ForecastWeek {
   best_case_demand: number;
   expected_demand: number;
   worst_case_demand: number;
+  proposal_demands?: Array<{
+    proposal_id: string;
+    raw_hours: number;
+    expected_hours: number;
+  }>;
   forecast_explanation?: ExplanationEntry[];
+}
+
+export interface ForecastProposal {
+  id: string;
+  name: string;
+  proposed_start_date: string | null;
+  proposed_end_date: string | null;
+  estimated_hours: number | null;
+  estimated_hours_per_week: number | null;
+  has_complete_dates: boolean;
 }
 
 export interface HiringRecommendation {
@@ -32,4 +47,5 @@ export interface ForecastResponse {
   weeks: ForecastWeek[];
   hiring_recommendations: HiringRecommendation[];
   skill_shortages: SkillShortage[];
+  proposals: ForecastProposal[];
 }

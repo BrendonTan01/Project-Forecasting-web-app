@@ -16,6 +16,7 @@ const MAX_WEEKS = 52;
 const PROPOSAL_PIPELINE_STATUSES = ["draft", "submitted", "won"] as const;
 
 type ProposalDemandRow = {
+  id: string;
   name: string | null;
   estimated_hours_per_week: number | null;
   estimated_hours: number | null;
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
       admin
         .from("project_proposals")
         .select(
-          "name, estimated_hours_per_week, estimated_hours, proposed_start_date, proposed_end_date, win_probability"
+          "id, name, estimated_hours_per_week, estimated_hours, proposed_start_date, proposed_end_date, win_probability"
         )
         .eq("tenant_id", user.tenantId)
         .in("status", [...PROPOSAL_PIPELINE_STATUSES]),
@@ -87,6 +88,21 @@ export async function GET(request: NextRequest) {
 
     const proposals = (proposalRows ?? []) as ProposalDemandRow[];
     const leaveRequests = (leaveRows ?? []) as LeaveRequestRow[];
+    const responseProposals = proposals.map((proposal) => ({
+      id: proposal.id,
+      name: proposal.name ?? "Unnamed Proposal",
+      proposed_start_date: proposal.proposed_start_date,
+      proposed_end_date: proposal.proposed_end_date,
+      estimated_hours:
+        proposal.estimated_hours === null ? null : Number(proposal.estimated_hours),
+      estimated_hours_per_week:
+        proposal.estimated_hours_per_week === null
+          ? null
+          : Number(proposal.estimated_hours_per_week),
+      has_complete_dates:
+        Boolean(proposal.proposed_start_date) &&
+        Boolean(proposal.proposed_end_date),
+    }));
 
     const staffMap = new Map<string, StaffNameRow>();
     for (const s of (staffNameRows ?? []) as StaffNameRow[]) {
@@ -101,6 +117,11 @@ export async function GET(request: NextRequest) {
 
         let rawProposalDemand = 0;
         let expectedProposalDemand = 0;
+        const proposalDemands: Array<{
+          proposal_id: string;
+          raw_hours: number;
+          expected_hours: number;
+        }> = [];
         const explanations: ForecastExplanationEntry[] = [];
 
         for (const proposal of proposals) {
@@ -109,6 +130,13 @@ export async function GET(request: NextRequest) {
           const expectedHours = rawHours * (winProbability / 100);
           rawProposalDemand += rawHours;
           expectedProposalDemand += expectedHours;
+          if (rawHours > 0 || expectedHours > 0) {
+            proposalDemands.push({
+              proposal_id: proposal.id,
+              raw_hours: Math.round(rawHours * 100) / 100,
+              expected_hours: Math.round(expectedHours * 100) / 100,
+            });
+          }
           if (rawHours > 0) {
             explanations.push({
               type: "proposal",
@@ -152,6 +180,7 @@ export async function GET(request: NextRequest) {
           best_case_demand: Math.round(row.total_project_hours * 100) / 100,
           expected_demand: Math.round((row.total_project_hours + expectedProposalDemand) * 100) / 100,
           worst_case_demand: Math.round((row.total_project_hours + rawProposalDemand) * 100) / 100,
+          proposal_demands: proposalDemands,
           forecast_explanation: explanations,
         };
       });
@@ -160,6 +189,7 @@ export async function GET(request: NextRequest) {
       weeks: responseWeeks,
       skill_shortages: skillShortages,
       hiring_recommendations: hiringRecommendations,
+      proposals: responseProposals,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Forecast calculation failed";

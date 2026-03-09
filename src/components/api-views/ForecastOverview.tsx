@@ -291,7 +291,7 @@ export function ForecastOverview({ weeks = 12 }: { weeks?: number }) {
         </p>
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-0">
-            <UtilizationForecastChart weeks={data.weeks} />
+            <UtilizationForecastChart weeks={data.weeks} proposals={data.proposals} />
           </div>
           <div className="w-64 shrink-0 border-l border-zinc-100 pl-4">
             <ForecastExplanationPanel weeks={data.weeks} />

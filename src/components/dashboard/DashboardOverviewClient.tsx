@@ -85,7 +85,7 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
             <p className="mb-4 text-xs text-zinc-500">
               Projected team utilization over the next {weeks} weeks across three demand scenarios
             </p>
-            <UtilizationForecastChart weeks={data.weeks} />
+            <UtilizationForecastChart weeks={data.weeks} proposals={data.proposals} />
           </div>
 
           <div className="app-card p-4">
