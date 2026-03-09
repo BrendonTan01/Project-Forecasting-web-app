@@ -69,6 +69,21 @@ type LeaveRow = {
   end_date: string;
 };
 
+type StaffProfileRow = {
+  id: string;
+  weekly_capacity_hours: number;
+  billable_rate: number | null;
+  cost_rate: number | null;
+  users:
+    | {
+        office_id?: string | null;
+      }
+    | {
+        office_id?: string | null;
+      }[]
+    | null;
+};
+
 function normalizeProjectRelation(
   projects: RawProjectRelation | RawProjectRelation[] | null
 ): RawProjectRelation | null {
@@ -121,7 +136,8 @@ function leaveHoursInWeek(
 export async function simulateProposalImpact(
   proposalId: string,
   tenantId: string,
-  weeks: number = DEFAULT_WEEKS
+  weeks: number = DEFAULT_WEEKS,
+  officeIds: string[] | null = null
 ): Promise<SimulationResult | null> {
   const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
   const admin = createAdminClient();
@@ -152,16 +168,47 @@ export async function simulateProposalImpact(
   const windowEnd = toUtcDate(weekEndFromWeekStart(toDateString(endMonday)));
   const windowEndStr = toDateString(windowEnd);
 
-  const [{ data: staffProfiles }, { data: availabilityRows }, { data: assignments }, { data: leaveRows }] =
-    await Promise.all([
-      admin
-        .from("staff_profiles")
-        .select("id, weekly_capacity_hours, billable_rate, cost_rate")
-        .eq("tenant_id", tenantId),
+  let staffQuery = admin
+    .from("staff_profiles")
+    .select("id, weekly_capacity_hours, billable_rate, cost_rate, users!inner(office_id)")
+    .eq("tenant_id", tenantId);
+
+  if (officeIds && officeIds.length > 0) {
+    staffQuery = staffQuery.in("users.office_id", officeIds);
+  }
+
+  const [{ data: staffProfiles }] = await Promise.all([staffQuery]);
+  const staff = ((staffProfiles ?? []) as StaffProfileRow[]).map((row) => ({
+    id: row.id,
+    weekly_capacity_hours: Number(row.weekly_capacity_hours),
+    billable_rate: row.billable_rate,
+    cost_rate: row.cost_rate,
+  }));
+
+  const staffIds = staff.map((member) => member.id);
+  if (staffIds.length === 0) {
+    return {
+      proposal_id: proposalId,
+      current_utilization: 0,
+      simulated_utilization: 0,
+      capacity_risk: false,
+      overload_week: null,
+      current_capacity_risk: false,
+      current_overload_week: null,
+      expected_revenue: null,
+      expected_cost: null,
+      expected_margin: null,
+      expected_margin_percent: null,
+      financially_viable: null,
+    };
+  }
+
+  const [{ data: availabilityRows }, { data: assignments }, { data: leaveRows }] = await Promise.all([
     admin
       .from("staff_availability")
       .select("staff_id, week_start, available_hours")
       .eq("tenant_id", tenantId)
+      .in("staff_id", staffIds)
       .gte("week_start", startMondayStr)
       .lte("week_start", toDateString(endMonday)),
 
@@ -170,21 +217,17 @@ export async function simulateProposalImpact(
       .select(
         "project_id, staff_id, weekly_hours_allocated, week_start, projects(start_date, end_date, status)"
       )
-      .eq("tenant_id", tenantId),
+      .eq("tenant_id", tenantId)
+      .in("staff_id", staffIds),
     admin
       .from("leave_requests")
       .select("staff_id, start_date, end_date")
       .eq("tenant_id", tenantId)
       .eq("status", "approved")
+      .in("staff_id", staffIds)
       .lte("start_date", windowEndStr)
       .gte("end_date", startMondayStr),
   ]);
-  const staff = (staffProfiles ?? []) as {
-    id: string;
-    weekly_capacity_hours: number;
-    billable_rate: number | null;
-    cost_rate: number | null;
-  }[];
 
   const availMap = new Map<string, Map<string, number>>();
   for (const row of (availabilityRows ?? []) as {

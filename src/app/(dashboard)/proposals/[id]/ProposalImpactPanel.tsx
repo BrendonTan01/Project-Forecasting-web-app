@@ -21,6 +21,8 @@ export type SimulationResult = {
 
 type Props = {
   proposalId: string;
+  officeScopeIds: string[] | null;
+  officeScopeLabel: string;
   onSimulateAccept: (data: SimulationResult) => void;
   onResetSimulation: () => void;
   simulationActive: boolean;
@@ -42,6 +44,8 @@ function fmtCurrency(value: number | null | undefined): string {
 
 export function ProposalImpactPanel({
   proposalId,
+  officeScopeIds,
+  officeScopeLabel,
   onSimulateAccept,
   onResetSimulation,
   simulationActive,
@@ -54,9 +58,11 @@ export function ProposalImpactPanel({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/proposal-impact?proposalId=${encodeURIComponent(proposalId)}`
-      );
+      const params = new URLSearchParams({ proposalId });
+      if (officeScopeIds && officeScopeIds.length > 0) {
+        params.set("officeIds", officeScopeIds.join(","));
+      }
+      const response = await fetch(`/api/proposal-impact?${params.toString()}`);
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? "Request failed");
@@ -87,6 +93,9 @@ export function ProposalImpactPanel({
           <h2 className="text-base font-semibold text-zinc-900">Impact if Accepted</h2>
           <p className="text-sm text-zinc-500">
             Simulates the effect on team utilization if this proposal is accepted.
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Scope: <span className="font-medium text-zinc-700">{officeScopeLabel}</span>
           </p>
         </div>
         <div className="flex shrink-0 gap-2">

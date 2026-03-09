@@ -25,6 +25,14 @@ export function ProposalSimulationSection({
 }: Props) {
   const [simulationActive, setSimulationActive] = useState(false);
   const [impactData, setImpactData] = useState<SimulationResult | null>(null);
+  const [effectiveOfficeScope, setEffectiveOfficeScope] = useState<string[] | null>(initialOfficeScope);
+  const scopeLabel =
+    effectiveOfficeScope && effectiveOfficeScope.length > 0
+      ? allOffices
+          .filter((office) => effectiveOfficeScope.includes(office.id))
+          .map((office) => office.name)
+          .join(", ")
+      : "All offices";
 
   function handleSimulateAccept(data: SimulationResult) {
     setImpactData(data);
@@ -40,6 +48,8 @@ export function ProposalSimulationSection({
     <div className="space-y-4">
       <ProposalImpactPanel
         proposalId={proposalId}
+        officeScopeIds={effectiveOfficeScope}
+        officeScopeLabel={scopeLabel}
         onSimulateAccept={handleSimulateAccept}
         onResetSimulation={handleSimulateReject}
         simulationActive={simulationActive}
@@ -62,6 +72,7 @@ export function ProposalSimulationSection({
           initialResult={initialResult}
           simulationActive={simulationActive}
           simulationData={impactData}
+          onEffectiveOfficeScopeChange={setEffectiveOfficeScope}
         />
       </div>
     </div>

@@ -16,6 +16,14 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const proposalId = searchParams.get("proposalId");
+  const officeIdsParam = searchParams.get("officeIds");
+  const officeIds =
+    officeIdsParam && officeIdsParam.trim().length > 0
+      ? officeIdsParam
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : null;
 
   if (!proposalId) {
     return NextResponse.json(
@@ -25,7 +33,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await simulateProposalImpact(proposalId, user.tenantId);
+    const result = await simulateProposalImpact(proposalId, user.tenantId, undefined, officeIds);
 
     if (!result) {
       return NextResponse.json(

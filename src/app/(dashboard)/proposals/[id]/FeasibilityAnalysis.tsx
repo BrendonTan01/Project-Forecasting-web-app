@@ -21,6 +21,7 @@ type Props = {
   initialResult: FeasibilityResult | { error: string } | null;
   simulationActive?: boolean;
   simulationData?: SimulationResult | null;
+  onEffectiveOfficeScopeChange?: (officeIds: string[] | null) => void;
 };
 
 function formatDate(iso: string): string {
@@ -185,6 +186,7 @@ export function FeasibilityAnalysis({
   initialResult,
   simulationActive = false,
   simulationData = null,
+  onEffectiveOfficeScopeChange,
 }: Props) {
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
@@ -219,6 +221,16 @@ export function FeasibilityAnalysis({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!onEffectiveOfficeScopeChange) return;
+    if (!limitToSelectedOffices) {
+      onEffectiveOfficeScopeChange(null);
+      return;
+    }
+    const selected = Array.from(selectedOffices);
+    onEffectiveOfficeScopeChange(selected.length > 0 ? selected : null);
+  }, [limitToSelectedOffices, onEffectiveOfficeScopeChange, selectedOffices]);
 
   function toggleOffice(id: string) {
     const next = new Set(selectedOffices);
