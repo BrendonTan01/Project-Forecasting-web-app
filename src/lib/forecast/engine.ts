@@ -205,6 +205,61 @@ export async function runForecastForTenant(
   return (upserted ?? results) as ForecastResult[];
 }
 
+async function readForecastResultsForTenant(
+  tenantId: string,
+  weeks: number
+): Promise<ForecastResult[]> {
+  const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
+  const admin = createAdminClient();
+  const weekMonday = startOfCurrentWeekUtc();
+  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
+  const startWeek = toDateString(weekMonday);
+  const endWeek = toDateString(forecastEnd);
+
+  const { data, error } = await admin
+    .from("forecast_results")
+    .select(
+      "id, tenant_id, week_start, total_capacity, total_project_hours, utilization_rate, staffing_gap, created_at"
+    )
+    .eq("tenant_id", tenantId)
+    .gte("week_start", startWeek)
+    .lte("week_start", endWeek)
+    .order("week_start");
+
+  if (error) {
+    throw new Error(`Forecast read failed: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as ForecastResult[];
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const rowByWeek = new Map(rows.map((row) => [row.week_start, row]));
+  const orderedRows: ForecastResult[] = [];
+  for (let i = 0; i < clampedWeeks; i++) {
+    const weekStart = toDateString(addUtcDays(weekMonday, i * 7));
+    const row = rowByWeek.get(weekStart);
+    if (!row) {
+      return [];
+    }
+    orderedRows.push(row);
+  }
+
+  return orderedRows;
+}
+
+export async function getForecastForTenant(
+  tenantId: string,
+  weeks: number = DEFAULT_WEEKS
+): Promise<ForecastResult[]> {
+  const existingRows = await readForecastResultsForTenant(tenantId, weeks);
+  if (existingRows.length > 0) {
+    return existingRows;
+  }
+  return runForecastForTenant(tenantId, weeks);
+}
+
 /**
  * Fire-and-forget wrapper. Triggers a forecast recalculation in the background
  * without blocking the calling server action. Errors are swallowed silently.

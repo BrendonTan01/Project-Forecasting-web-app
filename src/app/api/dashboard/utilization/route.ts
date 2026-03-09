@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
-import { runForecastForTenant } from "@/lib/forecast/engine";
+import { getForecastForTenant } from "@/lib/forecast/engine";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     : DEFAULT_WEEKS;
 
   try {
-    const forecastRows = await runForecastForTenant(user.tenantId, weeks);
+    const forecastRows = await getForecastForTenant(user.tenantId, weeks);
 
     const responseWeeks = forecastRows
       .sort((a, b) => a.week_start.localeCompare(b.week_start))

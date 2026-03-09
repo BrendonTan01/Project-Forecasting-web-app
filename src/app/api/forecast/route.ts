@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import {
-  runForecastForTenant,
+  getForecastForTenant,
   computeSkillShortages,
   computeHiringRecommendations,
 } from "@/lib/forecast/engine";
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       { data: leaveRows },
       { data: staffNameRows },
     ] = await Promise.all([
-      runForecastForTenant(user.tenantId, weeks),
+      getForecastForTenant(user.tenantId, weeks),
       admin
         .from("project_proposals")
         .select(

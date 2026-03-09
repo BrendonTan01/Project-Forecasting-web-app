@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
-import { runForecastForTenant } from "@/lib/forecast/engine";
+import { getForecastForTenant } from "@/lib/forecast/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const DEFAULT_WEEKS = 12;
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient();
 
     const [forecastRows, { data: staffProfiles }] = await Promise.all([
-      runForecastForTenant(user.tenantId, weeks),
+      getForecastForTenant(user.tenantId, weeks),
       admin
         .from("staff_profiles")
         .select("weekly_capacity_hours")
