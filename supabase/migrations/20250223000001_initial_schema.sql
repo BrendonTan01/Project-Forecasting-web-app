@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Tenants: Root of multi-tenancy
 CREATE TABLE tenants (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   name TEXT NOT NULL,
   industry TEXT,
   default_currency TEXT DEFAULT 'USD',
@@ -19,7 +19,7 @@ CREATE TABLE tenants (
 
 -- Offices: Per-tenant offices with timezone support
 CREATE TABLE offices (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   country TEXT NOT NULL,
@@ -46,7 +46,7 @@ CREATE INDEX idx_users_office_id ON users(office_id);
 
 -- Staff profiles: Extended staff data (capacity, rates)
 CREATE TABLE staff_profiles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   job_title TEXT,
@@ -63,7 +63,7 @@ CREATE INDEX idx_staff_profiles_user_id ON staff_profiles(user_id);
 
 -- Projects
 CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   client_name TEXT,
@@ -79,7 +79,7 @@ CREATE INDEX idx_projects_tenant_id ON projects(tenant_id);
 
 -- Project assignments: Staff to projects with allocation %
 CREATE TABLE project_assignments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   staff_id UUID NOT NULL REFERENCES staff_profiles(id) ON DELETE CASCADE,
   allocation_percentage NUMERIC(5,2) NOT NULL CHECK (allocation_percentage >= 0 AND allocation_percentage <= 200),
@@ -92,7 +92,7 @@ CREATE INDEX idx_project_assignments_staff_id ON project_assignments(staff_id);
 
 -- Time entries
 CREATE TABLE time_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   staff_id UUID NOT NULL REFERENCES staff_profiles(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -109,7 +109,7 @@ CREATE INDEX idx_time_entries_project_id ON time_entries(project_id);
 
 -- Leave requests
 CREATE TABLE leave_requests (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   staff_id UUID NOT NULL REFERENCES staff_profiles(id) ON DELETE CASCADE,
   start_date DATE NOT NULL,

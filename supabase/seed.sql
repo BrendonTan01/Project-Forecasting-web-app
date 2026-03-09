@@ -57,7 +57,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'admin@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"administrator","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Managing Director","weekly_capacity_hours":40,"billable_rate":250,"cost_rate":120}'::jsonb,
@@ -75,7 +75,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'manager.london@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"manager","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Project Manager","weekly_capacity_hours":40,"billable_rate":180,"cost_rate":95}'::jsonb,
@@ -93,7 +93,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'manager.singapore@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"manager","office_id":"b0000000-0000-0000-0000-000000000002","job_title":"Regional Manager","weekly_capacity_hours":40,"billable_rate":200,"cost_rate":100}'::jsonb,
@@ -111,7 +111,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'staff.engineer@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Senior Engineer","weekly_capacity_hours":40,"billable_rate":150,"cost_rate":75}'::jsonb,
@@ -129,7 +129,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'staff.designer@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000002","job_title":"Design Engineer","weekly_capacity_hours":40,"billable_rate":130,"cost_rate":65}'::jsonb,
@@ -147,7 +147,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'staff.analyst@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000003","job_title":"Structural Analyst","weekly_capacity_hours":37.5,"billable_rate":140,"cost_rate":70}'::jsonb,
@@ -165,7 +165,7 @@ INSERT INTO auth.users (
     'authenticated',
     'authenticated',
     'staff.new@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Junior Engineer","weekly_capacity_hours":40,"billable_rate":90,"cost_rate":45}'::jsonb,
@@ -175,7 +175,8 @@ INSERT INTO auth.users (
     '',
     '',
     ''
-  );
+  )
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- PUBLIC USERS + STAFF_PROFILES (from auth.users)
@@ -225,7 +226,7 @@ INSERT INTO auth.identities (
   updated_at
 )
 SELECT
-  uuid_generate_v4(),
+  extensions.gen_random_uuid(),
   id,
   id,
   format('{"sub":"%s","email":"%s"}', id::text, email)::jsonb,
@@ -233,7 +234,8 @@ SELECT
   NOW(),
   NOW()
 FROM auth.users
-WHERE email LIKE '%@acme.com';
+WHERE email LIKE '%@acme.com'
+ON CONFLICT (provider_id, provider) DO NOTHING;
 
 -- ============================================
 -- PROJECTS (5 projects, various statuses)
@@ -454,7 +456,7 @@ INSERT INTO auth.users (
     'd1000000-0000-0000-0000-000000000008',
     'authenticated', 'authenticated',
     'staff.parttime@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":"b0000000-0000-0000-0000-000000000001","job_title":"Part-Time Technician","weekly_capacity_hours":20,"billable_rate":80,"cost_rate":40}'::jsonb,
@@ -465,12 +467,13 @@ INSERT INTO auth.users (
     'd1000000-0000-0000-0000-000000000009',
     'authenticated', 'authenticated',
     'staff.nooffice@acme.com',
-    crypt('TestPassword123!', gen_salt('bf')),
+    extensions.crypt('TestPassword123!', extensions.gen_salt('bf')),
     NOW(),
     '{"provider":"email","providers":["email"]}',
     '{"tenant_id":"a0000000-0000-0000-0000-000000000001","role":"staff","office_id":null,"job_title":"Remote Specialist","weekly_capacity_hours":40,"billable_rate":120,"cost_rate":60}'::jsonb,
     NOW(), NOW(), '', '', '', ''
-  );
+  )
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.users (id, tenant_id, email, role, office_id)
 SELECT
@@ -506,11 +509,12 @@ ON CONFLICT (user_id) DO UPDATE SET
 
 INSERT INTO auth.identities (id, user_id, provider_id, identity_data, provider, created_at, updated_at)
 SELECT
-  uuid_generate_v4(), id, id,
+  extensions.gen_random_uuid(), id, id,
   format('{"sub":"%s","email":"%s"}', id::text, email)::jsonb,
   'email', NOW(), NOW()
 FROM auth.users
-WHERE email IN ('staff.parttime@acme.com', 'staff.nooffice@acme.com');
+WHERE email IN ('staff.parttime@acme.com', 'staff.nooffice@acme.com')
+ON CONFLICT (provider_id, provider) DO NOTHING;
 
 -- ============================================
 -- ADDITIONAL PROJECTS (all statuses + all health states)

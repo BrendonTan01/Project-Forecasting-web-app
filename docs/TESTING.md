@@ -32,6 +32,34 @@ Primary seeded accounts:
 - `staff.parttime@acme.com` (staff, London, 20h/week)
 - `staff.nooffice@acme.com` (staff, no office)
 
+## 1.5) Quick Smoke Test (10-15 minutes)
+
+Use this for a fast confidence pass before running the full guide.
+
+1. Log in as `admin@acme.com`.
+   - Open `/admin/users`: confirm users list loads and invitation sections show pending + accepted + expired.
+2. Open `/projects`.
+   - Confirm health coverage is visible:
+     - `Emergency Facade Repair` = overrun
+     - `Seismic Analysis` = at-risk
+     - `Ad-hoc Support Contract` = no-estimate
+3. Open `/capacity-planner` -> `Staff assignments`.
+   - Drag one assignment and choose "Move only this week".
+   - Refresh and confirm move persisted.
+4. Open `/proposals`, then open `Airport Terminal Structural Bid`.
+   - Run feasibility once and confirm it returns results (not an error).
+5. Open `/hiring-insights`.
+   - Confirm recommendation cards load (or explicit empty-state appears without errors).
+6. Log out, then log in as `manager.london@acme.com`.
+   - Confirm manager can open `/projects` and `/capacity-planner`.
+   - Confirm manager cannot access `/admin/users`.
+7. Log out, then log in as `staff.engineer@acme.com`.
+   - Confirm staff cannot open `/proposals` or `/capacity-planner`.
+   - In `/time-entry`, add one billable entry on an assigned project/day, then add non-billable on same day/project.
+   - Confirm both buckets are handled correctly.
+
+If all 7 steps pass, proceed to full end-to-end workflow tests below.
+
 ## 2) Seed Sanity Checks (Quick)
 
 Before UI testing, confirm baseline in SQL editor:
