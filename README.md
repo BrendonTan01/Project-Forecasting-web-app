@@ -51,7 +51,8 @@ Or run the migration file manually: `supabase/migrations/20250223000001_initial_
 ```bash
 supabase db reset
 ```
-This runs migrations and `supabase/seed.sql`, creating 5 projects, staff, time entries, etc.
+This runs migrations and `supabase/seed.sql`, creating a full multi-role demo dataset
+(projects, proposals, skills, invitations, weekly assignment overrides, and time/leave history).
 
 **Option B – Supabase Cloud:** Run `supabase/seed.sql` in the SQL Editor after applying migrations.
 

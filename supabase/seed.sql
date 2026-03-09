@@ -262,6 +262,8 @@ INSERT INTO project_proposals (
   estimated_hours,
   estimated_hours_per_week,
   office_scope,
+  win_probability,
+  optimization_mode,
   status,
   notes
 )
@@ -276,6 +278,8 @@ VALUES
     1400,
     NULL,
     NULL,
+    70,
+    'max_feasibility',
     'submitted',
     'Cross-office delivery between London and Singapore. Analyst has 2-week leave in July — tests leave deduction in feasibility.'
   ),
@@ -289,6 +293,8 @@ VALUES
     2200,
     NULL,
     '["b0000000-0000-0000-0000-000000000003"]'::jsonb,
+    45,
+    'single_office_preferred',
     'draft',
     'Scoped to Sydney office only — tests office_scope filter in feasibility. Higher hand-off risk due to Sydney specialist coverage.'
   ),
@@ -302,6 +308,8 @@ VALUES
     NULL,
     NULL,
     NULL,
+    20,
+    'min_staff_count',
     'draft',
     'Intentionally partial inputs — no dates, no hours. Tests completeness warnings and feasibility error path.'
   )
@@ -547,6 +555,24 @@ JOIN projects p ON p.id = v.project_id::uuid
 JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
 
 -- ============================================
+-- CAPACITY PLANNER WEEK-SPECIFIC ASSIGNMENT OVERRIDES
+-- Demonstrates week_start rows used by drag/move logic
+-- ============================================
+INSERT INTO project_assignments (project_id, staff_id, allocation_percentage, week_start)
+SELECT p.id, sp.id, alloc, v.week_start::date
+FROM (VALUES
+  -- Engineer: temporary reassignment and reduced load in March
+  ('c0000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000004', 20, '2026-03-09'),
+  ('c0000000-0000-0000-0000-000000000002', 'd1000000-0000-0000-0000-000000000004', 80, '2026-03-09'),
+  ('c0000000-0000-0000-0000-000000000001', 'd1000000-0000-0000-0000-000000000004', 30, '2026-03-16'),
+  -- Part-time staff: explicit weekly override for forecast/capacity planner
+  ('c0000000-0000-0000-0000-000000000010', 'd1000000-0000-0000-0000-000000000008', 60, '2026-03-09')
+) AS v(project_id, user_id, alloc, week_start)
+JOIN projects p ON p.id = v.project_id::uuid
+JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid
+ON CONFLICT (project_id, staff_id, week_start) DO NOTHING;
+
+-- ============================================
 -- ADDITIONAL TIME ENTRIES
 -- Covers: overrun project, at_risk project, no_estimate project,
 --         edge cases (0h, 24h, weekend, future date, duplicate same-day,
@@ -616,11 +642,11 @@ FROM (VALUES
   -- ------------------------------------------------
   ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001', '2026-03-05', 8,  true),
   -- ------------------------------------------------
-  -- EDGE CASE: Duplicate same-day entries (same staff + project, two rows on same date)
-  -- staff.engineer logs 4h twice on 2026-02-23 for Bridge Design (both rows valid in DB)
+  -- EDGE CASE: Same day/same project split by billable flag
+  -- Unique constraint includes billable_flag, so one billable + one non-billable row is valid
   -- ------------------------------------------------
   ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001', '2026-02-23', 4,  true),
-  ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001', '2026-02-23', 4,  true),
+  ('d1000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001', '2026-02-23', 4,  false),
   -- ------------------------------------------------
   -- EDGE CASE: Non-billable entries (billable_flag=false)
   -- ------------------------------------------------
@@ -650,6 +676,8 @@ INSERT INTO project_proposals (
   estimated_hours,
   estimated_hours_per_week,
   office_scope,
+  win_probability,
+  optimization_mode,
   status,
   notes
 )
@@ -665,6 +693,8 @@ VALUES
     800,
     NULL,
     NULL,
+    90,
+    'max_feasibility',
     'won',
     'Successfully awarded. Tests won status display and filtering.'
   ),
@@ -679,6 +709,8 @@ VALUES
     600,
     NULL,
     NULL,
+    15,
+    'min_staff_count',
     'lost',
     'Bid unsuccessful. Tests lost status display and filtering.'
   ),
@@ -694,6 +726,8 @@ VALUES
     NULL,
     30,
     '["b0000000-0000-0000-0000-000000000001"]'::jsonb,
+    55,
+    'single_office_preferred',
     'draft',
     'Uses estimated_hours_per_week=30 (not total). Tests alternate hours-per-week path in feasibility. Scoped to London office.'
   ),
@@ -708,6 +742,8 @@ VALUES
     NULL,
     NULL,
     NULL,
+    35,
+    'worst_week_robust',
     'draft',
     'No dates and no hours — triggers feasibility error: must have start and end date.'
   ),
@@ -723,6 +759,8 @@ VALUES
     320,
     NULL,
     NULL,
+    60,
+    'min_overallocation',
     'submitted',
     'Starts during March when multiple staff have leave. Tests feasibility degradation during high-leave period.'
   )
@@ -756,6 +794,109 @@ FROM (VALUES
   ('d1000000-0000-0000-0000-000000000009', '2026-07-20', '2026-07-24', 'annual',  'pending')
 ) AS v(user_id, start_date, end_date, leave_type, status)
 JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
+
+-- ============================================
+-- STAFF AVAILABILITY OVERRIDES (forecast + planner)
+-- ============================================
+INSERT INTO staff_availability (tenant_id, staff_id, week_start, available_hours)
+SELECT
+  'a0000000-0000-0000-0000-000000000001',
+  sp.id,
+  v.week_start::date,
+  v.available_hours
+FROM (VALUES
+  -- Engineer reduced capacity for training week
+  ('d1000000-0000-0000-0000-000000000004', '2026-03-09', 24),
+  -- Designer unavailable one week
+  ('d1000000-0000-0000-0000-000000000005', '2026-03-02', 0),
+  -- Analyst reduced in July overlapping proposal horizon
+  ('d1000000-0000-0000-0000-000000000006', '2026-07-06', 16),
+  -- Part-time staff unavailable for leave week
+  ('d1000000-0000-0000-0000-000000000008', '2026-03-09', 0)
+) AS v(user_id, week_start, available_hours)
+JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid
+ON CONFLICT (staff_id, week_start) DO UPDATE SET
+  available_hours = EXCLUDED.available_hours;
+
+-- ============================================
+-- SKILLS / STAFF SKILLS / PROJECT SKILL REQUIREMENTS
+-- Used by hiring insights + skill shortage forecasting
+-- ============================================
+INSERT INTO skills (id, tenant_id, name)
+VALUES
+  ('f0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Structural Analysis'),
+  ('f0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'HVAC Design'),
+  ('f0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Facade Engineering'),
+  ('f0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Project Management'),
+  ('f0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'BIM Coordination')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO staff_skills (staff_id, skill_id, tenant_id)
+SELECT sp.id, v.skill_id::uuid, 'a0000000-0000-0000-0000-000000000001'
+FROM (VALUES
+  ('d1000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000001'),
+  ('d1000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000003'),
+  ('d1000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000002'),
+  ('d1000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000005'),
+  ('d1000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000001'),
+  ('d1000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000005'),
+  ('d1000000-0000-0000-0000-000000000008', 'f0000000-0000-0000-0000-000000000003'),
+  ('d1000000-0000-0000-0000-000000000009', 'f0000000-0000-0000-0000-000000000004')
+) AS v(user_id, skill_id)
+JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid
+ON CONFLICT (staff_id, skill_id) DO NOTHING;
+
+INSERT INTO project_skill_requirements (project_id, skill_id, required_hours_per_week, tenant_id)
+VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 45, 'a0000000-0000-0000-0000-000000000001'),
+  ('c0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 30, 'a0000000-0000-0000-0000-000000000001'),
+  ('c0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000002', 35, 'a0000000-0000-0000-0000-000000000001'),
+  ('c0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000005', 28, 'a0000000-0000-0000-0000-000000000001'),
+  ('c0000000-0000-0000-0000-000000000011', 'f0000000-0000-0000-0000-000000000001', 52, 'a0000000-0000-0000-0000-000000000001'),
+  ('c0000000-0000-0000-0000-000000000011', 'f0000000-0000-0000-0000-000000000004', 22, 'a0000000-0000-0000-0000-000000000001')
+ON CONFLICT (project_id, skill_id) DO UPDATE SET
+  required_hours_per_week = EXCLUDED.required_hours_per_week;
+
+-- ============================================
+-- INVITATIONS (admin workflow)
+-- pending, accepted, and expired states for /admin/users
+-- ============================================
+INSERT INTO invitations (id, tenant_id, email, role, token, expires_at, accepted_at, created_by, created_at)
+VALUES
+  (
+    'f1000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
+    'invite.pending.manager@acme.com',
+    'manager',
+    'seed-token-pending-manager-001',
+    NOW() + INTERVAL '5 days',
+    NULL,
+    'd1000000-0000-0000-0000-000000000001',
+    NOW() - INTERVAL '2 days'
+  ),
+  (
+    'f1000000-0000-0000-0000-000000000002',
+    'a0000000-0000-0000-0000-000000000001',
+    'invite.accepted.staff@acme.com',
+    'staff',
+    'seed-token-accepted-staff-001',
+    NOW() - INTERVAL '3 days',
+    NOW() - INTERVAL '4 days',
+    'd1000000-0000-0000-0000-000000000001',
+    NOW() - INTERVAL '10 days'
+  ),
+  (
+    'f1000000-0000-0000-0000-000000000003',
+    'a0000000-0000-0000-0000-000000000001',
+    'invite.expired.staff@acme.com',
+    'staff',
+    'seed-token-expired-staff-001',
+    NOW() - INTERVAL '1 day',
+    NULL,
+    'd1000000-0000-0000-0000-000000000001',
+    NOW() - INTERVAL '8 days'
+  )
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- SEED SUMMARY (COMPLETE)
@@ -794,10 +935,11 @@ JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
 --                Solar Farm Design (hours_per_week path), Green Roof Retrofit (no data)
 --     won:       Harbour Bridge Renewal
 --     lost:      Metro Station Fit-out
+--     plus varied win_probability + optimization_mode coverage
 --
 --   Time entry edge cases seeded:
 --     0h entry, 24h entry, weekend entries (Sat+Sun), future date (Mar 2026),
---     duplicate same-day rows, non-billable entries, part-time 4h/day entries
+--     same day split by billable flag, non-billable entries, part-time 4h/day entries
 --
 --   Leave requests:
 --     Analyst: 2-week July leave (overlaps Airport Terminal proposal feasibility)
@@ -805,3 +947,7 @@ JOIN staff_profiles sp ON sp.user_id = v.user_id::uuid;
 --     Designer: single-day Monday leave
 --     Engineer: approved March leave + existing pending Mar 16-18
 --     Nooffice: pending leave (should NOT reduce feasibility capacity)
+--
+--   Capacity planner + forecasting extras:
+--     week-specific assignment overrides, staff availability overrides,
+--     seeded invitations (pending/accepted/expired), skill catalog + mappings
