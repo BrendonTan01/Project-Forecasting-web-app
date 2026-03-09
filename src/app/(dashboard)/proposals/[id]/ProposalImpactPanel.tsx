@@ -8,6 +8,8 @@ export type SimulationResult = {
   simulated_utilization?: number;
   capacity_risk?: boolean;
   overload_week?: number | null;
+  current_capacity_risk?: boolean;
+  current_overload_week?: number | null;
   expected_revenue?: number | null;
   expected_cost?: number | null;
   expected_margin?: number | null;
@@ -73,6 +75,10 @@ export function ProposalImpactPanel({
     simulationData.current_utilization !== undefined
       ? simulationData.simulated_utilization - simulationData.current_utilization
       : null;
+  const baselineRisk = simulationData?.current_capacity_risk ?? false;
+  const simulatedRisk = simulationData?.capacity_risk ?? false;
+  const proposalIntroducesRisk = !baselineRisk && simulatedRisk;
+  const riskUnchanged = baselineRisk === simulatedRisk;
 
   return (
     <div className="app-card p-4">
@@ -177,9 +183,13 @@ export function ProposalImpactPanel({
                   </span>
                 </div>
                 <p className="mt-1.5 text-xs text-zinc-400">
-                  {simulationData.capacity_risk
-                    ? "Team exceeds 90% utilization"
-                    : "Team stays within safe range"}
+                  {proposalIntroducesRisk
+                    ? "Proposal pushes utilization above 90%"
+                    : riskUnchanged && simulatedRisk
+                      ? "Risk already present before this proposal"
+                      : riskUnchanged
+                        ? "Team stays within safe range"
+                        : "Risk improves vs current baseline"}
                 </p>
               </div>
             )}
@@ -196,7 +206,9 @@ export function ProposalImpactPanel({
                 </p>
                 <p className="text-xs text-zinc-400">
                   {simulationData.overload_week !== null
-                    ? "First week above capacity threshold"
+                    ? proposalIntroducesRisk
+                      ? "First week above threshold after accepting"
+                      : "First week above threshold in simulated baseline"
                     : "No overload projected"}
                 </p>
               </div>

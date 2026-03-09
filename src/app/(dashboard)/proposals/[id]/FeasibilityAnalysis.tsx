@@ -278,6 +278,9 @@ export function FeasibilityAnalysis({
   const simulationWithRates =
     simulationActive && hasSimulationUtilizationData(simulationData) ? simulationData : null;
   const simulationCapacityRisk = simulationWithRates?.capacity_risk ?? false;
+  const baselineCapacityRisk = simulationWithRates?.current_capacity_risk ?? false;
+  const proposalIntroducesRisk = !baselineCapacityRisk && simulationCapacityRisk;
+  const riskUnchanged = baselineCapacityRisk === simulationCapacityRisk;
 
   return (
     <div className="space-y-4">
@@ -512,19 +515,23 @@ export function FeasibilityAnalysis({
               {simulationWithRates && (
                 <div
                   className={`mb-4 flex items-start gap-3 rounded-md px-4 py-3 text-sm ${
-                    simulationCapacityRisk
+                    proposalIntroducesRisk
                       ? "bg-red-50 text-red-800"
+                      : simulationCapacityRisk
+                        ? "bg-amber-50 text-amber-800"
                       : "bg-amber-50 text-amber-800"
                   }`}
                 >
                   <span className="mt-0.5 shrink-0 text-base leading-none">
-                    {simulationCapacityRisk ? "⚠" : "ℹ"}
+                    {proposalIntroducesRisk ? "⚠" : "ℹ"}
                   </span>
                   <div className="space-y-0.5">
                     <p className="font-medium">
-                      {simulationCapacityRisk
-                        ? "Capacity risk detected if this proposal is accepted"
-                        : "Simulation active — proposal accepted"}
+                      {proposalIntroducesRisk
+                        ? "Proposal introduces capacity risk in this window"
+                        : riskUnchanged && simulationCapacityRisk
+                          ? "Capacity risk already exists before this proposal"
+                          : "Simulation active — proposal accepted"}
                     </p>
                     <p>
                       Team utilization shifts from{" "}
@@ -535,9 +542,15 @@ export function FeasibilityAnalysis({
                       <span className="font-semibold">
                         {(simulationWithRates.simulated_utilization * 100).toFixed(1)}%
                       </span>{" "}
-                      avg across the forecast period.
+                      avg across the proposal window.
                       {simulationWithRates.overload_week !== null && (
-                        <> Team exceeds 90% utilization from week {simulationWithRates.overload_week}.</>
+                        <>
+                          {" "}
+                          Team exceeds 90% utilization from week {simulationWithRates.overload_week}
+                          {simulationWithRates.current_overload_week !== null
+                            ? ` (current baseline week ${simulationWithRates.current_overload_week}).`
+                            : "."}
+                        </>
                       )}
                     </p>
                   </div>

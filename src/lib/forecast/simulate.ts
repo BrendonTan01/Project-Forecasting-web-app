@@ -1,7 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
 import { getProposalHoursForWeek } from "@/lib/utils/proposalHours";
-import { addUtcDays, startOfCurrentWeekUtc, toDateString, weekEndFromWeekStart } from "@/lib/utils/week";
+import {
+  addUtcDays,
+  startOfCurrentWeekUtc,
+  toDateString,
+  toUtcDate,
+  toWeekMonday,
+  weekEndFromWeekStart,
+} from "@/lib/utils/week";
 
 const DEFAULT_WEEKS = 12;
 const MAX_WEEKS = 52;
@@ -13,6 +20,8 @@ export type SimulationResult = {
   simulated_utilization: number;
   capacity_risk: boolean;
   overload_week: number | null;
+  current_capacity_risk: boolean;
+  current_overload_week: number | null;
   expected_revenue: number | null;
   expected_cost: number | null;
   expected_margin: number | null;
@@ -54,11 +63,55 @@ type AssignmentWithProject = {
   projects: RawProjectRelation | null;
 };
 
+type LeaveRow = {
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+};
+
 function normalizeProjectRelation(
   projects: RawProjectRelation | RawProjectRelation[] | null
 ): RawProjectRelation | null {
   if (Array.isArray(projects)) return projects[0] ?? null;
   return projects ?? null;
+}
+
+function workingDaysInRange(start: Date, end: Date): number {
+  let count = 0;
+  const cursor = new Date(start);
+  cursor.setUTCHours(0, 0, 0, 0);
+  const endCopy = new Date(end);
+  endCopy.setUTCHours(0, 0, 0, 0);
+  while (cursor <= endCopy) {
+    const dow = cursor.getUTCDay();
+    if (dow >= 1 && dow <= 5) count++;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
+function leaveHoursInWeek(
+  leaves: LeaveRow[],
+  staffId: string,
+  weekStart: Date,
+  weekEnd: Date,
+  dailyCapacity: number
+): number {
+  const weekEndFri = new Date(weekEnd);
+  weekEndFri.setUTCDate(weekEnd.getUTCDate() - 2);
+
+  let leaveDays = 0;
+  for (const leave of leaves) {
+    if (leave.staff_id !== staffId) continue;
+    const leaveStart = new Date(`${leave.start_date}T00:00:00Z`);
+    const leaveEnd = new Date(`${leave.end_date}T00:00:00Z`);
+    const overlapStart = leaveStart > weekStart ? leaveStart : weekStart;
+    const overlapEnd = leaveEnd < weekEndFri ? leaveEnd : weekEndFri;
+    if (overlapStart <= overlapEnd) {
+      leaveDays += workingDaysInRange(overlapStart, overlapEnd);
+    }
+  }
+  return leaveDays * dailyCapacity;
 }
 
 /**
@@ -73,35 +126,44 @@ export async function simulateProposalImpact(
   const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
   const admin = createAdminClient();
 
-  const weekMonday = startOfCurrentWeekUtc();
-  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
+  const { data: proposalData } = await admin
+    .from("project_proposals")
+    .select("id, estimated_hours_per_week, estimated_hours, proposed_start_date, proposed_end_date")
+    .eq("id", proposalId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
-  const [
-    { data: proposalData },
-    { data: staffProfiles },
-    { data: availabilityRows },
-    { data: assignments },
-  ] = await Promise.all([
-    admin
-      .from("project_proposals")
-      .select(
-        "id, estimated_hours_per_week, estimated_hours, proposed_start_date, proposed_end_date"
-      )
-      .eq("id", proposalId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle(),
+  if (!proposalData) return null;
+  const proposal = proposalData as ProposalRow;
 
-    admin
-      .from("staff_profiles")
-      .select("id, weekly_capacity_hours, billable_rate, cost_rate")
-      .eq("tenant_id", tenantId),
+  const fallbackStart = startOfCurrentWeekUtc();
+  const fallbackEnd = addUtcDays(fallbackStart, clampedWeeks * 7 - 1);
+  const startMondayStr = proposal.proposed_start_date
+    ? toWeekMonday(proposal.proposed_start_date)
+    : toDateString(fallbackStart);
+  const endMondayStr = proposal.proposed_end_date
+    ? toWeekMonday(proposal.proposed_end_date)
+    : toWeekMonday(toDateString(fallbackEnd));
+  const startMonday = toUtcDate(startMondayStr);
+  const endMondayCandidate = toUtcDate(endMondayStr);
+  const endMonday = endMondayCandidate < startMonday ? startMonday : endMondayCandidate;
+  const totalWeeks =
+    Math.max(1, Math.floor((endMonday.getTime() - startMonday.getTime()) / 86400000 / 7) + 1);
+  const windowEnd = toUtcDate(weekEndFromWeekStart(toDateString(endMonday)));
+  const windowEndStr = toDateString(windowEnd);
 
+  const [{ data: staffProfiles }, { data: availabilityRows }, { data: assignments }, { data: leaveRows }] =
+    await Promise.all([
+      admin
+        .from("staff_profiles")
+        .select("id, weekly_capacity_hours, billable_rate, cost_rate")
+        .eq("tenant_id", tenantId),
     admin
       .from("staff_availability")
       .select("staff_id, week_start, available_hours")
       .eq("tenant_id", tenantId)
-      .gte("week_start", toDateString(weekMonday))
-      .lte("week_start", toDateString(forecastEnd)),
+      .gte("week_start", startMondayStr)
+      .lte("week_start", toDateString(endMonday)),
 
     admin
       .from("project_assignments")
@@ -109,11 +171,14 @@ export async function simulateProposalImpact(
         "project_id, staff_id, weekly_hours_allocated, week_start, projects(start_date, end_date, status)"
       )
       .eq("tenant_id", tenantId),
+    admin
+      .from("leave_requests")
+      .select("staff_id, start_date, end_date")
+      .eq("tenant_id", tenantId)
+      .eq("status", "approved")
+      .lte("start_date", windowEndStr)
+      .gte("end_date", startMondayStr),
   ]);
-
-  if (!proposalData) return null;
-
-  const proposal = proposalData as ProposalRow;
   const staff = (staffProfiles ?? []) as {
     id: string;
     weekly_capacity_hours: number;
@@ -146,18 +211,29 @@ export async function simulateProposalImpact(
 
   let totalCurrentUtilization = 0;
   let totalSimulatedUtilization = 0;
+  let currentOverloadWeek: number | null = null;
   let overloadWeek: number | null = null;
+  let currentCapacityRisk = false;
   let capacityRisk = false;
 
-  for (let i = 0; i < clampedWeeks; i++) {
-    const weekStart = addUtcDays(weekMonday, i * 7);
+  for (let i = 0; i < totalWeeks; i++) {
+    const weekStart = addUtcDays(startMonday, i * 7);
     const weekStartStr = toDateString(weekStart);
     const weekEndStr = weekEndFromWeekStart(weekStartStr);
+    const weekEnd = toUtcDate(weekEndStr);
 
     let totalCapacity = 0;
     for (const member of staff) {
       const override = availMap.get(member.id)?.get(weekStartStr);
-      totalCapacity += override !== undefined ? override : member.weekly_capacity_hours;
+      const weeklyCapacity = override !== undefined ? override : member.weekly_capacity_hours;
+      const leaveHours = leaveHoursInWeek(
+        (leaveRows ?? []) as LeaveRow[],
+        member.id,
+        weekStart,
+        weekEnd,
+        weeklyCapacity / 5
+      );
+      totalCapacity += Math.max(0, weeklyCapacity - leaveHours);
     }
 
     const totalProjectHours = filterEffectiveAssignmentsForWeek(activeAssignments, weekStartStr).reduce(
@@ -175,6 +251,13 @@ export async function simulateProposalImpact(
     totalCurrentUtilization += currentRate;
     totalSimulatedUtilization += simulatedRate;
 
+    if (currentRate > CAPACITY_RISK_THRESHOLD) {
+      currentCapacityRisk = true;
+      if (currentOverloadWeek === null) {
+        currentOverloadWeek = i + 1;
+      }
+    }
+
     if (simulatedRate > CAPACITY_RISK_THRESHOLD) {
       capacityRisk = true;
       if (overloadWeek === null) {
@@ -184,9 +267,9 @@ export async function simulateProposalImpact(
   }
 
   const avgCurrentUtilization =
-    Math.round((totalCurrentUtilization / clampedWeeks) * 1000) / 1000;
+    Math.round((totalCurrentUtilization / totalWeeks) * 1000) / 1000;
   const avgSimulatedUtilization =
-    Math.round((totalSimulatedUtilization / clampedWeeks) * 1000) / 1000;
+    Math.round((totalSimulatedUtilization / totalWeeks) * 1000) / 1000;
 
   const proposalEstimatedHours =
     proposal.estimated_hours !== null && proposal.estimated_hours !== undefined
@@ -232,6 +315,8 @@ export async function simulateProposalImpact(
     simulated_utilization: avgSimulatedUtilization,
     capacity_risk: capacityRisk,
     overload_week: overloadWeek,
+    current_capacity_risk: currentCapacityRisk,
+    current_overload_week: currentOverloadWeek,
     expected_revenue: expectedRevenue,
     expected_cost: expectedCost,
     expected_margin: expectedMargin,
