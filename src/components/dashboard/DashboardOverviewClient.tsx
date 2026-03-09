@@ -35,14 +35,15 @@ function LoadingSkeleton() {
   );
 }
 
-export default function DashboardOverviewClient({ weeks = 12 }: Props) {
+export default function DashboardOverviewClient({ weeks = 26 }: Props) {
   const [data, setData] = useState<ForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProposalIds, setSelectedProposalIds] = useState<string[]>([]);
+  const [horizonWeeks, setHorizonWeeks] = useState<number>(weeks);
 
   useEffect(() => {
-    fetch(`/api/forecast?weeks=${weeks}`)
+    fetch(`/api/forecast?weeks=${horizonWeeks}`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<ForecastResponse>;
@@ -58,7 +59,7 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
         setError(err instanceof Error ? err.message : "Failed to load forecast")
       )
       .finally(() => setLoading(false));
-  }, [weeks]);
+  }, [horizonWeeks]);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -81,16 +82,35 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
         hiringRecommendations={data.hiring_recommendations}
       />
 
+      <div className="flex items-center justify-end gap-2">
+        <label htmlFor="forecast-horizon" className="text-xs font-medium text-zinc-600">
+          Horizon
+        </label>
+        <select
+          id="forecast-horizon"
+          value={horizonWeeks}
+          onChange={(event) => {
+            setLoading(true);
+            setError(null);
+            setHorizonWeeks(Number(event.target.value));
+          }}
+          className="app-select w-auto px-2 py-1 text-xs text-zinc-800"
+        >
+          <option value={12}>12 weeks</option>
+          <option value={26}>26 weeks</option>
+        </select>
+      </div>
+
       {/* Row 2+: Chart + Heatmap (left) alongside Action Panel (right) */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
         {/* Left column: forecast chart + capacity heatmap stacked */}
-        <div className="flex-1 min-w-0 space-y-6">
-          <div className="app-card p-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 lg:h-full">
+          <div className="app-card p-4 lg:flex-1">
             <h2 className="mb-1 text-sm font-semibold text-zinc-700">
               Utilization Forecast
             </h2>
             <p className="mb-4 text-xs text-zinc-500">
-              Projected team utilization over the next {weeks} weeks across three demand scenarios
+              Projected team utilization over the next {horizonWeeks} weeks across three demand scenarios
             </p>
             <UtilizationForecastChart
               weeks={data.weeks}
@@ -99,19 +119,19 @@ export default function DashboardOverviewClient({ weeks = 12 }: Props) {
             />
           </div>
 
-          <div className="app-card p-4">
+          <div className="app-card p-4 lg:flex-1">
             <h2 className="mb-1 text-sm font-semibold text-zinc-700">
               Capacity Heatmap
             </h2>
             <p className="mb-4 text-xs text-zinc-500">
               Office utilization by week — green: healthy, amber: approaching capacity, red: overloaded
             </p>
-            <CapacityHeatmap weeks={weeks} />
+            <CapacityHeatmap weeks={horizonWeeks} />
           </div>
         </div>
 
         {/* Right column: action panel */}
-        <div className="w-full lg:w-80 lg:shrink-0">
+        <div className="w-full lg:w-80 lg:shrink-0 lg:self-stretch">
           <DashboardActionPanel
             weeks={data.weeks}
             hiringRecommendations={data.hiring_recommendations}

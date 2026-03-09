@@ -362,10 +362,14 @@ export function CapacityHeatmap({
             {filteredOffices.map((office, officeIdx) => (
               <tr
                 key={office.id}
-                className={officeIdx % 2 === 0 ? "bg-white" : "bg-zinc-50/50"}
+                className={officeIdx % 2 === 0 ? "bg-white" : "bg-zinc-50"}
               >
                 {/* Sticky office name */}
-                <td className="sticky left-0 z-10 border-r border-zinc-200 bg-inherit px-4 py-2 font-medium text-zinc-800">
+                <td
+                  className={`sticky left-0 z-10 border-r border-zinc-200 px-4 py-2 font-medium text-zinc-800 ${
+                    officeIdx % 2 === 0 ? "bg-white" : "bg-zinc-50"
+                  }`}
+                >
                   {office.name}
                 </td>
                 {data.weekStarts.map((ws) => {

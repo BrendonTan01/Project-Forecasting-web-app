@@ -315,7 +315,7 @@ export default async function DashboardPage({
             Visual summary for executives with key forecast, utilization, and capacity signals.
           </p>
         </div>
-        <DashboardOverviewClient weeks={12} />
+        <DashboardOverviewClient weeks={26} />
       </section>
 
       {/* Bid metrics for future proposals */}
