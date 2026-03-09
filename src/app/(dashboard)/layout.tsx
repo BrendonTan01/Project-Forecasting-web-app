@@ -2,6 +2,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { NavLink } from "@/components/ui/NavLink";
+import { hasPermission } from "@/lib/permissions";
+import type { UserRole } from "@/lib/types";
+
+type NavItem = {
+  href: string;
+  label: string;
+  canAccess: (role: UserRole) => boolean;
+};
 
 export default async function DashboardLayout({
   children,
@@ -14,21 +22,49 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const isAdmin = user.role === "administrator";
-  const navLinks = [
-    { href: "/page-index", label: "Page Index" },
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/projects", label: "Projects" },
-    { href: "/proposals", label: "Proposals" },
-    { href: "/staff", label: "Staff" },
-    { href: "/capacity-planner", label: "Capacity Planner" },
-    { href: "/forecast", label: "Forecast" },
-    { href: "/hiring-insights", label: "Hiring Insights" },
-    { href: "/time-entry", label: "Time Entry" },
-    { href: "/leave", label: "Leave" },
-    { href: "/alerts", label: "Alerts" },
-    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+  const navItems: NavItem[] = [
+    { href: "/page-index", label: "Page Index", canAccess: () => true },
+    { href: "/dashboard", label: "Dashboard", canAccess: () => true },
+    {
+      href: "/projects",
+      label: "Projects",
+      canAccess: (role) => hasPermission(role, "projects:manage"),
+    },
+    {
+      href: "/proposals",
+      label: "Proposals",
+      canAccess: (role) => hasPermission(role, "proposals:manage"),
+    },
+    { href: "/staff", label: "Staff", canAccess: () => true },
+    {
+      href: "/capacity-planner",
+      label: "Capacity Planner",
+      canAccess: (role) => hasPermission(role, "assignments:manage"),
+    },
+    {
+      href: "/forecast",
+      label: "Forecast",
+      canAccess: (role) => hasPermission(role, "financials:view"),
+    },
+    {
+      href: "/hiring-insights",
+      label: "Hiring Insights",
+      canAccess: (role) => hasPermission(role, "financials:view"),
+    },
+    {
+      href: "/time-entry",
+      label: "Time Entry",
+      canAccess: (role) => hasPermission(role, "time_entries:create"),
+    },
+    { href: "/leave", label: "Leave", canAccess: () => true },
+    { href: "/alerts", label: "Alerts", canAccess: () => true },
+    {
+      href: "/admin",
+      label: "Admin",
+      canAccess: (role) => hasPermission(role, "admin:access"),
+    },
   ];
+  const navLinks = navItems.filter((item) => item.canAccess(user.role));
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--background)" }}>
