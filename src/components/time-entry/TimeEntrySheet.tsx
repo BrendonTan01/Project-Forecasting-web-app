@@ -280,7 +280,7 @@ export function TimeEntrySheet({
                         {(row.entriesByDate[d] ?? []).map((entry) => (
                           <span key={entry.id} className="inline-flex items-center gap-1 font-medium">
                             {editingEntryId === entry.id ? (
-                              <span className="inline-flex items-center gap-2">
+                              <span className="flex flex-wrap items-center justify-center gap-2">
                                 <input
                                   type="number"
                                   step="0.25"
@@ -288,7 +288,7 @@ export function TimeEntrySheet({
                                   max="24"
                                   value={editHours}
                                   onChange={(e) => setEditHours(e.target.value)}
-                                  className="app-input w-20 px-2 py-1 text-sm"
+                                  className="app-input min-w-[7rem] px-2 py-1 text-sm"
                                 />
                                 <label className="inline-flex items-center gap-1 text-xs text-zinc-700">
                                   <input

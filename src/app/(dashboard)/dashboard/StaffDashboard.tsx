@@ -14,6 +14,7 @@ import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
+import StaffProjectQuickAddTime from "@/components/dashboard/StaffProjectQuickAddTime";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
@@ -229,12 +230,7 @@ export default async function StaffDashboard() {
                       />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href="/time-entry"
-                        className="app-btn app-btn-secondary focus-ring px-2.5 py-1 text-xs"
-                      >
-                        Add time
-                      </Link>
+                      <StaffProjectQuickAddTime projectId={project.id} />
                     </td>
                   </tr>
                 );
