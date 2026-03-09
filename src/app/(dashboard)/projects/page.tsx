@@ -101,7 +101,7 @@ export default async function ProjectsPage({
   const { data: assignmentsData } = projectIds.length
     ? await supabase
         .from("project_assignments")
-        .select("project_id, staff_id, week_start, weekly_hours_allocated, staff_profiles(name), projects(start_date, end_date, status)")
+        .select("project_id, staff_id, week_start, weekly_hours_allocated, staff_profiles(name, users(email)), projects(start_date, end_date, status)")
         .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
@@ -150,7 +150,9 @@ export default async function ProjectsPage({
       const profile = Array.isArray(row.staff_profiles)
         ? row.staff_profiles[0]
         : row.staff_profiles;
-      const name = profile?.name ?? "Unknown";
+      const relatedUser = (profile as { users?: { email?: string } | { email?: string }[] | null } | null)?.users;
+      const email = Array.isArray(relatedUser) ? relatedUser[0]?.email : relatedUser?.email;
+      const name = profile?.name ?? email ?? "Unknown";
       const hours = Number(row.weekly_hours_allocated);
       if (!acc[row.project_id]) acc[row.project_id] = [];
       acc[row.project_id].push({ name, hours });
