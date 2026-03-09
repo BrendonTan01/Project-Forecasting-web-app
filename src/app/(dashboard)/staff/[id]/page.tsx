@@ -2,11 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { hasPermission } from "@/lib/permissions";
 import { calculateUtilisation, formatUtilisation } from "@/lib/utils/utilisation";
 import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
+import StaffSkillsManager from "./StaffSkillsManager";
+import type { SkillItem } from "@/app/api/skills/route";
 
 function getPeriodDates(days: number) {
   const end = new Date();
@@ -23,6 +26,7 @@ export default async function StaffProfilePage({
   const { id } = await params;
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
+  const canManageSkills = hasPermission(user.role, "assignments:manage");
 
   const supabase = await createClient();
 
@@ -60,6 +64,25 @@ export default async function StaffProfilePage({
     .gte("end_date", new Date().toISOString().split("T")[0])
     .order("start_date")
     .limit(5);
+
+  const [{ data: allSkills }, { data: staffSkillRows }] = await Promise.all([
+    supabase
+      .from("skills")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId)
+      .order("name", { ascending: true }),
+    supabase
+      .from("staff_skills")
+      .select("skill_id")
+      .eq("tenant_id", user.tenantId)
+      .eq("staff_id", id),
+  ]);
+
+  const skillItems: SkillItem[] = (allSkills ?? []).map((row) => ({
+    id: row.id,
+    name: row.name ?? "",
+  }));
+  const assignedSkillIds = (staffSkillRows ?? []).map((row) => row.skill_id);
 
   const usersRaw = staffProfile.users as { email: string; offices?: { name: string; country: string; timezone: string } | { name: string; country: string; timezone: string }[] | null } | { email: string; offices?: unknown }[] | null;
   const u = Array.isArray(usersRaw) ? usersRaw[0] : usersRaw;
@@ -116,6 +139,16 @@ export default async function StaffProfilePage({
           <p className="text-sm font-medium text-zinc-500">Allocation</p>
           <p className="font-semibold text-zinc-900">{allocationSum}%</p>
         </div>
+      </div>
+
+      <div className="app-card p-4">
+        <h2 className="mb-4 font-semibold text-zinc-900">Skills</h2>
+        <StaffSkillsManager
+          staffId={id}
+          allSkills={skillItems}
+          initialSkillIds={assignedSkillIds}
+          canManage={canManageSkills}
+        />
       </div>
 
       <div className="app-card p-4">

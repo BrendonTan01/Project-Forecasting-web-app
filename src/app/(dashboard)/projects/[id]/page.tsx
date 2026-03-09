@@ -13,6 +13,8 @@ import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
+import ProjectSkillRequirementsManager from "./ProjectSkillRequirementsManager";
+import type { SkillItem } from "@/app/api/skills/route";
 
 function formatProjectDate(value: string | null): string {
   if (!value) return "-";
@@ -102,6 +104,28 @@ export default async function ProjectDetailPage({
     currentWeekStart
   ).filter((row) => row.weekly_hours_allocated > 0);
 
+  const [{ data: allSkills }, { data: skillRequirementRows }] = await Promise.all([
+    supabase
+      .from("skills")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId)
+      .order("name", { ascending: true }),
+    supabase
+      .from("project_skill_requirements")
+      .select("skill_id, required_hours_per_week")
+      .eq("tenant_id", user.tenantId)
+      .eq("project_id", id),
+  ]);
+
+  const skillItems: SkillItem[] = (allSkills ?? []).map((row) => ({
+    id: row.id,
+    name: row.name ?? "",
+  }));
+  const projectSkillRequirements = (skillRequirementRows ?? []).map((row) => ({
+    skill_id: row.skill_id,
+    required_hours_per_week: Number(row.required_hours_per_week ?? 0),
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -164,6 +188,18 @@ export default async function ProjectDetailPage({
             {actualHours > 0 ? `${((billableHours / actualHours) * 100).toFixed(0)}%` : "-"}
           </p>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-semibold text-zinc-900">Skill requirements</h2>
+        </div>
+        <ProjectSkillRequirementsManager
+          projectId={id}
+          allSkills={skillItems}
+          initialRequirements={projectSkillRequirements}
+          canManage={canManageProjects}
+        />
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">

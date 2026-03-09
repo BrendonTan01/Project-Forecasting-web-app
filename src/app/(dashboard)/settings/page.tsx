@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { hasPermission } from "@/lib/permissions";
 import { ProfileSettingsForm } from "./ProfileSettingsForm";
 
 export default async function SettingsPage() {
@@ -8,6 +10,7 @@ export default async function SettingsPage() {
   if (!user) redirect("/login");
 
   const supabase = await createClient();
+  const canManageSkills = hasPermission(user.role, "assignments:manage");
 
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
@@ -24,7 +27,17 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <h1 className="app-page-title">Profile settings</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="app-page-title">Profile settings</h1>
+        {canManageSkills && (
+          <Link
+            href="/settings/skills"
+            className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
+          >
+            Manage skill catalog
+          </Link>
+        )}
+      </div>
       <p className="app-page-subtitle">
         Update your profile. Your role cannot be changed.
       </p>
