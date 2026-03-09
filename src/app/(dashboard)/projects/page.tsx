@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { hasPermission } from "@/lib/permissions";
+import HealthStatusWithReason from "@/components/ui/HealthStatusWithReason";
 import {
   getProjectHealthStatus,
   getProjectHealthReason,
@@ -386,12 +387,11 @@ export default async function ProjectsPage({
                     {formatProjectDate(project.end_date)}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-sm font-medium ${getProjectHealthColour(health)}`}
-                      title={healthReason}
-                    >
-                      {getProjectHealthLabel(health)}
-                    </span>
+                    <HealthStatusWithReason
+                      label={getProjectHealthLabel(health)}
+                      colourClass={getProjectHealthColour(health)}
+                      reason={healthReason}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <span

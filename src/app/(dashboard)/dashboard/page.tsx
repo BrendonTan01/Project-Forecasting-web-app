@@ -24,6 +24,7 @@ import StaffDashboard from "./StaffDashboard";
 import WeeklyTrendChart from "./WeeklyTrendChart";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
 import DashboardOverviewClient from "@/components/dashboard/DashboardOverviewClient";
+import HealthStatusWithReason from "@/components/ui/HealthStatusWithReason";
 
 // Period: last 30 days for utilisation
 function getPeriodDates() {
@@ -479,11 +480,13 @@ export default async function DashboardPage({
                           recentWeeklyHoursByProject[project.id] ?? []
                         )}
                       </td>
-                      <td
-                        className={`px-3 py-2 text-right font-medium ${getProjectHealthColour(project.health)}`}
-                        title={project.healthReason}
-                      >
-                        {getProjectHealthLabel(project.health)}
+                      <td className="px-3 py-2 text-right font-medium">
+                        <HealthStatusWithReason
+                          label={getProjectHealthLabel(project.health)}
+                          colourClass={getProjectHealthColour(project.health)}
+                          reason={project.healthReason}
+                          align="right"
+                        />
                       </td>
                     </tr>
                   ))}

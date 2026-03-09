@@ -9,6 +9,7 @@ import {
   getProjectHealthColour,
   buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
+import HealthStatusWithReason from "@/components/ui/HealthStatusWithReason";
 import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
@@ -219,11 +220,13 @@ export default async function StaffDashboard() {
                         : "0%"}
                     </td>
                     <td className="px-4 py-3 text-right text-sm text-zinc-800">{progress}</td>
-                    <td
-                      className={`px-4 py-3 text-right text-sm font-medium ${getProjectHealthColour(health)}`}
-                      title={healthReason}
-                    >
-                      {getProjectHealthLabel(health)}
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <HealthStatusWithReason
+                        label={getProjectHealthLabel(health)}
+                        colourClass={getProjectHealthColour(health)}
+                        reason={healthReason}
+                        align="right"
+                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
