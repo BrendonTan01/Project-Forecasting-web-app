@@ -3,7 +3,7 @@
 -- with the pre-configured tenant_id and role via the admin client.
 
 CREATE TABLE IF NOT EXISTS public.invitations (
-  id            UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            UUID        PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id     UUID        NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   email         TEXT        NOT NULL,
   role          TEXT        NOT NULL DEFAULT 'staff'

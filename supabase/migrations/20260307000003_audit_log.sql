@@ -2,7 +2,7 @@
 -- Written via service-role client only; users cannot INSERT/UPDATE/DELETE.
 
 CREATE TABLE IF NOT EXISTS public.audit_log (
-  id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID        PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id   UUID        NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   user_id     UUID        REFERENCES public.users(id) ON DELETE SET NULL,
   action      TEXT        NOT NULL,   -- e.g. 'project.created', 'proposal.deleted'

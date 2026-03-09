@@ -1,7 +1,7 @@
 -- Staffing intelligence hiring predictions
 
 CREATE TABLE IF NOT EXISTS public.hiring_predictions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   week_start DATE NOT NULL,
   utilization_rate NUMERIC(6,3) NOT NULL CHECK (utilization_rate >= 0),

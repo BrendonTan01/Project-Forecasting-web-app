@@ -162,7 +162,7 @@ EXECUTE FUNCTION public.sync_project_assignment_tenant();
 -- -------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.staff_availability (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   staff_id UUID NOT NULL REFERENCES public.staff_profiles(id) ON DELETE CASCADE,
   week_start DATE NOT NULL,
@@ -178,7 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_staff_availability_staff
   ON public.staff_availability(staff_id);
 
 CREATE TABLE IF NOT EXISTS public.forecast_results (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   week_start DATE NOT NULL,
   total_capacity NUMERIC(10,2) NOT NULL CHECK (total_capacity >= 0),

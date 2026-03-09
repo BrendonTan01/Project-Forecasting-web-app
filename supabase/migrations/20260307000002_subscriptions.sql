@@ -2,7 +2,7 @@
 -- One row per tenant; managed by the Stripe webhook handler.
 
 CREATE TABLE IF NOT EXISTS public.subscriptions (
-  id                  UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                  UUID        PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id           UUID        NOT NULL UNIQUE REFERENCES public.tenants(id) ON DELETE CASCADE,
   stripe_customer_id  TEXT        UNIQUE,
   plan                TEXT        NOT NULL DEFAULT 'free'

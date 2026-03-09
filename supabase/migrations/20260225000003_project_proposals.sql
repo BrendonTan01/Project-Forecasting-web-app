@@ -2,7 +2,7 @@
 -- Separate from active delivery projects to preserve delivery reporting.
 
 CREATE TABLE public.project_proposals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   client_name TEXT,
