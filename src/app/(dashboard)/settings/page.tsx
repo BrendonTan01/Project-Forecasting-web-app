@@ -15,16 +15,21 @@ export default async function SettingsPage() {
   const canManageSkills = hasPermission(user.role, "assignments:manage");
   const canManageRates = user.role !== "staff";
 
-  const { data: staffProfile } = await supabase
+  const { data: staffProfileBase } = await supabase
     .from("staff_profiles")
-    .select(
-      user.role === "staff"
-        ? "id, job_title, weekly_capacity_hours"
-        : "id, job_title, weekly_capacity_hours, billable_rate, cost_rate"
-    )
+    .select("id, job_title, weekly_capacity_hours")
     .eq("user_id", user.id)
     .eq("tenant_id", user.tenantId)
     .single();
+
+  const { data: ownRates } = canManageRates
+    ? await supabase
+        .from("staff_profiles")
+        .select("billable_rate, cost_rate")
+        .eq("user_id", user.id)
+        .eq("tenant_id", user.tenantId)
+        .single()
+    : { data: null };
 
   const { data: offices } = await supabase
     .from("offices")
@@ -83,16 +88,16 @@ export default async function SettingsPage() {
 
       <ProfileSettingsForm
         initialData={{
-          job_title: staffProfile?.job_title ?? "",
+          job_title: staffProfileBase?.job_title ?? "",
           office_id: user.officeId ?? "",
-          weekly_capacity_hours: staffProfile?.weekly_capacity_hours ?? 40,
+          weekly_capacity_hours: staffProfileBase?.weekly_capacity_hours ?? 40,
           billable_rate:
             user.role !== "staff"
-              ? (staffProfile?.billable_rate as number | null)?.toString() ?? ""
+              ? (ownRates?.billable_rate as number | null)?.toString() ?? ""
               : "",
           cost_rate:
             user.role !== "staff"
-              ? (staffProfile?.cost_rate as number | null)?.toString() ?? ""
+              ? (ownRates?.cost_rate as number | null)?.toString() ?? ""
               : "",
         }}
         role={user.role}
