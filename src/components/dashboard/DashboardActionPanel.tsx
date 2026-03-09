@@ -12,6 +12,8 @@ interface Props {
   proposals: ForecastProposal[];
   selectedProposalIds: string[];
   onSelectedProposalIdsChange: (ids: string[]) => void;
+  showSkillShortages?: boolean;
+  showForecastDrivers?: boolean;
 }
 
 // ── Staffing Risks ────────────────────────────────────────────────────────────
@@ -225,7 +227,7 @@ function HiringRecommendationsSection({
 
 // ── Skill Shortages ───────────────────────────────────────────────────────────
 
-function SkillShortagesSection({
+export function SkillShortagesSection({
   shortages,
 }: {
   shortages: SkillShortage[];
@@ -296,7 +298,7 @@ const DRIVER_COLORS: Record<"proposal" | "leave" | "project", string> = {
   project: "#10b981",
 };
 
-function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
+export function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
   const drivers = aggregateDrivers(weeks);
 
   return (
@@ -338,6 +340,28 @@ function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
   );
 }
 
+export function DashboardDetailRail({
+  weeks,
+  skillShortages,
+}: {
+  weeks: ForecastWeek[];
+  skillShortages: SkillShortage[];
+}) {
+  return (
+    <div className="app-card p-4">
+      <h3 className="mb-3 text-sm font-semibold text-zinc-700">Detail Rail</h3>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded border border-zinc-100 p-3">
+          <SkillShortagesSection shortages={skillShortages} />
+        </div>
+        <div className="rounded border border-zinc-100 p-3">
+          <ForecastDriversSection weeks={weeks} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function DashboardActionPanel({
@@ -347,6 +371,8 @@ export function DashboardActionPanel({
   proposals,
   selectedProposalIds,
   onSelectedProposalIdsChange,
+  showSkillShortages = true,
+  showForecastDrivers = true,
 }: Props) {
   return (
     <div className="app-card flex h-full flex-col divide-y divide-zinc-100 p-4">
@@ -363,12 +389,16 @@ export function DashboardActionPanel({
       <div className="py-4">
         <HiringRecommendationsSection recommendations={hiringRecommendations} />
       </div>
-      <div className="py-4">
-        <SkillShortagesSection shortages={skillShortages} />
-      </div>
-      <div className="pt-4">
-        <ForecastDriversSection weeks={weeks} />
-      </div>
+      {showSkillShortages && (
+        <div className="py-4">
+          <SkillShortagesSection shortages={skillShortages} />
+        </div>
+      )}
+      {showForecastDrivers && (
+        <div className="pt-4">
+          <ForecastDriversSection weeks={weeks} />
+        </div>
+      )}
     </div>
   );
 }

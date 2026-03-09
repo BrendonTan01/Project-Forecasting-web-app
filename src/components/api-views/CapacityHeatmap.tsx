@@ -248,7 +248,6 @@ export function CapacityHeatmap({
   onCellClick,
 }: CapacityHeatmapProps) {
   const [internalData, setInternalData] = useState<CapacityHeatmapResponse | null>(null);
-  const [loading, setLoading] = useState(externalData == null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
 
@@ -257,12 +256,8 @@ export function CapacityHeatmap({
 
   useEffect(() => {
     if (externalData != null) {
-      setInternalData(null);
-      setLoading(false);
-      setError(null);
       return;
     }
-    setLoading(true);
     const params = new URLSearchParams({ weeks: String(weeks) });
     if (skillId) params.set("skillId", skillId);
     fetch(`/api/capacity-heatmap?${params.toString()}`)
@@ -277,8 +272,7 @@ export function CapacityHeatmap({
       .catch((err: unknown) => {
         setInternalData(null);
         setError(err instanceof Error ? err.message : "Failed to load heatmap");
-      })
-      .finally(() => setLoading(false));
+      });
   }, [weeks, skillId, externalData]);
 
   const handleCellClick = useCallback(
@@ -300,6 +294,8 @@ export function CapacityHeatmap({
   );
 
   const handleCloseModal = useCallback(() => setSelectedCell(null), []);
+
+  const loading = externalData == null && internalData == null && error == null;
 
   if (loading) {
     return (
@@ -339,8 +335,9 @@ export function CapacityHeatmap({
 
   return (
     <>
-      <div className="overflow-x-auto rounded border border-zinc-200">
-        <table className="w-full border-collapse text-sm">
+      <div className="rounded border border-zinc-200">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               {/* Sticky office column header */}
@@ -401,7 +398,8 @@ export function CapacityHeatmap({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
 
         {/* Legend */}
         <div className="flex items-center gap-4 border-t border-zinc-200 bg-zinc-50 px-4 py-2.5">

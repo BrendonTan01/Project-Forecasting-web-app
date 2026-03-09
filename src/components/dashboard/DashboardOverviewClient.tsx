@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { DashboardKpiCards } from "./DashboardKpiCards";
 import { UtilizationForecastChart } from "./UtilizationForecastChart";
-import { DashboardActionPanel } from "./DashboardActionPanel";
+import { DashboardActionPanel, DashboardDetailRail } from "./DashboardActionPanel";
 import { CapacityHeatmap } from "@/components/api-views/CapacityHeatmap";
 import type { ForecastResponse } from "./types";
 
@@ -139,9 +139,13 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
             proposals={data.proposals}
             selectedProposalIds={selectedProposalIds}
             onSelectedProposalIdsChange={setSelectedProposalIds}
+            showSkillShortages={false}
+            showForecastDrivers={false}
           />
         </div>
       </div>
+
+      <DashboardDetailRail weeks={data.weeks} skillShortages={data.skill_shortages} />
     </div>
   );
 }
