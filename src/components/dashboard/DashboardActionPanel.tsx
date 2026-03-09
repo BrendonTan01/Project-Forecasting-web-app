@@ -33,17 +33,51 @@ function formatHours(value: number): string {
   return Number.isInteger(value) ? `${value}h` : `${value.toFixed(1)}h`;
 }
 
-function getProposalEstimateLabel(proposal: ForecastProposal): string {
-  if (proposal.estimated_hours !== null && proposal.estimated_hours !== undefined) {
-    return formatHours(Number(proposal.estimated_hours));
-  }
+function toUtcDate(dateString: string): Date {
+  return new Date(`${dateString}T00:00:00Z`);
+}
+
+function toWeekMonday(dateString: string): string {
+  const date = toUtcDate(dateString);
+  const day = date.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setUTCDate(date.getUTCDate() + diff);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatShortDate(isoDate: string | null): string {
+  if (!isoDate) return "No start date";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${isoDate}T00:00:00Z`));
+}
+
+function countProposalWeeks(proposal: ForecastProposal): number | null {
+  if (!proposal.proposed_start_date || !proposal.proposed_end_date) return null;
+  const startMonday = toUtcDate(toWeekMonday(proposal.proposed_start_date));
+  const endMonday = toUtcDate(toWeekMonday(proposal.proposed_end_date));
+  if (endMonday < startMonday) return 1;
+  const diffDays = Math.floor((endMonday.getTime() - startMonday.getTime()) / 86400000);
+  return Math.floor(diffDays / 7) + 1;
+}
+
+function getProposalHoursPerWeekLabel(proposal: ForecastProposal): string {
   if (
     proposal.estimated_hours_per_week !== null &&
     proposal.estimated_hours_per_week !== undefined
   ) {
     return `${formatHours(Number(proposal.estimated_hours_per_week))}/wk`;
   }
-  return "No estimate";
+  if (proposal.estimated_hours === null || proposal.estimated_hours === undefined) {
+    return "No hrs/week";
+  }
+  const weekCount = countProposalWeeks(proposal);
+  if (!weekCount || weekCount <= 0) {
+    return "No hrs/week";
+  }
+  return `${formatHours(Number(proposal.estimated_hours) / weekCount)}/wk`;
 }
 
 function ProposalSelectionSection({
@@ -96,7 +130,9 @@ function ProposalSelectionSection({
                       {proposal.name}
                     </span>
                     <span className="text-zinc-500">
-                      {getProposalEstimateLabel(proposal)}
+                      {getProposalHoursPerWeekLabel(proposal)}
+                      {" · "}
+                      Start {formatShortDate(proposal.proposed_start_date)}
                       {!proposal.has_complete_dates ? " · missing dates" : ""}
                     </span>
                   </span>
