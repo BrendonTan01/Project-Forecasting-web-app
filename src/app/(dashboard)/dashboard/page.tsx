@@ -9,10 +9,8 @@ import {
   getProjectHealthStatus,
   getProjectHealthReason,
   getProjectHealthLabel,
-  getProjectHealthColour,
   buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
-import HealthStatusWithReason from "@/components/ui/HealthStatusWithReason";
 import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
@@ -26,9 +24,70 @@ function getPeriodDates() {
   return { start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] };
 }
 
-function safePercent(value: number): number {
-  if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, value));
+type SignalTone = "neutral" | "success" | "warning" | "danger";
+
+function signalBadgeClasses(tone: SignalTone): string {
+  const toneClasses: Record<SignalTone, string> = {
+    neutral: "border-zinc-200 bg-zinc-50 text-zinc-700",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    warning: "border-amber-200 bg-amber-50 text-amber-700",
+    danger: "border-red-200 bg-red-50 text-red-700",
+  };
+  return `inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${toneClasses[tone]}`;
+}
+
+function DeliverySignalIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 2v8l5 3" />
+      <circle cx="10" cy="10" r="7" />
+    </svg>
+  );
+}
+
+function FinancialSignalIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 3v14" />
+      <path d="M13.5 6.5c0-1.3-1.6-2.2-3.5-2.2S6.5 5.2 6.5 6.5 8.1 8.7 10 8.7s3.5 1 3.5 2.3S11.9 13.3 10 13.3s-3.5-1-3.5-2.3" />
+    </svg>
+  );
+}
+
+function SkillSignalIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9.5 3.5a3 3 0 0 0-3 3v2.2l-2.7 2.7a1 1 0 0 0 0 1.4l3.1 3.1a1 1 0 0 0 1.4 0l2.7-2.7h2.2a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3z" />
+      <circle cx="12.6" cy="7.4" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
 }
 
 export default async function DashboardPage({
@@ -112,6 +171,46 @@ export default async function DashboardPage({
     acc[row.project_id].push(row.staff_id);
     return acc;
   }, {});
+  const allAssignedStaffIds = Array.from(
+    new Set(
+      effectiveAssignments
+        .map((row) => row.staff_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+  const [{ data: projectSkillRequirementRows }, { data: staffSkillRows }] = activeProjectIds.length
+    ? await Promise.all([
+        supabase
+          .from("project_skill_requirements")
+          .select("project_id, skill_id")
+          .eq("tenant_id", user.tenantId)
+          .in("project_id", activeProjectIds),
+        allAssignedStaffIds.length > 0
+          ? supabase
+              .from("staff_skills")
+              .select("staff_id, skill_id")
+              .eq("tenant_id", user.tenantId)
+              .in("staff_id", allAssignedStaffIds)
+          : Promise.resolve({ data: [] as { staff_id: string; skill_id: string }[] }),
+      ])
+    : [
+        { data: [] as { project_id: string; skill_id: string }[] },
+        { data: [] as { staff_id: string; skill_id: string }[] },
+      ];
+  const requiredSkillsByProject = new Map<string, Set<string>>();
+  for (const row of projectSkillRequirementRows ?? []) {
+    if (!requiredSkillsByProject.has(row.project_id)) {
+      requiredSkillsByProject.set(row.project_id, new Set<string>());
+    }
+    requiredSkillsByProject.get(row.project_id)?.add(row.skill_id);
+  }
+  const staffSkillsByStaffId = new Map<string, Set<string>>();
+  for (const row of staffSkillRows ?? []) {
+    if (!staffSkillsByStaffId.has(row.staff_id)) {
+      staffSkillsByStaffId.set(row.staff_id, new Set<string>());
+    }
+    staffSkillsByStaffId.get(row.staff_id)?.add(row.skill_id);
+  }
 
   const allFinancialStaffIds = Array.from(
     new Set(
@@ -181,16 +280,13 @@ export default async function DashboardPage({
                 <tr className="border-b border-zinc-200 bg-zinc-50">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Client</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Progress</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Health</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Signals</th>
                 </tr>
               </thead>
               <tbody>
                 {(activeProjects ?? []).map((project) => {
                   const actualHours = actualHoursByProject[project.id] ?? 0;
                   const estimatedHours = Number(project.estimated_hours ?? 0);
-                  const deliveryProgress =
-                    estimatedHours > 0 ? (actualHours / estimatedHours) * 100 : null;
                   const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date, {
                     endDate: project.end_date,
                     recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
@@ -220,6 +316,47 @@ export default async function DashboardPage({
                     canViewFinancials && estimatedCostBudget && estimatedCostBudget > 0
                       ? (financialData.actualCost / estimatedCostBudget) * 100
                       : null;
+                  const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
+                  const assignedStaffSkills = new Set<string>();
+                  const assignedStaffIds = assignmentStaffByProject[project.id] ?? [];
+                  for (const staffId of assignedStaffIds) {
+                    const staffSkills = staffSkillsByStaffId.get(staffId);
+                    if (!staffSkills) continue;
+                    for (const skillId of staffSkills) assignedStaffSkills.add(skillId);
+                  }
+                  const missingRequiredSkills = Array.from(requiredSkills).filter(
+                    (skillId) => !assignedStaffSkills.has(skillId)
+                  );
+                  const missingSkillCount = missingRequiredSkills.length;
+                  const totalRequiredSkills = requiredSkills.size;
+                  const deliveryTone: SignalTone =
+                    health === "on_track" ? "success" : health === "at_risk" ? "warning" : health === "overrun" ? "danger" : "neutral";
+                  const financialTone: SignalTone =
+                    financialProgress === null
+                      ? "neutral"
+                      : financialProgress > 100
+                        ? "danger"
+                        : financialProgress >= 90
+                          ? "warning"
+                          : "success";
+                  const skillTone: SignalTone =
+                    totalRequiredSkills === 0
+                      ? "neutral"
+                      : missingSkillCount > 0
+                        ? "danger"
+                        : "success";
+                  const financialLabel =
+                    financialProgress === null
+                      ? "No forecast"
+                      : financialProgress > 100
+                        ? `Over ${financialProgress.toFixed(0)}%`
+                        : `${financialProgress.toFixed(0)}%`;
+                  const skillLabel =
+                    totalRequiredSkills === 0
+                      ? "No skill reqs"
+                      : missingSkillCount > 0
+                        ? `${missingSkillCount}/${totalRequiredSkills} missing`
+                        : "All covered";
 
                   return (
                     <tr key={project.id} className="border-b border-zinc-100 last:border-0">
@@ -229,62 +366,37 @@ export default async function DashboardPage({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-800">
-                        <div className="max-w-72 space-y-2">
-                          <div>
-                            <div className="mb-1 flex items-center justify-between text-xs">
-                              <span className="font-medium text-zinc-600">Delivery</span>
-                              <span className="flex items-center gap-1 tabular-nums text-zinc-700">
-                                <span
-                                  className={deliveryProgress !== null && deliveryProgress > 100 ? "font-semibold text-red-700" : ""}
-                                >
-                                  {deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}
-                                </span>
-                                {deliveryProgress !== null && deliveryProgress > 100 && (
-                                  <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                                    &gt;100%
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
-                              <div
-                                className={`h-full rounded-full ${deliveryProgress !== null && deliveryProgress > 100 ? "bg-red-600" : "bg-blue-600"}`}
-                                style={{ width: `${safePercent(deliveryProgress ?? 0)}%` }}
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <div className="mb-1 flex items-center justify-between text-xs">
-                              <span className="font-medium text-zinc-600">Financial</span>
-                              <span className="flex items-center gap-1 tabular-nums text-zinc-700">
-                                <span
-                                  className={financialProgress !== null && financialProgress > 100 ? "font-semibold text-red-700" : ""}
-                                >
-                                  {financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}
-                                </span>
-                                {financialProgress !== null && financialProgress > 100 && (
-                                  <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                                    &gt;100%
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
-                              <div
-                                className={`h-full rounded-full ${financialProgress !== null && financialProgress > 100 ? "bg-red-600" : "bg-emerald-600"}`}
-                                style={{ width: `${safePercent(financialProgress ?? 0)}%` }}
-                              />
-                            </div>
-                          </div>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={signalBadgeClasses(deliveryTone)} title={healthReason}>
+                            <DeliverySignalIcon />
+                            <span>Delivery: {getProjectHealthLabel(health)}</span>
+                          </span>
+                          <span
+                            className={signalBadgeClasses(financialTone)}
+                            title={
+                              financialProgress === null
+                                ? "Financial forecast is unavailable due to missing estimate/cost rates."
+                                : `Forecast completion spend is ${financialProgress.toFixed(1)}% of budget.`
+                            }
+                          >
+                            <FinancialSignalIcon />
+                            <span>Financial: {financialLabel}</span>
+                          </span>
+                          <span
+                            className={signalBadgeClasses(skillTone)}
+                            title={
+                              totalRequiredSkills === 0
+                                ? "No skill requirements configured for this project."
+                                : missingSkillCount > 0
+                                  ? `${missingSkillCount} required skill${missingSkillCount !== 1 ? "s are" : " is"} not covered by current assignments.`
+                                  : "All required skills are covered by current assignments."
+                            }
+                          >
+                            <SkillSignalIcon />
+                            <span>Skills: {skillLabel}</span>
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-medium">
-                        <HealthStatusWithReason
-                          label={getProjectHealthLabel(health)}
-                          colourClass={getProjectHealthColour(health)}
-                          reason={healthReason}
-                        />
                       </td>
                     </tr>
                   );
