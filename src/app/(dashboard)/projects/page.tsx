@@ -46,6 +46,12 @@ function parseOfficeScope(raw: unknown): string[] {
   return raw.filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
+function formatMissingSkillNames(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length <= 2) return names.join(", ");
+  return `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -181,6 +187,50 @@ export default async function ProjectsPage({
     },
     {}
   );
+  const allAssignedStaffIds = Array.from(
+    new Set(
+      effectiveAssignments
+        .map((row) => row.staff_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+  const [{ data: projectSkillRequirementRows }, { data: staffSkillRows }, { data: skillsRows }] =
+    projectIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("project_skill_requirements")
+            .select("project_id, skill_id")
+            .eq("tenant_id", user.tenantId)
+            .in("project_id", projectIds),
+          allAssignedStaffIds.length > 0
+            ? supabase
+                .from("staff_skills")
+                .select("staff_id, skill_id")
+                .eq("tenant_id", user.tenantId)
+                .in("staff_id", allAssignedStaffIds)
+            : Promise.resolve({ data: [] as { staff_id: string; skill_id: string }[] }),
+          supabase.from("skills").select("id, name").eq("tenant_id", user.tenantId),
+        ])
+      : [
+          { data: [] as { project_id: string; skill_id: string }[] },
+          { data: [] as { staff_id: string; skill_id: string }[] },
+          { data: [] as { id: string; name: string | null }[] },
+        ];
+  const requiredSkillsByProject = new Map<string, Set<string>>();
+  for (const row of projectSkillRequirementRows ?? []) {
+    if (!requiredSkillsByProject.has(row.project_id)) {
+      requiredSkillsByProject.set(row.project_id, new Set<string>());
+    }
+    requiredSkillsByProject.get(row.project_id)?.add(row.skill_id);
+  }
+  const skillsByStaffId = new Map<string, Set<string>>();
+  for (const row of staffSkillRows ?? []) {
+    if (!skillsByStaffId.has(row.staff_id)) {
+      skillsByStaffId.set(row.staff_id, new Set<string>());
+    }
+    skillsByStaffId.get(row.staff_id)?.add(row.skill_id);
+  }
+  const skillNameById = new Map((skillsRows ?? []).map((row) => [row.id, row.name ?? "Unknown skill"]));
 
   const financialByProject = canViewFinancials
     ? (actualHoursData ?? []).reduce<
@@ -351,6 +401,9 @@ export default async function ProjectsPage({
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Assigned Staff
               </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                Staff Skills
+              </th>
               {canViewFinancials && (
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                   Financial risk
@@ -381,6 +434,27 @@ export default async function ProjectsPage({
                   : officeScopeIds
                       .map((officeId) => officeNameById.get(officeId) ?? "Unknown office")
                       .join(", ");
+              const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
+              const coveredSkills = new Set<string>();
+              for (const staffId of assignmentStaffByProject[project.id] ?? []) {
+                const staffSkills = skillsByStaffId.get(staffId);
+                if (!staffSkills) continue;
+                for (const skillId of staffSkills) coveredSkills.add(skillId);
+              }
+              const missingSkillNames = Array.from(requiredSkills)
+                .filter((skillId) => !coveredSkills.has(skillId))
+                .map((skillId) => skillNameById.get(skillId) ?? "Unknown skill")
+                .sort((a, b) => a.localeCompare(b));
+              const requiredSkillCount = requiredSkills.size;
+              const coveredSkillCount = requiredSkillCount - missingSkillNames.length;
+              const staffSkillsSummary =
+                requiredSkillCount === 0
+                  ? "No requirements set"
+                  : missingSkillNames.length === 0
+                    ? `All covered (${coveredSkillCount}/${requiredSkillCount})`
+                    : `${coveredSkillCount}/${requiredSkillCount} covered · Missing: ${formatMissingSkillNames(
+                        missingSkillNames
+                      )}`;
 
               return (
                 <tr key={project.id} className="border-b border-zinc-100">
@@ -431,6 +505,7 @@ export default async function ProjectsPage({
                           .join(", ")
                       : "—"}
                   </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">{staffSkillsSummary}</td>
                   {canViewFinancials && (
                     <td className="px-4 py-3 text-sm text-zinc-700">
                       {projectFinancialRisk[project.id]?.variance === null ? (
