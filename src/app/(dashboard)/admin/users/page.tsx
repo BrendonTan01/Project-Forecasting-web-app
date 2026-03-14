@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { Badge } from "@/components/ui/primitives";
+import Link from "next/link";
 import InviteUserForm from "./InviteUserForm";
 import UserRoleSelect from "./UserRoleSelect";
 import { revokeInvitation } from "@/app/(auth)/invite/[token]/actions";
