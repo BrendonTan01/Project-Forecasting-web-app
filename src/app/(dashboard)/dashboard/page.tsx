@@ -36,6 +36,11 @@ function signalBadgeClasses(tone: SignalTone): string {
   return `inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${toneClasses[tone]}`;
 }
 
+function safePercent(value: number): number {
+  if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
 function DeliverySignalIcon() {
   return (
     <svg
@@ -280,13 +285,16 @@ export default async function DashboardPage({
                 <tr className="border-b border-zinc-200 bg-zinc-50">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Client</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Signals</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Progress</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Skills</th>
                 </tr>
               </thead>
               <tbody>
                 {(activeProjects ?? []).map((project) => {
                   const actualHours = actualHoursByProject[project.id] ?? 0;
                   const estimatedHours = Number(project.estimated_hours ?? 0);
+                  const deliveryProgress =
+                    estimatedHours > 0 ? (actualHours / estimatedHours) * 100 : null;
                   const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date, {
                     endDate: project.end_date,
                     recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
@@ -344,12 +352,6 @@ export default async function DashboardPage({
                       : missingSkillCount > 0
                         ? "danger"
                         : "success";
-                  const financialLabel =
-                    financialProgress === null
-                      ? "No forecast"
-                      : financialProgress > 100
-                        ? `Over ${financialProgress.toFixed(0)}%`
-                        : `${financialProgress.toFixed(0)}%`;
                   const skillLabel =
                     totalRequiredSkills === 0
                       ? "No skill reqs"
@@ -365,11 +367,61 @@ export default async function DashboardPage({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-800">
+                        <div className="max-w-72 space-y-2">
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-medium text-zinc-600">Delivery</span>
+                              <span className="flex items-center gap-1 tabular-nums text-zinc-700">
+                                <span
+                                  className={deliveryProgress !== null && deliveryProgress > 100 ? "font-semibold text-red-700" : ""}
+                                >
+                                  {deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}
+                                </span>
+                                {deliveryProgress !== null && deliveryProgress > 100 && (
+                                  <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                    &gt;100%
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
+                              <div
+                                className={`h-full rounded-full ${deliveryProgress !== null && deliveryProgress > 100 ? "bg-red-600" : "bg-blue-600"}`}
+                                style={{ width: `${safePercent(deliveryProgress ?? 0)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-medium text-zinc-600">Financial</span>
+                              <span className="flex items-center gap-1 tabular-nums text-zinc-700">
+                                <span
+                                  className={financialProgress !== null && financialProgress > 100 ? "font-semibold text-red-700" : ""}
+                                >
+                                  {financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}
+                                </span>
+                                {financialProgress !== null && financialProgress > 100 && (
+                                  <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                    &gt;100%
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
+                              <div
+                                className={`h-full rounded-full ${financialProgress !== null && financialProgress > 100 ? "bg-red-600" : "bg-emerald-600"}`}
+                                style={{ width: `${safePercent(financialProgress ?? 0)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={signalBadgeClasses(deliveryTone)} title={healthReason}>
                             <DeliverySignalIcon />
-                            <span>Delivery: {getProjectHealthLabel(health)}</span>
+                            <span>{getProjectHealthLabel(health)}</span>
                           </span>
                           <span
                             className={signalBadgeClasses(financialTone)}
@@ -380,7 +432,7 @@ export default async function DashboardPage({
                             }
                           >
                             <FinancialSignalIcon />
-                            <span>Financial: {financialLabel}</span>
+                            <span>Risk</span>
                           </span>
                           <span
                             className={signalBadgeClasses(skillTone)}
@@ -393,7 +445,7 @@ export default async function DashboardPage({
                             }
                           >
                             <SkillSignalIcon />
-                            <span>Skills: {skillLabel}</span>
+                            <span>{skillLabel}</span>
                           </span>
                         </div>
                       </td>
