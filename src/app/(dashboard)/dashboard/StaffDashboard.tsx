@@ -23,6 +23,11 @@ const statusConfig: Record<string, { label: string; colour: string }> = {
   cancelled: { label: "Cancelled", colour: "bg-zinc-100 text-zinc-500" },
 };
 
+function clampPercent(value: number): number {
+  if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
 type AssignmentRow = {
   staff_id: string;
   project_id: string;
@@ -150,6 +155,7 @@ export default async function StaffDashboard() {
       return acc;
     }, {})
   ).sort((a, b) => a.name.localeCompare(b.name));
+  const activeProjects = projects.filter((project) => project.status === "active");
 
   return (
     <div className="space-y-6">
@@ -168,8 +174,15 @@ export default async function StaffDashboard() {
         </Link>
       </div>
 
-      {projects.length > 0 ? (
-        <div className="app-card overflow-hidden">
+      {activeProjects.length > 0 ? (
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">Current Projects</h2>
+            <p className="text-sm text-zinc-600">
+              Active assignments with progress against estimated hours.
+            </p>
+          </div>
+          <div className="app-card overflow-hidden">
           <table className="app-table min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
@@ -182,7 +195,7 @@ export default async function StaffDashboard() {
               </tr>
             </thead>
             <tbody>
-              {projects.map((project) => {
+              {activeProjects.map((project) => {
                 const health = getProjectHealthStatus(project.actualHours, project.estimatedHours, project.startDate, {
                   endDate: project.endDate,
                   recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
@@ -196,9 +209,9 @@ export default async function StaffDashboard() {
                     recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
                   }
                 );
-                const progress = project.estimatedHours && project.estimatedHours > 0
-                  ? `${project.actualHours}h / ${project.estimatedHours}h (${((project.actualHours / project.estimatedHours) * 100).toFixed(1)}%)`
-                  : `${project.actualHours}h logged`;
+                const progressPercent = project.estimatedHours && project.estimatedHours > 0
+                  ? (project.actualHours / project.estimatedHours) * 100
+                  : null;
                 const statusBadge = statusConfig[project.status] ?? {
                   label: project.status,
                   colour: "bg-zinc-100 text-zinc-500",
@@ -220,7 +233,25 @@ export default async function StaffDashboard() {
                         ? `${((project.weeklyHoursAllocated / weeklyCapacity) * 100).toFixed(0)}%`
                         : "0%"}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm text-zinc-800">{progress}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-800">
+                      <div className="ml-auto w-44">
+                        <div className="mb-1 flex items-center justify-between text-xs">
+                          <span className="font-medium text-zinc-600">Delivery</span>
+                          <span className="tabular-nums text-zinc-700">
+                            {progressPercent === null ? "No estimate" : `${progressPercent.toFixed(0)}%`}
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                          <div
+                            className={`h-full rounded-full ${progressPercent !== null && progressPercent > 100 ? "bg-red-600" : "bg-blue-600"}`}
+                            style={{ width: `${clampPercent(progressPercent ?? 0)}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-right text-[11px] text-zinc-500">
+                          {project.actualHours}h / {project.estimatedHours ?? "?"}h
+                        </p>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right text-sm font-medium">
                       <HealthStatusWithReason
                         label={getProjectHealthLabel(health)}
@@ -238,10 +269,11 @@ export default async function StaffDashboard() {
             </tbody>
           </table>
         </div>
+        </div>
       ) : (
         <div className="app-card p-6">
           <p className="text-sm text-zinc-700">
-            You are not currently assigned to any projects.
+            You are not currently assigned to any active projects.
           </p>
           <Link
             href="/time-entry"
