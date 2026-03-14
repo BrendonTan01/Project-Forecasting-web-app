@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { FeasibilityResult, WeekFeasibility } from "./feasibility-actions";
 import type { SimulationResult } from "./ProposalImpactPanel";
@@ -44,6 +44,21 @@ function hasSimulationUtilizationData(
     data.current_utilization !== undefined &&
     data.simulated_utilization !== undefined
   );
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function buildEqualSplit(ids: string[]): Record<string, number> {
+  if (ids.length === 0) return {};
+  const base = round1(100 / ids.length);
+  const split: Record<string, number> = {};
+  for (const id of ids) split[id] = base;
+  const total = Object.values(split).reduce((sum, value) => sum + value, 0);
+  const remainder = round1(100 - total);
+  split[ids[ids.length - 1]] = round1(split[ids[ids.length - 1]] + remainder);
+  return split;
 }
 
 function OverallBadge({ percent }: { percent: number }) {
@@ -188,6 +203,23 @@ export function FeasibilityAnalysis({
   const baselineCapacityRisk = simulationWithRates?.current_capacity_risk ?? false;
   const proposalIntroducesRisk = !baselineCapacityRisk && simulationCapacityRisk;
   const riskUnchanged = baselineCapacityRisk === simulationCapacityRisk;
+  const [selectedProposedStaffIds, setSelectedProposedStaffIds] = useState<Set<string>>(new Set());
+  const [splitPercentByStaff, setSplitPercentByStaff] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!feasResult) {
+      setSelectedProposedStaffIds(new Set());
+      setSplitPercentByStaff({});
+      return;
+    }
+    const validIds = new Set(feasResult.staffCapacityCandidates.map((candidate) => candidate.id));
+    setSelectedProposedStaffIds((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
+      if (next.size === prev.size) return prev;
+      setSplitPercentByStaff(buildEqualSplit(Array.from(next)));
+      return next;
+    });
+  }, [feasResult]);
 
   if (isPending) {
     return (
@@ -211,6 +243,41 @@ export function FeasibilityAnalysis({
         Run a simulation to view staffing feasibility.
       </div>
     );
+  }
+
+  const candidateById = new Map(
+    feasResult.staffCapacityCandidates.map((candidate) => [candidate.id, candidate] as const)
+  );
+  const selectedStaff = Array.from(selectedProposedStaffIds)
+    .map((id) => candidateById.get(id))
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const splitTotal = selectedStaff.reduce(
+    (sum, candidate) => sum + (splitPercentByStaff[candidate.id] ?? 0),
+    0
+  );
+  const splitIsValid = Math.abs(splitTotal - 100) < 0.1;
+
+  function toggleProposedStaff(id: string) {
+    const next = new Set(selectedProposedStaffIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    const ids = Array.from(next).sort();
+    setSelectedProposedStaffIds(next);
+    setSplitPercentByStaff(buildEqualSplit(ids));
+  }
+
+  function handleSplitChange(id: string, value: string) {
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) return;
+    const clamped = Math.max(0, Math.min(100, parsed));
+    setSplitPercentByStaff((prev) => ({
+      ...prev,
+      [id]: round1(clamped),
+    }));
   }
 
   return (
@@ -279,6 +346,132 @@ export function FeasibilityAnalysis({
         )}
       </div>
 
+      <div className="app-card p-4">
+        <h3 className="text-sm font-semibold text-zinc-900">Proposed staffing plan</h3>
+        <p className="mt-1 text-xs text-zinc-500">
+          Select staff to draft a delivery team. Split defaults to equal shares and can be adjusted manually.
+        </p>
+
+        {feasResult.staffCapacityCandidates.length > 0 ? (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {feasResult.staffCapacityCandidates.map((candidate) => {
+                const active = selectedProposedStaffIds.has(candidate.id);
+                return (
+                  <button
+                    key={candidate.id}
+                    type="button"
+                    onClick={() => toggleProposedStaff(candidate.id)}
+                    className={`focus-ring rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      active
+                        ? "border-zinc-900 bg-zinc-900 text-white"
+                        : "border-zinc-300 text-zinc-600 hover:border-zinc-500"
+                    }`}
+                    title={`${candidate.role} · ${candidate.office}`}
+                  >
+                    {candidate.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedStaff.length > 0 ? (
+              <div className="mt-4 overflow-x-auto">
+                <table className="app-table min-w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-200 bg-zinc-50">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-700">Staff</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Available (no overalloc)</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Split %</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Assigned hours</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedStaff.map((candidate) => {
+                      const splitPct = splitPercentByStaff[candidate.id] ?? 0;
+                      const assignedHours = round1((feasResult.totalRequired * splitPct) / 100);
+                      const spareHours = round1(candidate.availableHoursWithoutOverallocation - assignedHours);
+                      const canCover = spareHours >= 0;
+                      return (
+                        <tr key={candidate.id} className="border-b border-zinc-100 last:border-0">
+                          <td className="px-3 py-2 text-sm text-zinc-800">
+                            <p className="font-medium">{candidate.name}</p>
+                            <p className="text-xs text-zinc-500">{candidate.role} · {candidate.office}</p>
+                          </td>
+                          <td className="px-3 py-2 text-right text-sm text-zinc-800">
+                            {candidate.availableHoursWithoutOverallocation}h
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.5}
+                              value={splitPct}
+                              onChange={(e) => handleSplitChange(candidate.id, e.target.value)}
+                              className="app-input w-20 px-2 py-1 text-right text-sm text-zinc-800"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right text-sm text-zinc-800">{assignedHours}h</td>
+                          <td className="px-3 py-2 text-sm">
+                            <span className={canCover ? "text-emerald-700" : "text-red-700"}>
+                              {canCover ? `Can cover (+${spareHours}h)` : `Over by ${Math.abs(spareHours)}h`}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {(() => {
+                  const hasOverallocationRisk = selectedStaff.some((candidate) => {
+                    const splitPct = splitPercentByStaff[candidate.id] ?? 0;
+                    const assignedHours = round1((feasResult.totalRequired * splitPct) / 100);
+                    return candidate.availableHoursWithoutOverallocation - assignedHours < 0;
+                  });
+                  const planIsReady = splitIsValid && !hasOverallocationRisk;
+                  return (
+                    <div
+                      className={`mt-2 rounded-md px-3 py-2 text-xs ${
+                        planIsReady
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-amber-50 text-amber-800"
+                      }`}
+                    >
+                      {planIsReady
+                        ? "Plan is valid: split totals 100% and selected staff can cover assigned hours without overallocation."
+                        : !splitIsValid
+                          ? "Plan is invalid: split must total exactly 100% before this staffing plan can be considered ready."
+                          : "Plan needs adjustment: one or more selected staff are overallocated for the assigned hours."}
+                    </div>
+                  );
+                })()}
+                <div className="mt-2 flex items-center justify-between text-xs text-zinc-500">
+                  <p>
+                    Split total: <span className={splitIsValid ? "text-emerald-700" : "text-red-700"}>{round1(splitTotal)}%</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)))}
+                    className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs"
+                  >
+                    Rebalance equally
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Capacity check uses each staff member&apos;s available hours in this proposal window without overallocation.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-zinc-600">Pick one or more staff to build a proposed plan.</p>
+            )}
+          </>
+        ) : (
+          <p className="mt-3 text-sm text-zinc-600">No staff are available in the current scope.</p>
+        )}
+      </div>
+
       {feasResult.comparisons && feasResult.comparisons.length > 0 && (
         <div className="app-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-zinc-900">Scenario comparison</h3>
@@ -309,6 +502,7 @@ export function FeasibilityAnalysis({
             <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" /> ≥90%</span>
             <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" /> 50–89%</span>
             <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-400" /> &lt;50%</span>
+            <span className="ml-2 inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> dot = at least one in-scope staff over 100% that week</span>
           </p>
 
           {simulationWithRates && (

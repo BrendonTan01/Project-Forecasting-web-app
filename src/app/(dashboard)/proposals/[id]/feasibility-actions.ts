@@ -52,6 +52,13 @@ export type FeasibilityResult = {
     role: string;
     office: string;
   }>;
+  staffCapacityCandidates: Array<{
+    id: string;
+    name: string;
+    role: string;
+    office: string;
+    availableHoursWithoutOverallocation: number;
+  }>;
   officeNames: string[];
   comparisons?: FeasibilityComparison[];
   error?: never;
@@ -323,6 +330,7 @@ function computeFeasibilityCore(
 
   const weeks: WeekFeasibility[] = [];
   const staffUsedById = new Set<string>();
+  const freeAt100ByStaff = new Map<string, number>();
   let rawTotalAchievable = 0;
   let rawTotalOverallocatedHours = 0;
   const firstMonday = toUtcDate(toWeekMonday(baseData.proposal.proposed_start_date));
@@ -333,6 +341,9 @@ function computeFeasibilityCore(
       availabilityByStaffWeek.set(row.staff_id, new Map());
     }
     availabilityByStaffWeek.get(row.staff_id)!.set(row.week_start, row.available_hours);
+  }
+  for (const staff of baseData.staff) {
+    freeAt100ByStaff.set(staff.id, 0);
   }
 
   while (weekCursor <= propEnd) {
@@ -381,6 +392,7 @@ function computeFeasibilityCore(
       const freeAt100 = Math.max(0, effectiveCapacity - committedHours);
       const maxAllowedHours = effectiveCapacity * (allowOverallocation ? safeOverallocationPct / 100 : 1);
       const freeAtCap = Math.max(0, maxAllowedHours - committedHours);
+      freeAt100ByStaff.set(sp.id, (freeAt100ByStaff.get(sp.id) ?? 0) + freeAt100);
 
       const staffLabel = sp.email;
       staffLabelsById.set(sp.id, staffLabel);
@@ -466,6 +478,15 @@ function computeFeasibilityCore(
           office: meta?.office ?? "No office",
         };
       })
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    staffCapacityCandidates: baseData.staff
+      .map((staff) => ({
+        id: staff.id,
+        name: staff.email,
+        role: staff.role,
+        office: staff.office,
+        availableHoursWithoutOverallocation: round1(freeAt100ByStaff.get(staff.id) ?? 0),
+      }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
