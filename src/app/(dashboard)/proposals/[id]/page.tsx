@@ -5,7 +5,6 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { DeleteProposalButton } from "./DeleteProposalButton";
 import { ProposalSimulationSection } from "./ProposalSimulationSection";
-import { computeFeasibility } from "./feasibility-actions";
 import { normalizeProposalOptimizationMode } from "../optimization-modes";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
@@ -63,9 +62,6 @@ export default async function ProposalDetailPage({
 
   const officeScope = proposal.office_scope as string[] | null;
   const optimizationMode = normalizeProposalOptimizationMode(proposal.optimization_mode);
-
-  // Run initial feasibility computation server-side
-  const initialFeasibility = await computeFeasibility(id, officeScope, false, 120, optimizationMode);
 
   return (
     <div className="space-y-6">
@@ -141,7 +137,7 @@ export default async function ProposalDetailPage({
         allOffices={offices ?? []}
         initialOfficeScope={officeScope}
         initialOptimizationMode={optimizationMode}
-        initialResult={initialFeasibility}
+        initialResult={null}
       />
 
       {/* Notes */}
