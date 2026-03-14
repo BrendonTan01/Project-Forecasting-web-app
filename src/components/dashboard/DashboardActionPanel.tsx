@@ -41,6 +41,18 @@ function formatHoursWithPeople(value: number, planningHoursPerPersonPerWeek: num
   return `${formatHours(value)} (${people.toFixed(2)} people)`;
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-semibold leading-none text-zinc-500"
+      title={text}
+      aria-label={text}
+    >
+      i
+    </span>
+  );
+}
+
 function toUtcDate(dateString: string): Date {
   return new Date(`${dateString}T00:00:00Z`);
 }
@@ -169,8 +181,9 @@ function StaffingRisksSection({
 
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Top Staffing Risks
+      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <span>Top Staffing Risks</span>
+        <InfoTooltip text="Overall weekly capacity risk. This ranks weeks by total staffing gap across all skills combined." />
       </h3>
       <p className="mb-2 text-[11px] text-zinc-500">
         Weeks with the largest total staffing gap across all skills.
@@ -216,8 +229,9 @@ function HiringRecommendationsSection({
 
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Top Hiring Recommendations (by Skill)
+      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <span>Top Hiring Recommendations (by Skill)</span>
+        <InfoTooltip text="Skill-specific signal. Recommendations can appear even when no overall staffing gap exists, if demand is concentrated in specific skills." />
       </h3>
       <p className="mb-2 text-[11px] text-zinc-500">
         Suggested hires grouped by skill shortage in the forecast window.
