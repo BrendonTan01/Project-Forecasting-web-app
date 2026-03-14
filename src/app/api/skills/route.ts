@@ -12,6 +12,8 @@ export type SkillItem = {
   name: string;
   staff_count?: number;
   project_count?: number;
+  staff?: Array<{ id: string; label: string }>;
+  projects?: Array<{ id: string; label: string }>;
 };
 
 export type SkillsListResponse = {
@@ -205,10 +207,13 @@ async function loadTenantSkills(tenantId: string): Promise<SkillItem[]> {
         .select("id, name")
         .eq("tenant_id", tenantId)
         .order("name", { ascending: true }),
-      admin.from("staff_skills").select("skill_id").eq("tenant_id", tenantId),
+      admin
+        .from("staff_skills")
+        .select("skill_id, staff_id, staff_profiles(id, users(email))")
+        .eq("tenant_id", tenantId),
       admin
         .from("project_skill_requirements")
-        .select("skill_id")
+        .select("skill_id, project_id, projects(id, name)")
         .eq("tenant_id", tenantId),
   ]);
 
@@ -222,28 +227,47 @@ async function loadTenantSkills(tenantId: string): Promise<SkillItem[]> {
     throw new Error(projectRequirementError.message);
   }
 
-  const staffCountBySkill = new Map<string, number>();
+  const staffBySkill = new Map<string, Map<string, string>>();
   for (const row of staffSkillRows ?? []) {
-    staffCountBySkill.set(
-      row.skill_id,
-      (staffCountBySkill.get(row.skill_id) ?? 0) + 1
-    );
+    const perSkill = staffBySkill.get(row.skill_id) ?? new Map<string, string>();
+    if (!perSkill.has(row.staff_id)) {
+      perSkill.set(
+        row.staff_id,
+        normalizeRelatedEmail(row.staff_profiles) ?? `Staff ${row.staff_id}`
+      );
+    }
+    staffBySkill.set(row.skill_id, perSkill);
   }
 
-  const projectCountBySkill = new Map<string, number>();
+  const projectsBySkill = new Map<string, Map<string, string>>();
   for (const row of projectRequirementRows ?? []) {
-    projectCountBySkill.set(
-      row.skill_id,
-      (projectCountBySkill.get(row.skill_id) ?? 0) + 1
-    );
+    const perSkill =
+      projectsBySkill.get(row.skill_id) ?? new Map<string, string>();
+    if (!perSkill.has(row.project_id)) {
+      perSkill.set(
+        row.project_id,
+        normalizeRelatedProjectName(row.projects) ?? `Project ${row.project_id}`
+      );
+    }
+    projectsBySkill.set(row.skill_id, perSkill);
   }
 
-  return (skillRows ?? []).map((row) => ({
-    id: row.id,
-    name: row.name ?? "",
-    staff_count: staffCountBySkill.get(row.id) ?? 0,
-    project_count: projectCountBySkill.get(row.id) ?? 0,
-  }));
+  return (skillRows ?? []).map((row) => {
+    const staff = Array.from(staffBySkill.get(row.id)?.entries() ?? []).map(
+      ([id, label]) => ({ id, label })
+    );
+    const projects = Array.from(
+      projectsBySkill.get(row.id)?.entries() ?? []
+    ).map(([id, label]) => ({ id, label }));
+    return {
+      id: row.id,
+      name: row.name ?? "",
+      staff_count: staff.length,
+      project_count: projects.length,
+      staff,
+      projects,
+    };
+  });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {

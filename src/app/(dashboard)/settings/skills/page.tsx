@@ -6,6 +6,33 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import SkillsCatalogManager from "./SkillsCatalogManager";
 import type { SkillItem } from "@/app/api/skills/route";
 
+function normalizeRelatedEmail(
+  relation:
+    | { users?: { email?: string | null } | { email?: string | null }[] | null }
+    | { users?: { email?: string | null } | { email?: string | null }[] | null }[]
+    | null
+): string | null {
+  const profile = Array.isArray(relation) ? relation[0] : relation;
+  if (!profile) return null;
+  const users = profile.users;
+  const user = Array.isArray(users) ? users[0] : users;
+  return typeof user?.email === "string" && user.email.trim().length > 0
+    ? user.email
+    : null;
+}
+
+function normalizeRelatedProjectName(
+  relation:
+    | { name?: string | null }
+    | { name?: string | null }[]
+    | null
+): string | null {
+  const project = Array.isArray(relation) ? relation[0] : relation;
+  return typeof project?.name === "string" && project.name.trim().length > 0
+    ? project.name
+    : null;
+}
+
 export default async function SkillsSettingsPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) redirect("/login");
@@ -32,36 +59,55 @@ export default async function SkillsSettingsPage() {
         .order("name", { ascending: true }),
       admin
         .from("staff_skills")
-        .select("skill_id")
+        .select("skill_id, staff_id, staff_profiles(id, users(email))")
         .eq("tenant_id", user.tenantId),
       admin
         .from("project_skill_requirements")
-        .select("skill_id")
+        .select("skill_id, project_id, projects(id, name)")
         .eq("tenant_id", user.tenantId),
     ]);
 
-  const staffCountBySkill = new Map<string, number>();
+  const staffBySkill = new Map<string, Map<string, string>>();
   for (const row of staffSkillRows ?? []) {
-    staffCountBySkill.set(
-      row.skill_id,
-      (staffCountBySkill.get(row.skill_id) ?? 0) + 1
-    );
+    const perSkill = staffBySkill.get(row.skill_id) ?? new Map<string, string>();
+    if (!perSkill.has(row.staff_id)) {
+      perSkill.set(
+        row.staff_id,
+        normalizeRelatedEmail(row.staff_profiles) ?? `Staff ${row.staff_id}`
+      );
+    }
+    staffBySkill.set(row.skill_id, perSkill);
   }
 
-  const projectCountBySkill = new Map<string, number>();
+  const projectsBySkill = new Map<string, Map<string, string>>();
   for (const row of projectRequirementRows ?? []) {
-    projectCountBySkill.set(
-      row.skill_id,
-      (projectCountBySkill.get(row.skill_id) ?? 0) + 1
-    );
+    const perSkill =
+      projectsBySkill.get(row.skill_id) ?? new Map<string, string>();
+    if (!perSkill.has(row.project_id)) {
+      perSkill.set(
+        row.project_id,
+        normalizeRelatedProjectName(row.projects) ?? `Project ${row.project_id}`
+      );
+    }
+    projectsBySkill.set(row.skill_id, perSkill);
   }
 
-  const skills: SkillItem[] = (skillRows ?? []).map((row) => ({
-    id: row.id,
-    name: row.name ?? "",
-    staff_count: staffCountBySkill.get(row.id) ?? 0,
-    project_count: projectCountBySkill.get(row.id) ?? 0,
-  }));
+  const skills: SkillItem[] = (skillRows ?? []).map((row) => {
+    const staff = Array.from(staffBySkill.get(row.id)?.entries() ?? []).map(
+      ([id, label]) => ({ id, label })
+    );
+    const projects = Array.from(
+      projectsBySkill.get(row.id)?.entries() ?? []
+    ).map(([id, label]) => ({ id, label }));
+    return {
+      id: row.id,
+      name: row.name ?? "",
+      staff_count: staff.length,
+      project_count: projects.length,
+      staff,
+      projects,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">

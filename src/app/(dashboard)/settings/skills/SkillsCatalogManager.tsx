@@ -195,9 +195,41 @@ export default function SkillsCatalogManager({
                   ) : (
                     <div className="flex-1">
                       <p className="text-sm text-zinc-900">{skill.name}</p>
-                      <p className="text-xs text-zinc-500">
-                        Used by {skill.staff_count ?? 0} staff, {skill.project_count ?? 0} current projects
-                      </p>
+                      <details className="group mt-1">
+                        <summary className="cursor-pointer text-xs text-zinc-500">
+                          Used by {skill.staff_count ?? 0} staff, {skill.project_count ?? 0} current projects
+                        </summary>
+                        <div className="mt-2 space-y-2 rounded border border-zinc-200 bg-zinc-50 p-2">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                              Staff
+                            </p>
+                            {skill.staff && skill.staff.length > 0 ? (
+                              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-zinc-700">
+                                {skill.staff.map((member) => (
+                                  <li key={member.id}>{member.label}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="mt-1 text-xs text-zinc-600">None</p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                              Current projects
+                            </p>
+                            {skill.projects && skill.projects.length > 0 ? (
+                              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-zinc-700">
+                                {skill.projects.map((project) => (
+                                  <li key={project.id}>{project.label}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="mt-1 text-xs text-zinc-600">None</p>
+                            )}
+                          </div>
+                        </div>
+                      </details>
                     </div>
                   )}
                   {isEditing ? (
