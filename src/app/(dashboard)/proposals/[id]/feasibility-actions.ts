@@ -129,6 +129,7 @@ type FeasibilityBaseData = {
   staff: Array<{
     id: string;
     weeklyCapacityHours: number;
+    name: string;
     email: string;
     role: string;
     office: string;
@@ -173,7 +174,7 @@ async function getFeasibilityBaseData(
 
     let staffQuery = supabase
       .from("staff_profiles")
-      .select("id, weekly_capacity_hours, users!inner(email, role, office_id, offices(name))")
+      .select("id, weekly_capacity_hours, users!inner(name, email, role, office_id, offices(name))")
       .eq("tenant_id", tenantId);
 
     if (officeIds.length > 0) {
@@ -184,12 +185,14 @@ async function getFeasibilityBaseData(
     const staff = (staffRows ?? []).map((row) => {
       const userRecord = row.users as
         | {
+            name?: string;
             email?: string;
             role?: string;
             office_id?: string | null;
             offices?: { name?: string } | { name?: string }[] | null;
           }
         | {
+            name?: string;
             email?: string;
             role?: string;
             office_id?: string | null;
@@ -198,9 +201,11 @@ async function getFeasibilityBaseData(
         | null;
       const user = Array.isArray(userRecord) ? userRecord[0] : userRecord;
       const officeRecord = Array.isArray(user?.offices) ? user?.offices[0] : user?.offices;
+      const displayName = user?.name?.trim() ? user.name.trim() : null;
       return {
         id: row.id,
         weeklyCapacityHours: Number(row.weekly_capacity_hours),
+        name: displayName ?? user?.email ?? "Unknown staff",
         email: user?.email ?? "Unknown staff",
         role: user?.role ?? "staff",
         office: officeRecord?.name ?? "No office",
@@ -394,7 +399,7 @@ function computeFeasibilityCore(
       const freeAtCap = Math.max(0, maxAllowedHours - committedHours);
       freeAt100ByStaff.set(sp.id, (freeAt100ByStaff.get(sp.id) ?? 0) + freeAt100);
 
-      const staffLabel = sp.email;
+      const staffLabel = sp.name;
       staffLabelsById.set(sp.id, staffLabel);
 
       totalFreeCapacity += freeAtCap;
@@ -473,7 +478,7 @@ function computeFeasibilityCore(
         const meta = baseData.staff.find((staff) => staff.id === staffId);
         return {
           id: staffId,
-          name: meta?.email ?? "Unknown staff",
+          name: meta?.name ?? meta?.email ?? "Unknown staff",
           role: meta?.role ?? "staff",
           office: meta?.office ?? "No office",
         };
@@ -482,7 +487,7 @@ function computeFeasibilityCore(
     staffCapacityCandidates: baseData.staff
       .map((staff) => ({
         id: staff.id,
-        name: staff.email,
+        name: staff.name ?? staff.email,
         role: staff.role,
         office: staff.office,
         availableHoursWithoutOverallocation: round1(freeAt100ByStaff.get(staff.id) ?? 0),
