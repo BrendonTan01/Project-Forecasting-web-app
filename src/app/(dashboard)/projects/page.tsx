@@ -306,7 +306,7 @@ export default async function ProjectsPage({
         </div>
       )}
 
-      <div className="app-card overflow-hidden">
+      <div className="app-card overflow-x-auto">
         <table className="app-table min-w-full">
           <thead>
             <tr className="border-b border-zinc-200">

@@ -182,7 +182,7 @@ export default async function StaffDashboard() {
               Active assignments with progress against estimated hours.
             </p>
           </div>
-          <div className="app-card overflow-hidden">
+          <div className="app-card overflow-x-auto">
           <table className="app-table min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
