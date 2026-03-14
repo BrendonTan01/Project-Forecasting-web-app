@@ -2,12 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { hasPermission } from "@/lib/permissions";
-import HealthStatusWithReason from "@/components/ui/HealthStatusWithReason";
 import {
   getProjectHealthStatus,
   getProjectHealthReason,
   getProjectHealthLabel,
-  getProjectHealthColour,
   buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import ProjectStatusFilter from "./ProjectStatusFilter";
@@ -23,6 +21,72 @@ const statusConfig: Record<string, { label: string; colour: string }> = {
   completed: { label: "Completed", colour: "bg-blue-50 text-blue-700" },
   cancelled: { label: "Cancelled", colour: "bg-zinc-100 text-zinc-500" },
 };
+
+type SignalTone = "neutral" | "success" | "warning" | "danger";
+
+function signalBadgeClasses(tone: SignalTone): string {
+  const toneClasses: Record<SignalTone, string> = {
+    neutral: "border-zinc-200 bg-zinc-50 text-zinc-700",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    warning: "border-amber-200 bg-amber-50 text-amber-700",
+    danger: "border-red-200 bg-red-50 text-red-700",
+  };
+  return `inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${toneClasses[tone]}`;
+}
+
+function DeliverySignalIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 2v8l5 3" />
+      <circle cx="10" cy="10" r="7" />
+    </svg>
+  );
+}
+
+function FinancialSignalIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 3v14" />
+      <path d="M13.5 6.5c0-1.3-1.6-2.2-3.5-2.2S6.5 5.2 6.5 6.5 8.1 8.7 10 8.7s3.5 1 3.5 2.3S11.9 13.3 10 13.3s-3.5-1-3.5-2.3" />
+    </svg>
+  );
+}
+
+function SkillSignalIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9.5 3.5a3 3 0 0 0-3 3v2.2l-2.7 2.7a1 1 0 0 0 0 1.4l3.1 3.1a1 1 0 0 0 1.4 0l2.7-2.7h2.2a3 3 0 0 0 3-3v-3a3 3 0 0 0-3-3z" />
+      <circle cx="12.6" cy="7.4" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 function formatProjectDate(value: string | null): string {
   if (!value) return "-";
@@ -393,22 +457,14 @@ export default async function ProjectsPage({
                 Offices
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
-                Health
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Status
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Assigned Staff
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
-                Staff Skills
+                Signals
               </th>
-              {canViewFinancials && (
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
-                  Financial risk
-                </th>
-              )}
             </tr>
           </thead>
           <tbody>
@@ -447,14 +503,45 @@ export default async function ProjectsPage({
                 .sort((a, b) => a.localeCompare(b));
               const requiredSkillCount = requiredSkills.size;
               const coveredSkillCount = requiredSkillCount - missingSkillNames.length;
-              const staffSkillsSummary =
+              const deliveryTone: SignalTone =
+                health === "on_track"
+                  ? "success"
+                  : health === "at_risk"
+                    ? "warning"
+                    : health === "overrun"
+                      ? "danger"
+                      : "neutral";
+              const financial = projectFinancialRisk[project.id];
+              const financialTone: SignalTone =
+                !canViewFinancials || financial?.variance === null
+                  ? "neutral"
+                  : financial.isOverBudget
+                    ? "danger"
+                    : "success";
+              const financialLabel =
+                !canViewFinancials || financial?.variance === null
+                  ? "Financial N/A"
+                  : financial.isOverBudget
+                    ? `Over ${formatCurrency(financial.variance ?? 0)}`
+                    : `Within ${formatCurrency(Math.abs(financial.variance ?? 0))}`;
+              const skillTone: SignalTone =
                 requiredSkillCount === 0
-                  ? "No requirements set"
-                  : missingSkillNames.length === 0
-                    ? `All covered (${coveredSkillCount}/${requiredSkillCount})`
-                    : `${coveredSkillCount}/${requiredSkillCount} covered · Missing: ${formatMissingSkillNames(
-                        missingSkillNames
-                      )}`;
+                  ? "neutral"
+                  : missingSkillNames.length > 0
+                    ? "danger"
+                    : "success";
+              const skillLabel =
+                requiredSkillCount === 0
+                  ? "No skill reqs"
+                  : missingSkillNames.length > 0
+                    ? `${missingSkillNames.length} missing`
+                    : `Covered ${coveredSkillCount}/${requiredSkillCount}`;
+              const skillTitle =
+                requiredSkillCount === 0
+                  ? "No skill requirements configured."
+                  : missingSkillNames.length > 0
+                    ? `Missing: ${formatMissingSkillNames(missingSkillNames)}`
+                    : "All required skills are covered.";
 
               return (
                 <tr key={project.id} className="border-b border-zinc-100">
@@ -485,13 +572,6 @@ export default async function ProjectsPage({
                     {officeScopeLabel}
                   </td>
                   <td className="px-4 py-3">
-                    <HealthStatusWithReason
-                      label={getProjectHealthLabel(health)}
-                      colourClass={getProjectHealthColour(health)}
-                      reason={healthReason}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
                     >
@@ -505,22 +585,24 @@ export default async function ProjectsPage({
                           .join(", ")
                       : "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">{staffSkillsSummary}</td>
-                  {canViewFinancials && (
-                    <td className="px-4 py-3 text-sm text-zinc-700">
-                      {projectFinancialRisk[project.id]?.variance === null ? (
-                        "Insufficient data"
-                      ) : projectFinancialRisk[project.id]?.isOverBudget ? (
-                        <span className="font-medium text-red-700">
-                          Over by {formatCurrency(projectFinancialRisk[project.id].variance ?? 0)}
-                        </span>
-                      ) : (
-                        <span className="font-medium text-emerald-700">
-                          Within by {formatCurrency(Math.abs(projectFinancialRisk[project.id].variance ?? 0))}
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={signalBadgeClasses(deliveryTone)} title={healthReason}>
+                        <DeliverySignalIcon />
+                        <span>{getProjectHealthLabel(health)}</span>
+                      </span>
+                      {canViewFinancials && (
+                        <span className={signalBadgeClasses(financialTone)}>
+                          <FinancialSignalIcon />
+                          <span>{financialLabel}</span>
                         </span>
                       )}
-                    </td>
-                  )}
+                      <span className={signalBadgeClasses(skillTone)} title={skillTitle}>
+                        <SkillSignalIcon />
+                        <span>{skillLabel}</span>
+                      </span>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
