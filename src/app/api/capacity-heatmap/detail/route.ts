@@ -67,6 +67,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl;
   const officeId = searchParams.get("officeId");
   const weekStart = searchParams.get("weekStart");
+  const skillId = searchParams.get("skillId")?.trim() ?? "";
 
   if (!officeId || !weekStart) {
     return NextResponse.json(
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const [
     { data: officeRow, error: officeErr },
     { data: officeUsers, error: officeUsersErr },
+    { data: staffSkillRows, error: staffSkillErr },
     { data: assignmentRows, error: assignErr },
     { data: availRows, error: availErr },
     { data: leaveRows },
@@ -97,6 +99,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select("id")
       .eq("tenant_id", user.tenantId)
       .eq("office_id", officeId),
+
+    skillId
+      ? admin
+          .from("staff_skills")
+          .select("staff_id")
+          .eq("tenant_id", user.tenantId)
+          .eq("skill_id", skillId)
+      : Promise.resolve({
+          data: [] as Array<{ staff_id: string }>,
+          error: null as { message: string } | null,
+        }),
 
     admin
       .from("project_assignments")
@@ -122,6 +135,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Office not found" }, { status: 404 });
   }
   if (officeUsersErr) return NextResponse.json({ error: officeUsersErr.message }, { status: 500 });
+  if (staffSkillErr) return NextResponse.json({ error: staffSkillErr.message }, { status: 500 });
 
   const officeUserIds = (officeUsers ?? []).map((u) => u.id);
 
@@ -145,7 +159,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
   const safeAvailRows = availabilityTableMissing ? [] : (availRows ?? []);
 
-  const officeStaffIds = new Set((resolvedStaffRows ?? []).map((s) => s.id));
+  const allowedStaffIdsBySkill =
+    skillId.length > 0
+      ? new Set((staffSkillRows ?? []).map((row) => row.staff_id))
+      : null;
+  const officeStaffIds = new Set(
+    (resolvedStaffRows ?? [])
+      .map((s) => s.id)
+      .filter((staffId) => !allowedStaffIdsBySkill || allowedStaffIdsBySkill.has(staffId))
+  );
 
   // Availability lookup: staff_id → available_hours for this week
   const availLookup = new Map<string, number>();
@@ -219,7 +241,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     staffAllocMap.set(ea.staff_id, (staffAllocMap.get(ea.staff_id) ?? 0) + ea.weekly_hours_allocated);
   }
 
-  const staff: CellStaff[] = (resolvedStaffRows ?? []).map((s) => {
+  const staff: CellStaff[] = (resolvedStaffRows ?? [])
+    .filter((s) => officeStaffIds.has(s.id))
+    .map((s) => {
     const allocatedHours = Math.round((staffAllocMap.get(s.id) ?? 0) * 100) / 100;
     const capacityHours = availLookup.get(s.id) ?? Number(s.weekly_capacity_hours);
     return {

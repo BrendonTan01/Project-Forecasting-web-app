@@ -28,17 +28,29 @@ function utilizationColor(utilization: number): string {
 
 interface CapacityDetailDrawerProps {
   cell: SelectedCell;
+  skillId?: string | null;
   onClose: () => void;
 }
 
-export default function CapacityDetailDrawer({ cell, onClose }: CapacityDetailDrawerProps) {
+export default function CapacityDetailDrawer({
+  cell,
+  skillId,
+  onClose,
+}: CapacityDetailDrawerProps) {
   const [detail, setDetail] = useState<CellDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams({
+      officeId: cell.officeId,
+      weekStart: cell.weekStart,
+    });
+    if (skillId) {
+      params.set("skillId", skillId);
+    }
     fetch(
-      `/api/capacity-heatmap/detail?officeId=${encodeURIComponent(cell.officeId)}&weekStart=${encodeURIComponent(cell.weekStart)}`
+      `/api/capacity-heatmap/detail?${params.toString()}`
     )
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -53,7 +65,7 @@ export default function CapacityDetailDrawer({ cell, onClose }: CapacityDetailDr
         setError(err instanceof Error ? err.message : "Failed to load detail");
       })
       .finally(() => setLoading(false));
-  }, [cell.officeId, cell.weekStart]);
+  }, [cell.officeId, cell.weekStart, skillId]);
 
   return (
     <aside className="w-80 shrink-0 overflow-y-auto rounded border border-zinc-200 bg-white">

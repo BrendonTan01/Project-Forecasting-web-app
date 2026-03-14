@@ -55,6 +55,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const { searchParams } = request.nextUrl;
   const weeksParam = searchParams.get("weeks");
+  const skillId = searchParams.get("skillId")?.trim() ?? "";
   const numWeeks = weeksParam
     ? Math.min(Math.max(1, parseInt(weeksParam, 10) || DEFAULT_WEEKS), MAX_WEEKS)
     : DEFAULT_WEEKS;
@@ -68,6 +69,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     { data: officeRows, error: officeErr },
     { data: userRows, error: userErr },
     { data: staffRows, error: staffErr },
+    { data: staffSkillRows, error: staffSkillErr },
     { data: assignmentRows, error: assignErr },
     { data: availRows, error: availErr },
   ] = await Promise.all([
@@ -87,6 +89,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select("id, user_id, weekly_capacity_hours")
       .eq("tenant_id", user.tenantId),
 
+    skillId
+      ? admin
+          .from("staff_skills")
+          .select("staff_id")
+          .eq("tenant_id", user.tenantId)
+          .eq("skill_id", skillId)
+      : Promise.resolve({
+          data: [] as Array<{ staff_id: string }>,
+          error: null as { message: string } | null,
+        }),
+
     admin
       .from("project_assignments")
       .select(
@@ -105,6 +118,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (officeErr) return NextResponse.json({ error: officeErr.message }, { status: 500 });
   if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
   if (staffErr) return NextResponse.json({ error: staffErr.message }, { status: 500 });
+  if (staffSkillErr) return NextResponse.json({ error: staffSkillErr.message }, { status: 500 });
   if (assignErr) return NextResponse.json({ error: assignErr.message }, { status: 500 });
 
   const availabilityTableMissing =
@@ -125,11 +139,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Build staff lookup: staff_id → { officeId, weeklyCap }
   type StaffMeta = { officeId: string | null; weeklyCap: number };
+  const allowedStaffIdsBySkill =
+    skillId.length > 0
+      ? new Set((staffSkillRows ?? []).map((row) => row.staff_id))
+      : null;
   const officeByUserId = new Map<string, string | null>(
     (userRows ?? []).map((u) => [u.id, u.office_id ?? null])
   );
   const staffMeta = new Map<string, StaffMeta>();
   for (const s of staffRows ?? []) {
+    if (allowedStaffIdsBySkill && !allowedStaffIdsBySkill.has(s.id)) continue;
     staffMeta.set(s.id, {
       officeId: officeByUserId.get(s.user_id) ?? null,
       weeklyCap: Number(s.weekly_capacity_hours),

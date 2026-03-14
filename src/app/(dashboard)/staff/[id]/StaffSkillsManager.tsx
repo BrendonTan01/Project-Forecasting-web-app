@@ -27,15 +27,15 @@ export default function StaffSkillsManager({
     [allSkills]
   );
 
-  const selectedNameSet = useMemo(() => {
-    const names = new Set<string>();
+  const selectedSkillNames = useMemo(() => {
+    const names: string[] = [];
     const selectedSet = new Set(selectedSkillIds);
     for (const skill of allSkills) {
       if (selectedSet.has(skill.id)) {
-        names.add(skill.name);
+        names.push(skill.name);
       }
     }
-    return names;
+    return names.sort((a, b) => a.localeCompare(b));
   }, [allSkills, selectedSkillIds]);
 
   const toggleSkill = (skillId: string) => {
@@ -76,6 +76,26 @@ export default function StaffSkillsManager({
 
   return (
     <div className="space-y-3">
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Assigned skills
+        </p>
+        {selectedSkillNames.length === 0 ? (
+          <p className="text-sm text-zinc-600">No skills assigned.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {selectedSkillNames.map((name) => (
+              <span
+                key={name}
+                className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
       {sortedSkills.length === 0 ? (
         <p className="text-sm text-zinc-600">
           No skills configured yet.
@@ -83,34 +103,29 @@ export default function StaffSkillsManager({
       ) : (
         <div className="space-y-2">
           {canManage ? (
-            sortedSkills.map((skill) => (
-              <label
-                key={skill.id}
-                className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 px-3 py-2 text-sm text-zinc-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedSkillIds.includes(skill.id)}
-                  onChange={() => toggleSkill(skill.id)}
-                  disabled={loading}
-                />
-                <span>{skill.name}</span>
-              </label>
-            ))
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {[...selectedNameSet].map((name) => (
-                <span
-                  key={name}
-                  className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700"
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Edit skills
+              </p>
+              {sortedSkills.map((skill) => (
+                <label
+                  key={skill.id}
+                  className="flex cursor-pointer items-center gap-2 rounded border border-zinc-200 px-3 py-2 text-sm text-zinc-800"
                 >
-                  {name}
-                </span>
+                  <input
+                    type="checkbox"
+                    checked={selectedSkillIds.includes(skill.id)}
+                    onChange={() => toggleSkill(skill.id)}
+                    disabled={loading}
+                  />
+                  <span>{skill.name}</span>
+                </label>
               ))}
-              {selectedNameSet.size === 0 && (
-                <p className="text-sm text-zinc-600">No skills assigned.</p>
-              )}
-            </div>
+            </>
+          ) : (
+            <p className="text-sm text-zinc-600">
+              Skill editing is only available to managers and administrators.
+            </p>
           )}
         </div>
       )}

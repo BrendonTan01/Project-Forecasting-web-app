@@ -8,6 +8,7 @@ import CapacityPlannerFilters, {
 } from "./CapacityPlannerFilters";
 import CapacityDetailDrawer, { type SelectedCell } from "./CapacityDetailDrawer";
 import type { CapacityHeatmapResponse } from "@/app/api/capacity-heatmap/route";
+import type { SkillItem } from "@/app/api/skills/route";
 
 const DEFAULT_FILTER_STATE: CapacityPlannerFilterState = {
   officeIds: [],
@@ -23,6 +24,14 @@ export default function CapacityPlannerOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [skills, setSkills] = useState<SkillItem[]>([]);
+
+  useEffect(() => {
+    fetch("/api/skills")
+      .then((res) => (res.ok ? res.json() : { skills: [] }))
+      .then((data) => setSkills(data.skills ?? []))
+      .catch(() => setSkills([]));
+  }, []);
 
   const fetchHeatmap = useCallback(async () => {
     setLoading(true);
@@ -47,6 +56,10 @@ export default function CapacityPlannerOverview() {
   }, [fetchHeatmap]);
 
   const offices: OfficeOption[] = heatmapData?.offices ?? [];
+  const selectedSkillName =
+    filterState.skillId
+      ? skills.find((skill) => skill.id === filterState.skillId)?.name ?? "Unknown skill"
+      : null;
 
   return (
     <div className="flex gap-4">
@@ -57,6 +70,12 @@ export default function CapacityPlannerOverview() {
       />
 
       <main className="min-w-0 flex-1">
+        {selectedSkillName && (
+          <div className="mb-3 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+            Filtered by skill:{" "}
+            <span className="font-medium text-zinc-900">{selectedSkillName}</span>
+          </div>
+        )}
         {loading && (
           <div className="flex items-center justify-center py-12">
             <p className="text-sm text-zinc-500">Loading capacity heatmap…</p>
@@ -87,6 +106,7 @@ export default function CapacityPlannerOverview() {
       {selectedCell && (
         <CapacityDetailDrawer
           cell={selectedCell}
+          skillId={filterState.skillId}
           onClose={() => setSelectedCell(null)}
         />
       )}
