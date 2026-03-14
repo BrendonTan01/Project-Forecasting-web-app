@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 export type SimulationResult = {
   proposal_id?: string;
   current_utilization?: number;
@@ -20,15 +18,14 @@ export type SimulationResult = {
 // add `required_roles` back into this contract and render it here.
 
 type Props = {
-  proposalId: string;
-  officeScopeIds: string[] | null;
   officeScopeLabel: string;
   simulationStale: boolean;
-  staleScopeLabel: string | null;
-  onSimulateAccept: (data: SimulationResult) => void;
+  onRunSimulation: () => void;
   onResetSimulation: () => void;
   simulationActive: boolean;
   simulationData: SimulationResult | null;
+  loading: boolean;
+  error: string | null;
 };
 
 function fmtPct(value: number): string {
@@ -45,41 +42,15 @@ function fmtCurrency(value: number | null | undefined): string {
 }
 
 export function ProposalImpactPanel({
-  proposalId,
-  officeScopeIds,
   officeScopeLabel,
   simulationStale,
-  staleScopeLabel,
-  onSimulateAccept,
+  onRunSimulation,
   onResetSimulation,
   simulationActive,
   simulationData,
+  loading,
+  error,
 }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSimulateAccept() {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({ proposalId });
-      if (officeScopeIds && officeScopeIds.length > 0) {
-        params.set("officeIds", officeScopeIds.join(","));
-      }
-      const response = await fetch(`/api/proposal-impact?${params.toString()}`);
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Request failed");
-      }
-      const json = (await response.json()) as SimulationResult;
-      onSimulateAccept(json);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load impact data");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const utilizationDelta =
     simulationData?.simulated_utilization !== undefined &&
     simulationData.current_utilization !== undefined
@@ -94,7 +65,7 @@ export function ProposalImpactPanel({
     <div className="app-card p-4">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-zinc-900">Impact if Accepted</h2>
+          <h2 className="text-base font-semibold text-zinc-900">Acceptance summary</h2>
           <p className="text-sm text-zinc-500">
             Simulates the effect on team utilization if this proposal is accepted.
           </p>
@@ -105,7 +76,7 @@ export function ProposalImpactPanel({
         <div className="flex shrink-0 gap-2">
           <button
             type="button"
-            onClick={handleSimulateAccept}
+            onClick={onRunSimulation}
             disabled={loading}
             className={`focus-ring rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               loading
@@ -113,7 +84,7 @@ export function ProposalImpactPanel({
                 : "bg-emerald-600 text-white hover:bg-emerald-700"
             }`}
           >
-            {loading ? "Simulating..." : "Simulate Accept"}
+            {loading ? "Running simulation..." : "Run full simulation"}
           </button>
           <button
             type="button"
@@ -136,10 +107,8 @@ export function ProposalImpactPanel({
 
       {!error && simulationStale && simulationData && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Office scope changed. Current results are from{" "}
-          <span className="font-medium">{staleScopeLabel ?? "a previous scope"}</span>.
-          Run <span className="font-medium">Simulate Accept</span> again to refresh for{" "}
-          <span className="font-medium">{officeScopeLabel}</span>.
+          Simulation settings changed. Run <span className="font-medium">Run full simulation</span>{" "}
+          again to refresh results for <span className="font-medium">{officeScopeLabel}</span>.
         </div>
       )}
 
