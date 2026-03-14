@@ -42,6 +42,7 @@ export default function ProjectSkillRequirementsManager({
       key: makeRowKey(index, row.skill_id),
     }))
   );
+  const [savedSnapshot, setSavedSnapshot] = useState<RequirementRow[]>(initialRequirements);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -101,6 +102,28 @@ export default function ProjectSkillRequirementsManager({
     return Math.round(inputValue * peopleUnitHoursPerWeek * 100) / 100;
   };
 
+  const normalizeForCompare = (requirements: RequirementRow[]): string =>
+    requirements
+      .map((row) => `${row.skill_id}::${Number(row.required_hours_per_week ?? 0).toFixed(2)}`)
+      .sort()
+      .join("|");
+
+  const hasUnsavedChanges =
+    normalizeForCompare(
+      rows.map((row) => ({
+        skill_id: row.skill_id,
+        required_hours_per_week: Number(row.required_hours_per_week ?? 0),
+      }))
+    ) !== normalizeForCompare(savedSnapshot);
+
+  const savedHoursBySkill = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of savedSnapshot) {
+      map.set(row.skill_id, Number(row.required_hours_per_week ?? 0));
+    }
+    return map;
+  }, [savedSnapshot]);
+
   const saveRequirements = async () => {
     setError(null);
     setSuccess(null);
@@ -130,6 +153,7 @@ export default function ProjectSkillRequirementsManager({
         return;
       }
       const savedRows = (data.requirements ?? []) as RequirementRow[];
+      setSavedSnapshot(savedRows);
       setRows(
         savedRows.map((row, index) => ({
           ...row,
@@ -175,6 +199,14 @@ export default function ProjectSkillRequirementsManager({
             <p className="text-sm text-zinc-600">No requirements set yet.</p>
           ) : (
             <div className="space-y-2">
+              <div className="flex items-center gap-3 text-xs">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">
+                  Saved
+                </span>
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
+                  Pending save
+                </span>
+              </div>
               <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
                 <div className="col-span-7">Skill</div>
                 <div className="col-span-3">
@@ -182,8 +214,21 @@ export default function ProjectSkillRequirementsManager({
                 </div>
                 <div className="col-span-2 text-right">Action</div>
               </div>
-              {rows.map((row) => (
-                <div key={row.key} className="grid grid-cols-12 gap-2">
+              {rows.map((row) => {
+                const savedHours = savedHoursBySkill.get(row.skill_id);
+                const isSavedRow =
+                  Boolean(row.skill_id) &&
+                  savedHours !== undefined &&
+                  Math.abs(savedHours - Number(row.required_hours_per_week ?? 0)) < 0.01;
+                return (
+                <div
+                  key={row.key}
+                  className={`grid grid-cols-12 gap-2 rounded border p-2 ${
+                    isSavedRow
+                      ? "border-emerald-200 bg-emerald-50/40"
+                      : "border-amber-200 bg-amber-50/40"
+                  }`}
+                >
                   <div className="col-span-7">
                     <Select
                       value={row.skill_id}
@@ -221,19 +266,28 @@ export default function ProjectSkillRequirementsManager({
                     />
                   </div>
                   <div className="col-span-2">
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => removeRow(row.key)}
-                      disabled={loading}
-                    >
-                      Remove
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      <span
+                        className={`text-center text-[10px] font-semibold uppercase tracking-wide ${
+                          isSavedRow ? "text-emerald-700" : "text-amber-700"
+                        }`}
+                      >
+                        {isSavedRow ? "Saved" : "Pending"}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => removeRow(row.key)}
+                        disabled={loading}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
 
@@ -251,11 +305,16 @@ export default function ProjectSkillRequirementsManager({
               type="button"
               size="sm"
               onClick={saveRequirements}
-              disabled={loading}
+              disabled={loading || !hasUnsavedChanges}
             >
               {loading ? "Saving..." : "Save requirements"}
             </Button>
           </div>
+          {hasUnsavedChanges && (
+            <p className="text-xs font-medium text-amber-700">
+              You have pending requirement changes that are not saved yet.
+            </p>
+          )}
           <p className="text-xs text-zinc-500">
             {inputUnit === "hours"
               ? "Example: if Design is set to 12, this project needs 12 design hours each week."
