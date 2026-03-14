@@ -172,6 +172,9 @@ function StaffingRisksSection({
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
         Top Staffing Risks
       </h3>
+      <p className="mb-2 text-[11px] text-zinc-500">
+        Weeks with the largest total staffing gap across all skills.
+      </p>
       {risks.length === 0 ? (
         <p className="text-xs text-zinc-400 italic">No staffing gaps in the forecast window.</p>
       ) : (
@@ -214,8 +217,11 @@ function HiringRecommendationsSection({
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Top Hiring Recommendations
+        Top Hiring Recommendations (by Skill)
       </h3>
+      <p className="mb-2 text-[11px] text-zinc-500">
+        Suggested hires grouped by skill shortage in the forecast window.
+      </p>
       {top.length === 0 ? (
         <p className="text-xs text-zinc-400 italic">No hiring recommendations at this time.</p>
       ) : (
