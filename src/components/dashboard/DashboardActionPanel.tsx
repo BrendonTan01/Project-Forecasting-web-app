@@ -1,20 +1,22 @@
+import type { ReactNode } from "react";
 import type {
   ForecastProposal,
   ForecastWeek,
   HiringRecommendation,
-  SkillShortage,
 } from "./types";
 
 interface Props {
   weeks: ForecastWeek[];
   hiringRecommendations: HiringRecommendation[];
-  skillShortages: SkillShortage[];
   proposals: ForecastProposal[];
   selectedProposalIds: string[];
   onSelectedProposalIdsChange: (ids: string[]) => void;
   planningHoursPerPersonPerWeek: number;
-  showSkillShortages?: boolean;
+  showProposalSelection?: boolean;
+  showStaffingRisks?: boolean;
+  showHiringRecommendations?: boolean;
   showForecastDrivers?: boolean;
+  className?: string;
 }
 
 // ── Staffing Risks ────────────────────────────────────────────────────────────
@@ -259,47 +261,6 @@ function HiringRecommendationsSection({
 
 // ── Skill Shortages ───────────────────────────────────────────────────────────
 
-export function SkillShortagesSection({
-  shortages,
-  planningHoursPerPersonPerWeek,
-}: {
-  shortages: SkillShortage[];
-  planningHoursPerPersonPerWeek: number;
-}) {
-  return (
-    <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Top Skill Shortages
-      </h3>
-      <p className="mb-2 text-[11px] text-zinc-500">
-        People equivalent uses {planningHoursPerPersonPerWeek.toFixed(1)}h per person per week.
-      </p>
-      {shortages.length === 0 ? (
-        <p className="text-xs text-zinc-400 italic">No skill shortages detected</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {shortages.map((shortage) => (
-            <li
-              key={shortage.skill}
-              className="rounded border border-zinc-100 px-3 py-1.5"
-            >
-              <p className="truncate text-xs font-medium text-zinc-800">
-                {shortage.skill}
-              </p>
-              <p className="mt-0.5 text-[11px] text-zinc-600 tabular-nums">
-                Demand{" "}
-                {formatHoursWithPeople(shortage.weekly_demand, planningHoursPerPersonPerWeek)} · Capacity{" "}
-                {formatHoursWithPeople(shortage.available_capacity, planningHoursPerPersonPerWeek)} · Shortage{" "}
-                {formatHoursWithPeople(shortage.shortage, planningHoursPerPersonPerWeek)}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 // ── Forecast Drivers ──────────────────────────────────────────────────────────
 
 type AggregatedDriver = {
@@ -309,9 +270,24 @@ type AggregatedDriver = {
 };
 
 function aggregateDrivers(weeks: ForecastWeek[]): AggregatedDriver[] {
+  return aggregateDriversForSelectedProposals(weeks);
+}
+
+function aggregateDriversForSelectedProposals(
+  weeks: ForecastWeek[],
+  selectedProposalIdSet?: Set<string>
+): AggregatedDriver[] {
   const map = new Map<string, AggregatedDriver>();
   for (const week of weeks) {
     for (const entry of week.forecast_explanation ?? []) {
+      if (
+        entry.type === "proposal" &&
+        selectedProposalIdSet &&
+        entry.proposal_id &&
+        !selectedProposalIdSet.has(entry.proposal_id)
+      ) {
+        continue;
+      }
       const displayName = entry.name;
       const key = `${entry.type}::${displayName}`;
       const existing = map.get(key);
@@ -338,14 +314,28 @@ const DRIVER_COLORS: Record<"proposal" | "leave" | "project", string> = {
   project: "#10b981",
 };
 
-export function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
-  const drivers = aggregateDrivers(weeks);
+export function ForecastDriversSection({
+  weeks,
+  selectedProposalIds,
+}: {
+  weeks: ForecastWeek[];
+  selectedProposalIds?: string[];
+}) {
+  const selectedProposalIdSet = selectedProposalIds
+    ? new Set(selectedProposalIds)
+    : undefined;
+  const drivers = selectedProposalIdSet
+    ? aggregateDriversForSelectedProposals(weeks, selectedProposalIdSet)
+    : aggregateDrivers(weeks);
 
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
         Top Forecast Drivers
       </h3>
+      <p className="mb-2 text-[11px] text-zinc-500">
+        Based on committed work, leave, and currently selected proposals.
+      </p>
       {drivers.length === 0 ? (
         <p className="text-xs text-zinc-400 italic">No explanation data available.</p>
       ) : (
@@ -380,77 +370,77 @@ export function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
   );
 }
 
-export function DashboardDetailRail({
-  weeks,
-  skillShortages,
-  planningHoursPerPersonPerWeek,
-}: {
-  weeks: ForecastWeek[];
-  skillShortages: SkillShortage[];
-  planningHoursPerPersonPerWeek: number;
-}) {
-  return (
-    <div className="app-card p-4">
-      <h3 className="mb-3 text-sm font-semibold text-zinc-700">Detail Rail</h3>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded border border-zinc-100 p-3">
-          <SkillShortagesSection
-            shortages={skillShortages}
-            planningHoursPerPersonPerWeek={planningHoursPerPersonPerWeek}
-          />
-        </div>
-        <div className="rounded border border-zinc-100 p-3">
-          <ForecastDriversSection weeks={weeks} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function DashboardActionPanel({
   weeks,
   hiringRecommendations,
-  skillShortages,
   proposals,
   selectedProposalIds,
   onSelectedProposalIdsChange,
   planningHoursPerPersonPerWeek,
-  showSkillShortages = true,
+  showProposalSelection = true,
+  showStaffingRisks = true,
+  showHiringRecommendations = true,
   showForecastDrivers = true,
+  className,
 }: Props) {
-  return (
-    <div className="app-card flex h-full flex-col divide-y divide-zinc-100 p-4">
-      <div className="pb-4">
+  const sections: Array<{ key: string; node: ReactNode }> = [];
+
+  if (showProposalSelection) {
+    sections.push({
+      key: "proposal-selection",
+      node: (
         <ProposalSelectionSection
           proposals={proposals}
           selectedProposalIds={selectedProposalIds}
           onSelectedProposalIdsChange={onSelectedProposalIdsChange}
         />
-      </div>
-      <div className="py-4">
+      ),
+    });
+  }
+
+  if (showStaffingRisks) {
+    sections.push({
+      key: "staffing-risks",
+      node: (
         <StaffingRisksSection
           weeks={weeks}
           planningHoursPerPersonPerWeek={planningHoursPerPersonPerWeek}
         />
-      </div>
-      <div className="py-4">
-        <HiringRecommendationsSection recommendations={hiringRecommendations} />
-      </div>
-      {showSkillShortages && (
-        <div className="py-4">
-          <SkillShortagesSection
-            shortages={skillShortages}
-            planningHoursPerPersonPerWeek={planningHoursPerPersonPerWeek}
-          />
+      ),
+    });
+  }
+
+  if (showHiringRecommendations) {
+    sections.push({
+      key: "hiring-recommendations",
+      node: <HiringRecommendationsSection recommendations={hiringRecommendations} />,
+    });
+  }
+
+  if (showForecastDrivers) {
+    sections.push({
+      key: "forecast-drivers",
+      node: (
+        <ForecastDriversSection
+          weeks={weeks}
+          selectedProposalIds={selectedProposalIds}
+        />
+      ),
+    });
+  }
+
+  return (
+    <div className={`app-card flex h-full flex-col divide-y divide-zinc-100 p-4 ${className ?? ""}`}>
+      {sections.map((section, index) => (
+        <div
+          key={section.key}
+          className={index === 0 ? "pb-4" : index === sections.length - 1 ? "pt-4" : "py-4"}
+        >
+          {section.node}
         </div>
-      )}
-      {showForecastDrivers && (
-        <div className="pt-4">
-          <ForecastDriversSection weeks={weeks} />
-        </div>
-      )}
+      ))}
     </div>
   );
 }

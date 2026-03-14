@@ -1,5 +1,10 @@
 export type ExplanationEntry =
-  { type: "proposal" | "leave" | "project"; name: string; impact_hours: number };
+  {
+    type: "proposal" | "leave" | "project";
+    name: string;
+    impact_hours: number;
+    proposal_id?: string;
+  };
 
 export interface ForecastWeek {
   week_start: string;

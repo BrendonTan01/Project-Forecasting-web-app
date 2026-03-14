@@ -146,6 +146,7 @@ export async function GET(request: NextRequest) {
           if (rawHours > 0) {
             explanations.push({
               type: "proposal",
+              proposal_id: proposal.id,
               name: proposal.name ?? "Unnamed Proposal",
               impact_hours: Math.round(rawHours * 100) / 100,
             });

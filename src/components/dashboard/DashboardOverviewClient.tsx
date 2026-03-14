@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { DashboardKpiCards } from "./DashboardKpiCards";
 import { UtilizationForecastChart } from "./UtilizationForecastChart";
-import { DashboardActionPanel, DashboardDetailRail } from "./DashboardActionPanel";
+import { DashboardActionPanel } from "./DashboardActionPanel";
 import { CapacityHeatmap } from "@/components/api-views/CapacityHeatmap";
 import type { ForecastResponse } from "./types";
 
@@ -101,14 +101,18 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
         </select>
       </div>
 
-      {/* Row 2+: Chart + Heatmap (left) alongside Action Panel (right) */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
-        {/* Left column: forecast chart + capacity heatmap stacked */}
-        <div className="flex min-w-0 flex-1 flex-col gap-6 lg:h-full">
-          <div className="app-card p-4 lg:flex-1">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-700">
+      <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-blue-900">Forecasting Components</h2>
+          <p className="text-xs text-blue-800/80">
+            Scenario planning signals for upcoming demand and pipeline impact.
+          </p>
+        </div>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
+          <div className="app-card min-w-0 flex-1 p-4">
+            <h3 className="mb-1 text-sm font-semibold text-zinc-700">
               Utilization Forecast
-            </h2>
+            </h3>
             <p className="mb-4 text-xs text-zinc-500">
               Projected team utilization over the next {horizonWeeks} weeks across three demand scenarios
             </p>
@@ -119,40 +123,61 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
             />
           </div>
 
-          <div className="app-card p-4 lg:flex-1">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-700">
+          <div className="w-full lg:w-80 lg:shrink-0 lg:self-stretch">
+            <DashboardActionPanel
+              weeks={data.weeks}
+              hiringRecommendations={data.hiring_recommendations}
+              proposals={data.proposals}
+              selectedProposalIds={selectedProposalIds}
+              onSelectedProposalIdsChange={setSelectedProposalIds}
+              planningHoursPerPersonPerWeek={Number(
+                data.planning_hours_per_person_per_week ?? 40
+              )}
+              showProposalSelection
+              showStaffingRisks={false}
+              showHiringRecommendations={false}
+              showForecastDrivers
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-emerald-900">Current Components</h2>
+          <p className="text-xs text-emerald-800/80">
+            Current-state operational signals based on committed work and present capacity.
+          </p>
+        </div>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
+          <div className="app-card min-w-0 flex-1 p-4">
+            <h3 className="mb-1 text-sm font-semibold text-zinc-700">
               Capacity Heatmap
-            </h2>
+            </h3>
             <p className="mb-4 text-xs text-zinc-500">
               Office utilization by week based on committed work only — green: healthy, amber: approaching capacity, red: overloaded
             </p>
             <CapacityHeatmap weeks={horizonWeeks} />
           </div>
-        </div>
 
-        {/* Right column: action panel */}
-        <div className="w-full lg:w-80 lg:shrink-0 lg:self-stretch">
-          <DashboardActionPanel
-            weeks={data.weeks}
-            hiringRecommendations={data.hiring_recommendations}
-            skillShortages={data.skill_shortages}
-            proposals={data.proposals}
-            selectedProposalIds={selectedProposalIds}
-            onSelectedProposalIdsChange={setSelectedProposalIds}
-            planningHoursPerPersonPerWeek={Number(
-              data.planning_hours_per_person_per_week ?? 40
-            )}
-            showSkillShortages={false}
-            showForecastDrivers={false}
-          />
+          <div className="w-full lg:w-80 lg:shrink-0 lg:self-stretch">
+            <DashboardActionPanel
+              weeks={data.weeks}
+              hiringRecommendations={data.hiring_recommendations}
+              proposals={data.proposals}
+              selectedProposalIds={selectedProposalIds}
+              onSelectedProposalIdsChange={setSelectedProposalIds}
+              planningHoursPerPersonPerWeek={Number(
+                data.planning_hours_per_person_per_week ?? 40
+              )}
+              showProposalSelection={false}
+              showStaffingRisks
+              showHiringRecommendations
+              showForecastDrivers={false}
+            />
+          </div>
         </div>
-      </div>
-
-      <DashboardDetailRail
-        weeks={data.weeks}
-        skillShortages={data.skill_shortages}
-        planningHoursPerPersonPerWeek={Number(data.planning_hours_per_person_per_week ?? 40)}
-      />
+      </section>
     </div>
   );
 }
