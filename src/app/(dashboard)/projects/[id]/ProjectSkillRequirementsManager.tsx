@@ -13,12 +13,16 @@ type EditableRequirementRow = RequirementRow & {
   key: string;
 };
 
+type RequirementInputUnit = "hours" | "people";
+
 type ProjectSkillRequirementsManagerProps = {
   projectId: string;
   allSkills: SkillItem[];
   initialRequirements: RequirementRow[];
   canManage: boolean;
 };
+
+const HOURS_PER_PERSON_PER_WEEK = 40;
 
 function makeRowKey(index: number, skillId: string): string {
   return `${index}-${skillId || "new"}`;
@@ -39,6 +43,7 @@ export default function ProjectSkillRequirementsManager({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [inputUnit, setInputUnit] = useState<RequirementInputUnit>("hours");
 
   const sortedSkills = useMemo(
     () => [...allSkills].sort((a, b) => a.name.localeCompare(b.name)),
@@ -75,6 +80,23 @@ export default function ProjectSkillRequirementsManager({
   const removeRow = (key: string) => {
     if (!canManage || loading) return;
     setRows((prev) => prev.filter((row) => row.key !== key));
+  };
+
+  const inputStep = inputUnit === "hours" ? "0.5" : "0.1";
+  const inputPlaceholder = inputUnit === "hours" ? "e.g. 12" : "e.g. 1.5";
+
+  const toDisplayValue = (requiredHoursPerWeek: number): number => {
+    if (inputUnit === "hours") {
+      return requiredHoursPerWeek;
+    }
+    return Math.round((requiredHoursPerWeek / HOURS_PER_PERSON_PER_WEEK) * 100) / 100;
+  };
+
+  const toStoredHours = (inputValue: number): number => {
+    if (inputUnit === "hours") {
+      return inputValue;
+    }
+    return Math.round(inputValue * HOURS_PER_PERSON_PER_WEEK * 100) / 100;
   };
 
   const saveRequirements = async () => {
@@ -122,14 +144,37 @@ export default function ProjectSkillRequirementsManager({
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-zinc-600">
+        Set skill demand per week. You can enter requirements in hours/week or people (1 person = 40 hours/week).
+      </p>
       {sortedSkills.length === 0 ? (
         <p className="text-sm text-zinc-600">No skills configured yet.</p>
       ) : canManage ? (
         <>
+          <div className="max-w-xs">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Input unit
+            </label>
+            <Select
+              value={inputUnit}
+              onChange={(e) => setInputUnit(e.target.value as RequirementInputUnit)}
+              disabled={loading}
+            >
+              <option value="hours">Hours/week</option>
+              <option value="people">People</option>
+            </Select>
+          </div>
           {rows.length === 0 ? (
             <p className="text-sm text-zinc-600">No requirements set yet.</p>
           ) : (
             <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 px-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                <div className="col-span-7">Skill</div>
+                <div className="col-span-3">
+                  {inputUnit === "hours" ? "Required hrs/week" : "Required people"}
+                </div>
+                <div className="col-span-2 text-right">Action</div>
+              </div>
               {rows.map((row) => (
                 <div key={row.key} className="grid grid-cols-12 gap-2">
                   <div className="col-span-7">
@@ -152,11 +197,17 @@ export default function ProjectSkillRequirementsManager({
                     <Input
                       type="number"
                       min="0"
-                      step="0.5"
-                      value={row.required_hours_per_week}
+                      step={inputStep}
+                      aria-label={
+                        inputUnit === "hours"
+                          ? "Required hours per week for selected skill"
+                          : "Required people for selected skill"
+                      }
+                      placeholder={inputPlaceholder}
+                      value={toDisplayValue(Number(row.required_hours_per_week ?? 0))}
                       onChange={(e) =>
                         updateRow(row.key, {
-                          required_hours_per_week: Number(e.target.value),
+                          required_hours_per_week: toStoredHours(Number(e.target.value)),
                         })
                       }
                       disabled={loading}
@@ -198,6 +249,11 @@ export default function ProjectSkillRequirementsManager({
               {loading ? "Saving..." : "Save requirements"}
             </Button>
           </div>
+          <p className="text-xs text-zinc-500">
+            {inputUnit === "hours"
+              ? "Example: if Design is set to 12, this project needs 12 design hours each week."
+              : "Example: if Design is set to 1.5, this project needs 1.5 people (~60 hours/week) each week."}
+          </p>
         </>
       ) : (
         <div className="space-y-2">
@@ -213,7 +269,9 @@ export default function ProjectSkillRequirementsManager({
                   {skillNameById.get(row.skill_id) ?? "Unknown skill"}
                 </span>
                 <span className="text-sm font-medium text-zinc-800">
-                  {Number(row.required_hours_per_week).toFixed(1)}h/week
+                  {Number(row.required_hours_per_week).toFixed(1)} required hrs/week
+                  {" "}
+                  ({(Number(row.required_hours_per_week) / HOURS_PER_PERSON_PER_WEEK).toFixed(2)} people)
                 </span>
               </div>
             ))
