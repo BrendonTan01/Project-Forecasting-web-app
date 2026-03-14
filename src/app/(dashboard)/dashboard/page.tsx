@@ -28,7 +28,7 @@ function getPeriodDates() {
 
 function safePercent(value: number): number {
   if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
-  return Math.max(0, value);
+  return Math.max(0, Math.min(100, value));
 }
 
 export default async function DashboardPage({
@@ -235,7 +235,11 @@ export default async function DashboardPage({
                             <div className="mb-1 flex items-center justify-between text-xs">
                               <span className="font-medium text-zinc-600">Delivery</span>
                               <span className="flex items-center gap-1 tabular-nums text-zinc-700">
-                                <span>{deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}</span>
+                                <span
+                                  className={deliveryProgress !== null && deliveryProgress > 100 ? "font-semibold text-red-700" : ""}
+                                >
+                                  {deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}
+                                </span>
                                 {deliveryProgress !== null && deliveryProgress > 100 && (
                                   <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
                                     &gt;100%
@@ -254,7 +258,11 @@ export default async function DashboardPage({
                             <div className="mb-1 flex items-center justify-between text-xs">
                               <span className="font-medium text-zinc-600">Financial</span>
                               <span className="flex items-center gap-1 tabular-nums text-zinc-700">
-                                <span>{financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}</span>
+                                <span
+                                  className={financialProgress !== null && financialProgress > 100 ? "font-semibold text-red-700" : ""}
+                                >
+                                  {financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}
+                                </span>
                                 {financialProgress !== null && financialProgress > 100 && (
                                   <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
                                     &gt;100%
