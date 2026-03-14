@@ -40,11 +40,6 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function clampPercent(value: number): number {
-  if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, value));
-}
-
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -328,9 +323,6 @@ export default async function ProjectsPage({
                 Actual
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
-                Progress
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Start date
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -356,24 +348,6 @@ export default async function ProjectsPage({
             {projects?.map((project) => {
               const actual = actualByProject[project.id] ?? 0;
               const estimated = project.estimated_hours ?? 0;
-              const scheduleProgress = estimated > 0 ? (actual / estimated) * 100 : 0;
-              const clampedScheduleProgress = clampPercent(scheduleProgress);
-              const financeRisk = projectFinancialRisk[project.id];
-              const financialData = financialByProject[project.id] ?? {
-                actualCost: 0,
-                actualRevenue: 0,
-                actualHours: 0,
-                billableHours: 0,
-              };
-              const estimatedCostBudget = financeRisk?.estimatedCostBudget ?? null;
-              const financeProgress =
-                canViewFinancials && estimatedCostBudget && estimatedCostBudget > 0
-                  ? (financialData.actualCost / estimatedCostBudget) * 100
-                  : null;
-              const clampedFinanceProgress = financeProgress !== null
-                ? clampPercent(financeProgress)
-                : null;
-              const hasFinanceProgress = canViewFinancials && financeProgress !== null;
               const health = getProjectHealthStatus(actual, project.estimated_hours, project.start_date, {
                 endDate: project.end_date,
                 recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
@@ -405,35 +379,6 @@ export default async function ProjectsPage({
                   </td>
                   <td className="px-4 py-3 text-right text-sm text-zinc-800">
                     {actual}h
-                  </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
-                    {project.status === "active" ? (
-                      <div className="min-w-48">
-                        <div className="mb-1 flex items-center justify-between text-xs">
-                          <span className="font-medium text-zinc-600">
-                            {hasFinanceProgress ? "Delivery vs Budget" : "Delivery"}
-                          </span>
-                          <span className="tabular-nums text-zinc-700">
-                            {estimated > 0 ? `D ${scheduleProgress.toFixed(0)}%` : "D N/A"}
-                            {canViewFinancials && ` | B ${financeProgress === null ? "N/A" : `${financeProgress.toFixed(0)}%`}`}
-                          </span>
-                        </div>
-                        <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-zinc-200">
-                          <div
-                            className="h-full rounded-full bg-blue-600"
-                            style={{ width: `${clampedScheduleProgress}%` }}
-                          />
-                          {hasFinanceProgress && (
-                            <div
-                              className={`absolute bottom-0 top-0 w-0.5 ${financeProgress > 100 ? "bg-red-600" : "bg-emerald-600"}`}
-                              style={{ left: `${clampedFinanceProgress}%` }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-zinc-500">Shown for active projects</span>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-zinc-700">
                     {formatProjectDate(project.start_date)}
