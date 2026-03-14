@@ -318,7 +318,6 @@ export default async function DashboardPage({
                       : null;
                   const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
                   const assignedStaffSkills = new Set<string>();
-                  const assignedStaffIds = assignmentStaffByProject[project.id] ?? [];
                   for (const staffId of assignedStaffIds) {
                     const staffSkills = staffSkillsByStaffId.get(staffId);
                     if (!staffSkills) continue;
