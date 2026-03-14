@@ -6,11 +6,11 @@ import { removeProjectAssignment } from "./actions";
 export default function RemoveAssignmentButton({
   projectId,
   assignmentId,
-  staffEmail,
+  staffLabel,
 }: {
   projectId: string;
   assignmentId: string;
-  staffEmail: string;
+  staffLabel: string;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ export default function RemoveAssignmentButton({
   if (confirming) {
     return (
       <span className="flex items-center gap-2 text-sm">
-        <span className="text-zinc-700">Remove {staffEmail}?</span>
+        <span className="text-zinc-700">Remove {staffLabel}?</span>
         <button
           onClick={handleRemove}
           disabled={loading}

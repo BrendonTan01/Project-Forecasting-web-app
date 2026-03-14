@@ -16,6 +16,7 @@ import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 interface Alert {
   type: string;
@@ -31,11 +32,6 @@ function getPeriodDates() {
   const start = new Date();
   start.setDate(start.getDate() - 30);
   return { start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] };
-}
-
-function getStaffEmail(sp: { users?: { email: string } | { email: string }[] | null }): string {
-  const users = sp.users;
-  return (Array.isArray(users) ? users[0]?.email : users?.email) ?? "Unknown";
 }
 
 export default async function AlertsPage() {
@@ -79,14 +75,14 @@ export default async function AlertsPage() {
       sp.weekly_capacity_hours > 0
         ? (weeklyAllocatedHours / Number(sp.weekly_capacity_hours)) * 100
         : 0;
-    const email = getStaffEmail(sp);
+    const staffLabel = getStaffDisplayName(sp.name, sp.users);
 
     if (status === "underutilised") {
       alerts.push({
         type: "utilisation",
         severity: "warning",
         title: "Underutilised staff",
-        description: `${email}: ${formatUtilisation(utilisation)} utilisation`,
+        description: `${staffLabel}: ${formatUtilisation(utilisation)} utilisation`,
         link: `/staff/${sp.id}`,
         linkLabel: "View profile",
       });
@@ -96,7 +92,7 @@ export default async function AlertsPage() {
         type: "utilisation",
         severity: "warning",
         title: "Overallocated staff",
-        description: `${email}: ${allocationSum}% allocation`,
+        description: `${staffLabel}: ${allocationSum}% allocation`,
         link: `/staff/${sp.id}`,
         linkLabel: "View profile",
       });
@@ -113,12 +109,12 @@ export default async function AlertsPage() {
       (e) => e.staff_id === sp.id && e.date >= recentStart
     );
     if (!hasRecentEntry) {
-      const email = getStaffEmail(sp);
+      const staffLabel = getStaffDisplayName(sp.name, sp.users);
       alerts.push({
         type: "data_quality",
         severity: "warning",
         title: "Missing timesheet",
-        description: `${email}: No time entries in last 7 days`,
+        description: `${staffLabel}: No time entries in last 7 days`,
         link: "/time-entry",
         linkLabel: "Log time",
       });
@@ -136,12 +132,12 @@ export default async function AlertsPage() {
     if (hours > 12) {
       const [staffId, date] = key.split("-");
       const staff = staffProfiles.find((s) => s.id === staffId);
-      const email = staff ? getStaffEmail(staff) : "Unknown";
+      const staffLabel = staff ? getStaffDisplayName(staff.name, staff.users) : "Unknown staff";
       alerts.push({
         type: "data_quality",
         severity: "warning",
         title: "Unrealistic daily hours",
-        description: `${email}: ${hours}h on ${date}`,
+        description: `${staffLabel}: ${hours}h on ${date}`,
         link: "/time-entry",
         linkLabel: "Review",
       });
@@ -161,12 +157,12 @@ export default async function AlertsPage() {
   Object.entries(projectCountByStaff).forEach(([staffId, projectSet]) => {
     if (projectSet.size === 1 && timeEntries.filter((e) => e.staff_id === staffId).length > 5) {
       const staff = staffProfiles.find((s) => s.id === staffId);
-      const email = staff ? getStaffEmail(staff) : "Unknown";
+      const staffLabel = staff ? getStaffDisplayName(staff.name, staff.users) : "Unknown staff";
       alerts.push({
         type: "data_quality",
         severity: "warning",
         title: "All time to one project",
-        description: `${email}: All entries logged to single project`,
+        description: `${staffLabel}: All entries logged to single project`,
         link: `/staff/${staffId}`,
         linkLabel: "View profile",
       });

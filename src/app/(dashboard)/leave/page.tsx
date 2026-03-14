@@ -3,6 +3,7 @@ import { getCurrentUserWithTenant, getCurrentStaffId } from "@/lib/supabase/auth
 import { Badge } from "@/components/ui/primitives";
 import LeaveRequestForm from "./LeaveRequestForm";
 import { ApproveRejectButtons, DeleteLeaveButton } from "./LeaveStatusActions";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -40,7 +41,8 @@ export default async function LeavePage() {
         created_at,
         staff_profiles (
           id,
-          users (email)
+          name,
+          users (name, email)
         )
       `)
       .eq("tenant_id", user.tenantId)
@@ -73,11 +75,13 @@ export default async function LeavePage() {
               {requests.map((r) => {
                 const sp = Array.isArray(r.staff_profiles) ? r.staff_profiles[0] : r.staff_profiles;
                 const usersRaw = sp ? (sp as unknown as { users?: unknown }).users : null;
-                const userObj = Array.isArray(usersRaw) ? usersRaw[0] : usersRaw;
-                const email = (userObj as { email?: string } | null)?.email ?? "Unknown";
+                const displayName = getStaffDisplayName(
+                  (sp as { name?: string | null } | null)?.name,
+                  usersRaw
+                );
                 return (
                   <tr key={r.id} className="border-b border-zinc-100">
-                    <td className="py-2 text-sm text-zinc-800">{email}</td>
+                    <td className="py-2 text-sm text-zinc-800">{displayName}</td>
                     <td className="py-2 text-sm capitalize text-zinc-700">{r.leave_type}</td>
                     <td className="py-2 text-sm text-zinc-800">{formatDate(r.start_date)}</td>
                     <td className="py-2 text-sm text-zinc-800">{formatDate(r.end_date)}</td>

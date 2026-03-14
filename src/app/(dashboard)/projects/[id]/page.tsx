@@ -17,6 +17,7 @@ import {
 } from "@/lib/utils/assignmentEffective";
 import ProjectSkillRequirementsManager from "./ProjectSkillRequirementsManager";
 import type { SkillItem } from "@/app/api/skills/route";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 function formatProjectDate(value: string | null): string {
   if (!value) return "-";
@@ -131,10 +132,11 @@ export default async function ProjectDetailPage({
       projects (start_date, end_date, status),
       staff_profiles (
         id,
+        name,
         user_id,
         job_title,
         weekly_capacity_hours,
-        users (email)
+        users (name, email)
       )
     `)
     .eq("tenant_id", user.tenantId)
@@ -421,15 +423,16 @@ export default async function ProjectDetailPage({
               {effectiveAssignments.map((a) => {
                 const sp = a.staff_profiles as {
                   id: string;
-                  users?: { email: string } | { email: string }[] | null;
-                } | { id: string; users?: { email: string } | { email: string }[] | null }[] | null;
+                  name?: string | null;
+                  users?: { name?: string | null; email?: string | null } | { name?: string | null; email?: string | null }[] | null;
+                } | { id: string; name?: string | null; users?: { name?: string | null; email?: string | null } | { name?: string | null; email?: string | null }[] | null }[] | null;
                 const staff = Array.isArray(sp) ? sp[0] : sp;
-                const email = staff ? (Array.isArray(staff.users) ? staff.users[0]?.email : staff.users?.email) ?? "Unknown" : "Unknown";
+                const displayName = getStaffDisplayName(staff?.name, staff?.users);
                 return (
                   <tr key={a.id} className="border-b border-zinc-100">
                     <td className="py-2">
                       <Link href={`/staff/${staff?.id}`} className="app-link text-zinc-900">
-                        {email}
+                        {displayName}
                       </Link>
                     </td>
                     <td className="py-2 font-medium text-zinc-800">

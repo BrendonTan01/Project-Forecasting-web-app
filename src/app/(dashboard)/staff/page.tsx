@@ -3,6 +3,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import Link from "next/link";
 import { calculateUtilisation, formatUtilisation } from "@/lib/utils/utilisation";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
@@ -26,10 +27,11 @@ export default async function StaffPage() {
     .from("staff_profiles")
     .select(`
       id,
+      name,
       user_id,
       job_title,
       weekly_capacity_hours,
-      users (email, role, office_id, offices (name, country))
+      users (name, email, role, office_id, offices (name, country))
     `)
     .eq("tenant_id", user.tenantId);
 
@@ -109,8 +111,14 @@ export default async function StaffPage() {
           </thead>
           <tbody>
             {staffProfiles?.map((sp) => {
-              const u = getRelationOne((sp as { users?: unknown }).users) as { email: string; role: string; offices?: { name: string; country: string } | { name: string; country: string }[] | null } | null;
+              const u = getRelationOne((sp as { users?: unknown }).users) as {
+                name?: string | null;
+                email?: string | null;
+                role: string;
+                offices?: { name: string; country: string } | { name: string; country: string }[] | null;
+              } | null;
               const office = u?.offices ? getRelationOne(u.offices) as { name: string; country: string } | null : null;
+              const displayName = getStaffDisplayName(sp.name, u);
               const capacity = sp.weekly_capacity_hours * (30 / 7);
               const billable = billableByStaff[sp.id] ?? 0;
               const utilisation = calculateUtilisation(billable, capacity);
@@ -127,7 +135,7 @@ export default async function StaffPage() {
                       href={`/staff/${sp.id}`}
                       className="app-link font-medium text-zinc-900"
                     >
-                      {u?.email ?? "Unknown"}
+                      {displayName}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-sm text-zinc-700">

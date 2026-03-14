@@ -20,7 +20,7 @@ interface Project {
 
 interface StaffOption {
   id: string;
-  email: string;
+  label: string;
 }
 
 interface TimeEntrySheetProps {
@@ -213,7 +213,7 @@ export function TimeEntrySheet({
             >
               {staffOptions.map((staff) => (
                 <option key={staff.id} value={staff.id}>
-                  {staff.email}
+                  {staff.label}
                 </option>
               ))}
             </select>

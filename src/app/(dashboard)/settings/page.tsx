@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/permissions";
 import { ProfileSettingsForm } from "./ProfileSettingsForm";
 import { CostRatesManager } from "./CostRatesManager";
 import { getRelationOne } from "@/lib/utils/supabase-relations";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 export default async function SettingsPage() {
   const user = await getCurrentUserWithTenant();
@@ -40,20 +41,21 @@ export default async function SettingsPage() {
   const { data: staffRates } = canManageRates
     ? await supabase
         .from("staff_profiles")
-        .select("id, user_id, billable_rate, cost_rate, users(email, role, office_id, offices(name, country))")
+        .select("id, user_id, name, billable_rate, cost_rate, users(name, email, role, office_id, offices(name, country))")
         .eq("tenant_id", user.tenantId)
     : { data: null };
 
   const managedRateRows = (staffRates ?? [])
     .map((row) => {
       const u = getRelationOne((row as { users?: unknown }).users) as
-        | { email: string; role: string; office_id: string | null; offices?: { name: string; country: string } | { name: string; country: string }[] | null }
+        | { name?: string; email?: string; role: string; office_id: string | null; offices?: { name: string; country: string } | { name: string; country: string }[] | null }
         | null;
       const office = u?.offices ? (getRelationOne(u.offices) as { name: string; country: string } | null) : null;
+      const profileName = (row as { name?: string | null }).name;
       return {
         staff_id: row.id,
         user_id: row.user_id,
-        email: u?.email ?? "Unknown",
+        displayName: getStaffDisplayName(profileName, u),
         role: u?.role ?? "staff",
         office_id: u?.office_id ?? null,
         office_label: office ? `${office.name} (${office.country})` : "Unassigned",
@@ -67,7 +69,7 @@ export default async function SettingsPage() {
       if (row.user_id === user.id) return true;
       return row.role === "staff" && row.office_id !== null && row.office_id === user.officeId;
     })
-    .sort((a, b) => a.email.localeCompare(b.email));
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

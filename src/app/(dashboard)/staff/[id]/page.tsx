@@ -10,6 +10,7 @@ import {
 } from "@/lib/utils/assignmentEffective";
 import StaffSkillsManager from "./StaffSkillsManager";
 import type { SkillItem } from "@/app/api/skills/route";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 function getPeriodDates(days: number) {
   const end = new Date();
@@ -32,7 +33,7 @@ export default async function StaffProfilePage({
 
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
-    .select("id, user_id, job_title, weekly_capacity_hours, users (email, office_id, offices (name, country, timezone))")
+    .select("id, user_id, name, job_title, weekly_capacity_hours, users (name, email, office_id, offices (name, country, timezone))")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
@@ -84,8 +85,17 @@ export default async function StaffProfilePage({
   }));
   const assignedSkillIds = (staffSkillRows ?? []).map((row) => row.skill_id);
 
-  const usersRaw = staffProfile.users as { email: string; offices?: { name: string; country: string; timezone: string } | { name: string; country: string; timezone: string }[] | null } | { email: string; offices?: unknown }[] | null;
+  const usersRaw = staffProfile.users as {
+    name?: string;
+    email?: string;
+    offices?: { name: string; country: string; timezone: string } | { name: string; country: string; timezone: string }[] | null;
+  } | {
+    name?: string;
+    email?: string;
+    offices?: unknown;
+  }[] | null;
   const u = Array.isArray(usersRaw) ? usersRaw[0] : usersRaw;
+  const displayName = getStaffDisplayName(staffProfile.name, u);
   const offices = u?.offices;
   const office = Array.isArray(offices) ? offices[0] : offices;
   const capacity = staffProfile.weekly_capacity_hours * (30 / 7);
@@ -116,7 +126,7 @@ export default async function StaffProfilePage({
           ← Staff
         </Link>
         <h1 className="app-page-title mt-2">
-          {u?.email ?? "Unknown"}
+          {displayName}
         </h1>
       </div>
 

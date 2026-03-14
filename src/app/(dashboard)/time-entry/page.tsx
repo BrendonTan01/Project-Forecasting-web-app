@@ -3,6 +3,7 @@ import { getCurrentUserWithTenant, getCurrentStaffId } from "@/lib/supabase/auth
 import { getRelationOne } from "@/lib/utils/supabase-relations";
 import { TimeEntrySheet } from "@/components/time-entry/TimeEntrySheet";
 import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 function getWeekDates(date: Date): { start: string; end: string; dates: string[] } {
   const d = new Date(date);
@@ -41,24 +42,27 @@ export default async function TimeEntryPage({
   const supabase = await createClient();
   let selectedStaffId = staffId;
 
-  type StaffOption = { id: string; email: string };
+  type StaffOption = { id: string; label: string };
   let staffOptions: StaffOption[] = [];
 
   if (canSelectStaff) {
     const { data: staffRows } = await supabase
       .from("staff_profiles")
-      .select("id, users(email)")
+      .select("id, name, users(name, email)")
       .eq("tenant_id", user.tenantId);
 
     staffOptions = (staffRows ?? [])
       .map((row) => {
-        const relatedUser = getRelationOne((row as { users?: unknown }).users) as { email?: string } | null;
+        const relatedUser = getRelationOne((row as { users?: unknown }).users) as
+          | { name?: string; email?: string }
+          | null;
+        const profileName = (row as { name?: string | null }).name;
         return {
           id: row.id,
-          email: relatedUser?.email ?? "Unknown",
+          label: getStaffDisplayName(profileName, relatedUser),
         };
       })
-      .sort((a, b) => a.email.localeCompare(b.email));
+      .sort((a, b) => a.label.localeCompare(b.label));
 
     if (params.staff && staffOptions.some((option) => option.id === params.staff)) {
       selectedStaffId = params.staff;

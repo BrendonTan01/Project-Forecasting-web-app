@@ -6,7 +6,7 @@ import { Button, Input } from "@/components/ui/primitives";
 
 type ManagedRateRow = {
   staff_id: string;
-  email: string;
+  displayName: string;
   role: string;
   office_label: string;
   billable_rate: number | null;
@@ -82,7 +82,7 @@ export function CostRatesManager({ rows }: Props) {
         <table className="min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
-              <th className="pb-2">User</th>
+              <th className="pb-2">Staff</th>
               <th className="pb-2">Role</th>
               <th className="pb-2">Office</th>
               <th className="pb-2">Billable rate</th>
@@ -95,7 +95,7 @@ export function CostRatesManager({ rows }: Props) {
               const draft = drafts[row.staff_id] ?? { billable: "", cost: "" };
               return (
                 <tr key={row.staff_id} className="border-b border-zinc-100">
-                  <td className="py-2 text-sm text-zinc-900">{row.email}</td>
+                  <td className="py-2 text-sm text-zinc-900">{row.displayName}</td>
                   <td className="py-2 text-sm capitalize text-zinc-700">{row.role}</td>
                   <td className="py-2 text-sm text-zinc-700">{row.office_label}</td>
                   <td className="py-2 pr-2">

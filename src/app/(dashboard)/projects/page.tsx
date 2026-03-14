@@ -15,6 +15,7 @@ import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
+import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
@@ -102,7 +103,7 @@ export default async function ProjectsPage({
   const { data: assignmentsData } = projectIds.length
     ? await supabase
         .from("project_assignments")
-        .select("project_id, staff_id, week_start, weekly_hours_allocated, staff_profiles(name, users(email)), projects(start_date, end_date, status)")
+        .select("project_id, staff_id, week_start, weekly_hours_allocated, staff_profiles(name, users(name, email)), projects(start_date, end_date, status)")
         .eq("tenant_id", user.tenantId)
         .in("project_id", projectIds)
     : { data: [] };
@@ -151,9 +152,8 @@ export default async function ProjectsPage({
       const profile = Array.isArray(row.staff_profiles)
         ? row.staff_profiles[0]
         : row.staff_profiles;
-      const relatedUser = (profile as { users?: { email?: string } | { email?: string }[] | null } | null)?.users;
-      const email = Array.isArray(relatedUser) ? relatedUser[0]?.email : relatedUser?.email;
-      const name = profile?.name ?? email ?? "Unknown";
+      const relatedUser = (profile as { users?: { name?: string; email?: string } | { name?: string; email?: string }[] | null } | null)?.users;
+      const name = getStaffDisplayName(profile?.name, relatedUser);
       const hours = Number(row.weekly_hours_allocated);
       if (!acc[row.project_id]) acc[row.project_id] = [];
       acc[row.project_id].push({ name, hours });

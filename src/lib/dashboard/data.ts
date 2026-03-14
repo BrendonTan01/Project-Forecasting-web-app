@@ -26,7 +26,7 @@ export const getDashboardWindowData = cache(
     ] = await Promise.all([
       supabase
         .from("staff_profiles")
-        .select("id, user_id, weekly_capacity_hours, cost_rate, users(email, office_id, offices(id, name, country))")
+        .select("id, user_id, name, weekly_capacity_hours, cost_rate, users(name, email, office_id, offices(id, name, country))")
         .eq("tenant_id", tenantId),
       supabase
         .from("projects")
