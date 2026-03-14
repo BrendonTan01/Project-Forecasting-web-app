@@ -43,7 +43,7 @@ export default async function DashboardPage({
   }
   const { start, end } = getPeriodDates();
   await getDashboardWindowData(user.tenantId, start, end, user.id);
-  const showCurrentProjects = user.role === "admin" || user.role === "manager";
+  const showCurrentProjects = user.role === "administrator" || user.role === "manager";
   const canViewFinancials = hasPermission(user.role, "financials:view") || showCurrentProjects;
 
   const supabase = await createClient();
