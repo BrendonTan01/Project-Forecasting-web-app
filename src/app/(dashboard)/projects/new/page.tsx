@@ -2,6 +2,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import { ProjectForm } from "../ProjectForm";
 
 export default async function NewProjectPage() {
@@ -10,6 +11,12 @@ export default async function NewProjectPage() {
   if (!hasPermission(user.role, "projects:manage")) {
     redirect("/projects");
   }
+  const supabase = await createClient();
+  const { data: offices } = await supabase
+    .from("offices")
+    .select("id, name")
+    .eq("tenant_id", user.tenantId)
+    .order("name");
 
   return (
     <div className="space-y-6">
@@ -20,7 +27,7 @@ export default async function NewProjectPage() {
         <h1 className="app-page-title mt-2">Add new project</h1>
       </div>
 
-      <ProjectForm />
+      <ProjectForm offices={(offices ?? []).map((o) => ({ id: o.id, name: o.name }))} />
     </div>
   );
 }

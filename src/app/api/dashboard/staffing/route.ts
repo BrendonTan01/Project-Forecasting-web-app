@@ -35,6 +35,11 @@ export async function GET(request: NextRequest) {
         .select("weekly_capacity_hours")
         .eq("tenant_id", user.tenantId),
     ]);
+    const { data: tenantSettings } = await admin
+      .from("tenants")
+      .select("planning_hours_per_person_per_week")
+      .eq("id", user.tenantId)
+      .single();
 
     const profiles = staffProfiles ?? [];
     const avgWeeklyCapacity =
@@ -54,7 +59,12 @@ export async function GET(request: NextRequest) {
             : 0,
       }));
 
-    return NextResponse.json({ weeks: responseWeeks });
+    return NextResponse.json({
+      weeks: responseWeeks,
+      planning_hours_per_person_per_week: Number(
+        tenantSettings?.planning_hours_per_person_per_week ?? 40
+      ),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Staffing calculation failed";
     return NextResponse.json({ error: message }, { status: 500 });

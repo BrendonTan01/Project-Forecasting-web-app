@@ -41,6 +41,11 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function parseOfficeScope(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -64,7 +69,8 @@ export default async function ProjectsPage({
       estimated_hours,
       start_date,
       end_date,
-      status
+      status,
+      office_scope
     `)
     .eq("tenant_id", user.tenantId)
     .order("name");
@@ -74,6 +80,11 @@ export default async function ProjectsPage({
   }
 
   const { data: projects } = await query;
+  const { data: offices } = await supabase
+    .from("offices")
+    .select("id, name")
+    .eq("tenant_id", user.tenantId);
+  const officeNameById = new Map((offices ?? []).map((office) => [office.id, office.name]));
 
   const projectIds = projects?.map((p) => p.id) ?? [];
   const { data: actualHoursData } = projectIds.length
@@ -329,6 +340,9 @@ export default async function ProjectsPage({
                 End date
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+                Offices
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
                 Health
               </th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -360,6 +374,13 @@ export default async function ProjectsPage({
                 label: project.status,
                 colour: "bg-zinc-100 text-zinc-500",
               };
+              const officeScopeIds = parseOfficeScope(project.office_scope);
+              const officeScopeLabel =
+                officeScopeIds.length === 0
+                  ? "All offices"
+                  : officeScopeIds
+                      .map((officeId) => officeNameById.get(officeId) ?? "Unknown office")
+                      .join(", ");
 
               return (
                 <tr key={project.id} className="border-b border-zinc-100">
@@ -385,6 +406,9 @@ export default async function ProjectsPage({
                   </td>
                   <td className="px-4 py-3 text-sm text-zinc-700">
                     {formatProjectDate(project.end_date)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {officeScopeLabel}
                   </td>
                   <td className="px-4 py-3">
                     <HealthStatusWithReason

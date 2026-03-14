@@ -19,6 +19,11 @@ import ProjectSkillRequirementsManager from "./ProjectSkillRequirementsManager";
 import type { SkillItem } from "@/app/api/skills/route";
 import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
 
+function parseOfficeScope(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
 function formatProjectDate(value: string | null): string {
   if (!value) return "-";
   return new Intl.DateTimeFormat("en-US", {
@@ -53,7 +58,7 @@ export default async function ProjectDetailPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, client_name, estimated_hours, start_date, end_date, status")
+    .select("id, name, client_name, estimated_hours, start_date, end_date, status, office_scope")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
@@ -244,7 +249,8 @@ export default async function ProjectDetailPage({
     estimatedCostBudget !== null &&
     forecastCostAtCompletion > estimatedCostBudget;
 
-  const [{ data: allSkills }, { data: skillRequirementRows }] = await Promise.all([
+  const projectOfficeScope = parseOfficeScope(project.office_scope);
+  const [{ data: allSkills }, { data: skillRequirementRows }, { data: officeHoursRows }] = await Promise.all([
     supabase
       .from("skills")
       .select("id, name")
@@ -255,7 +261,26 @@ export default async function ProjectDetailPage({
       .select("skill_id, required_hours_per_week")
       .eq("tenant_id", user.tenantId)
       .eq("project_id", id),
+    projectOfficeScope.length > 0
+      ? supabase
+          .from("offices")
+          .select("id, weekly_working_hours")
+          .eq("tenant_id", user.tenantId)
+          .in("id", projectOfficeScope)
+      : Promise.resolve({ data: [] as { id: string; weekly_working_hours: number }[] }),
   ]);
+  const { data: tenantSettings } = await supabase
+    .from("tenants")
+    .select("planning_hours_per_person_per_week")
+    .eq("id", user.tenantId)
+    .single();
+  const projectPeopleHoursPerWeek =
+    (officeHoursRows ?? []).length > 0
+      ? (officeHoursRows ?? []).reduce(
+          (sum, row) => sum + Number(row.weekly_working_hours ?? 0),
+          0
+        ) / (officeHoursRows ?? []).length
+      : Number(tenantSettings?.planning_hours_per_person_per_week ?? 40);
 
   const skillItems: SkillItem[] = (allSkills ?? []).map((row) => ({
     id: row.id,
@@ -396,6 +421,8 @@ export default async function ProjectDetailPage({
           allSkills={skillItems}
           initialRequirements={projectSkillRequirements}
           canManage={canManageProjects}
+          peopleUnitHoursPerWeek={projectPeopleHoursPerWeek}
+          peopleUnitSource={projectOfficeScope.length > 0 ? "project_offices" : "tenant_default"}
         />
       </div>
 

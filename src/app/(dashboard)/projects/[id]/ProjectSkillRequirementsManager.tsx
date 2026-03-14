@@ -20,9 +20,9 @@ type ProjectSkillRequirementsManagerProps = {
   allSkills: SkillItem[];
   initialRequirements: RequirementRow[];
   canManage: boolean;
+  peopleUnitHoursPerWeek: number;
+  peopleUnitSource: "project_offices" | "tenant_default";
 };
-
-const HOURS_PER_PERSON_PER_WEEK = 40;
 
 function makeRowKey(index: number, skillId: string): string {
   return `${index}-${skillId || "new"}`;
@@ -33,6 +33,8 @@ export default function ProjectSkillRequirementsManager({
   allSkills,
   initialRequirements,
   canManage,
+  peopleUnitHoursPerWeek,
+  peopleUnitSource,
 }: ProjectSkillRequirementsManagerProps) {
   const [rows, setRows] = useState<EditableRequirementRow[]>(
     initialRequirements.map((row, index) => ({
@@ -89,14 +91,14 @@ export default function ProjectSkillRequirementsManager({
     if (inputUnit === "hours") {
       return requiredHoursPerWeek;
     }
-    return Math.round((requiredHoursPerWeek / HOURS_PER_PERSON_PER_WEEK) * 100) / 100;
+    return Math.round((requiredHoursPerWeek / peopleUnitHoursPerWeek) * 100) / 100;
   };
 
   const toStoredHours = (inputValue: number): number => {
     if (inputUnit === "hours") {
       return inputValue;
     }
-    return Math.round(inputValue * HOURS_PER_PERSON_PER_WEEK * 100) / 100;
+    return Math.round(inputValue * peopleUnitHoursPerWeek * 100) / 100;
   };
 
   const saveRequirements = async () => {
@@ -145,7 +147,12 @@ export default function ProjectSkillRequirementsManager({
   return (
     <div className="space-y-3">
       <p className="text-xs text-zinc-600">
-        Set skill demand per week. You can enter requirements in hours/week or people (1 person = 40 hours/week).
+        Set skill demand per week. You can enter requirements in hours/week or people (1 person ={" "}
+        {peopleUnitHoursPerWeek.toFixed(1)} hours/week).
+        {" "}
+        {peopleUnitSource === "project_offices"
+          ? "This conversion is based on the average working hours of this project's selected offices."
+          : "This conversion is using the organisation planning default because no project office scope is selected."}
       </p>
       {sortedSkills.length === 0 ? (
         <p className="text-sm text-zinc-600">No skills configured yet.</p>
@@ -252,7 +259,9 @@ export default function ProjectSkillRequirementsManager({
           <p className="text-xs text-zinc-500">
             {inputUnit === "hours"
               ? "Example: if Design is set to 12, this project needs 12 design hours each week."
-              : "Example: if Design is set to 1.5, this project needs 1.5 people (~60 hours/week) each week."}
+              : `Example: if Design is set to 1.5, this project needs 1.5 people (~${(
+                  1.5 * peopleUnitHoursPerWeek
+                ).toFixed(1)} hours/week) each week.`}
           </p>
         </>
       ) : (
@@ -271,7 +280,7 @@ export default function ProjectSkillRequirementsManager({
                 <span className="text-sm font-medium text-zinc-800">
                   {Number(row.required_hours_per_week).toFixed(1)} required hrs/week
                   {" "}
-                  ({(Number(row.required_hours_per_week) / HOURS_PER_PERSON_PER_WEEK).toFixed(2)} people)
+                  ({(Number(row.required_hours_per_week) / peopleUnitHoursPerWeek).toFixed(2)} people)
                 </span>
               </div>
             ))

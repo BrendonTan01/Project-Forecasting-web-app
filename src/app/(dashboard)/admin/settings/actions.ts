@@ -8,6 +8,7 @@ type OrgSettingsData = {
   name: string;
   industry?: string;
   default_currency?: string;
+  planning_hours_per_person_per_week?: number;
 };
 
 export async function updateOrgSettings(data: OrgSettingsData) {
@@ -18,6 +19,10 @@ export async function updateOrgSettings(data: OrgSettingsData) {
   }
 
   if (!data.name?.trim()) return { error: "Organisation name is required." };
+  const planningHours = Number(data.planning_hours_per_person_per_week ?? 40);
+  if (!Number.isFinite(planningHours) || planningHours <= 0 || planningHours > 168) {
+    return { error: "Planning hours per person must be between 0.5 and 168." };
+  }
 
   const supabase = await createClient();
 
@@ -27,6 +32,7 @@ export async function updateOrgSettings(data: OrgSettingsData) {
       name: data.name.trim(),
       industry: data.industry?.trim() || null,
       default_currency: data.default_currency?.trim() || "USD",
+      planning_hours_per_person_per_week: planningHours,
     })
     .eq("id", user.tenantId);
 

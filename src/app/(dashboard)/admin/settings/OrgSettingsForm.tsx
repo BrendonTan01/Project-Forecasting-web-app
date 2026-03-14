@@ -13,11 +13,15 @@ export default function OrgSettingsForm({
     name: string;
     industry: string | null;
     default_currency: string | null;
+    planning_hours_per_person_per_week: number;
   };
 }) {
   const [name, setName] = useState(defaultValues.name);
   const [industry, setIndustry] = useState(defaultValues.industry ?? "");
   const [currency, setCurrency] = useState(defaultValues.default_currency ?? "USD");
+  const [planningHours, setPlanningHours] = useState(
+    String(defaultValues.planning_hours_per_person_per_week ?? 40)
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,10 +32,18 @@ export default function OrgSettingsForm({
     setSuccess(false);
     setLoading(true);
 
+    const parsedPlanningHours = Number(planningHours);
+    if (!Number.isFinite(parsedPlanningHours) || parsedPlanningHours <= 0 || parsedPlanningHours > 168) {
+      setError("Planning hours per person must be between 0.5 and 168.");
+      setLoading(false);
+      return;
+    }
+
     const result = await updateOrgSettings({
       name,
       industry: industry || undefined,
       default_currency: currency,
+      planning_hours_per_person_per_week: parsedPlanningHours,
     });
 
     setLoading(false);
@@ -80,6 +92,24 @@ export default function OrgSettingsForm({
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
+      </div>
+      <div>
+        <label htmlFor="planningHours" className="mb-1 block text-sm font-medium text-zinc-700">
+          Planning hours per person per week
+        </label>
+        <Input
+          id="planningHours"
+          type="number"
+          min="0.5"
+          max="168"
+          step="0.5"
+          value={planningHours}
+          onChange={(e) => setPlanningHours(e.target.value)}
+          required
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          Used to convert between people and hours/week in hiring and skill planning views.
+        </p>
       </div>
       {error && <p className="app-alert app-alert-error">{error}</p>}
       {success && (

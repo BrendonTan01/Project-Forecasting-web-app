@@ -17,6 +17,7 @@ export type ProjectFormData = {
   start_date?: string;
   end_date?: string;
   status: string;
+  office_scope?: string[] | null;
 };
 
 export async function createProject(data: ProjectFormData) {
@@ -27,6 +28,19 @@ export async function createProject(data: ProjectFormData) {
   }
 
   const supabase = await createClient();
+  const officeScope = data.office_scope?.length ? data.office_scope : null;
+
+  if (officeScope) {
+    const { data: offices, error: officesError } = await supabase
+      .from("offices")
+      .select("id")
+      .eq("tenant_id", user.tenantId)
+      .in("id", officeScope);
+    if (officesError) return { error: officesError.message };
+    if ((offices ?? []).length !== officeScope.length) {
+      return { error: "One or more selected offices are invalid." };
+    }
+  }
 
   const { data: project, error } = await supabase
     .from("projects")
@@ -38,6 +52,7 @@ export async function createProject(data: ProjectFormData) {
       start_date: data.start_date || null,
       end_date: data.end_date || null,
       status: data.status || "active",
+      office_scope: officeScope,
     })
     .select("id")
     .single();
@@ -66,6 +81,20 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
   }
 
   const supabase = await createClient();
+  const officeScope =
+    "office_scope" in data ? (data.office_scope?.length ? data.office_scope : null) : undefined;
+
+  if (officeScope) {
+    const { data: offices, error: officesError } = await supabase
+      .from("offices")
+      .select("id")
+      .eq("tenant_id", user.tenantId)
+      .in("id", officeScope);
+    if (officesError) return { error: officesError.message };
+    if ((offices ?? []).length !== officeScope.length) {
+      return { error: "One or more selected offices are invalid." };
+    }
+  }
 
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) updateData.name = data.name.trim();
@@ -74,6 +103,7 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
   if (data.start_date !== undefined) updateData.start_date = data.start_date || null;
   if (data.end_date !== undefined) updateData.end_date = data.end_date || null;
   if (data.status !== undefined) updateData.status = data.status;
+  if (officeScope !== undefined) updateData.office_scope = officeScope;
 
   const { error } = await supabase
     .from("projects")

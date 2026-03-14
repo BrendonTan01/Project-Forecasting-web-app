@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
       hiringRecommendations,
       { data: leaveRows },
       { data: staffNameRows },
+      { data: tenantSettings },
     ] = await Promise.all([
       getForecastForTenant(user.tenantId, weeks),
       admin
@@ -84,6 +85,11 @@ export async function GET(request: NextRequest) {
         .from("staff_profiles")
         .select("id, name, weekly_capacity_hours")
         .eq("tenant_id", user.tenantId),
+      admin
+        .from("tenants")
+        .select("planning_hours_per_person_per_week")
+        .eq("id", user.tenantId)
+        .single(),
     ]);
 
     const proposals = (proposalRows ?? []) as ProposalDemandRow[];
@@ -190,6 +196,9 @@ export async function GET(request: NextRequest) {
       skill_shortages: skillShortages,
       hiring_recommendations: hiringRecommendations,
       proposals: responseProposals,
+      planning_hours_per_person_per_week: Number(
+        tenantSettings?.planning_hours_per_person_per_week ?? 40
+      ),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Forecast calculation failed";

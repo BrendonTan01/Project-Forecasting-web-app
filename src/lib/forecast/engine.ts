@@ -523,6 +523,7 @@ export async function computeHiringRecommendations(
     { data: requirementRows },
     { data: staffSkillRows },
     { data: availabilityRows },
+    { data: tenantSettings },
   ] = await Promise.all([
     admin
       .from("skills")
@@ -545,7 +546,16 @@ export async function computeHiringRecommendations(
       .eq("tenant_id", tenantId)
       .gte("week_start", weekMondayStr)
       .lte("week_start", forecastEndStr),
+    admin
+      .from("tenants")
+      .select("planning_hours_per_person_per_week")
+      .eq("id", tenantId)
+      .single(),
   ]);
+
+  const planningHoursPerPersonPerWeek = Number(
+    tenantSettings?.planning_hours_per_person_per_week ?? STANDARD_STAFF_CAPACITY
+  );
 
   const skills = (skillRows ?? []) as SkillRow[];
   const rawRequirements = (requirementRows ?? []) as RawProjectSkillRequirementRow[];
@@ -640,7 +650,7 @@ export async function computeHiringRecommendations(
         const demandOverCapacity = Math.max(0, weekDemand - weekCapacity);
         const staffNeeded = Math.max(
           1,
-          Math.ceil(demandOverCapacity / STANDARD_STAFF_CAPACITY)
+          Math.ceil(demandOverCapacity / planningHoursPerPersonPerWeek)
         );
         const breachStartWeekIndex = i - (CONSECUTIVE_WEEKS_TRIGGER - 1);
         const shortageStartWeek = toDateString(addUtcDays(weekMonday, breachStartWeekIndex * 7));

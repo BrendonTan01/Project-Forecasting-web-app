@@ -13,8 +13,19 @@ function formatDate(iso: string): string {
   }).format(new Date(`${iso}T00:00:00Z`));
 }
 
+function formatHoursPerWeekWithPeople(
+  hoursPerWeek: number,
+  planningHoursPerPersonPerWeek: number
+): string {
+  const hoursLabel =
+    hoursPerWeek % 1 === 0 ? String(hoursPerWeek) : hoursPerWeek.toFixed(1);
+  const people = hoursPerWeek / planningHoursPerPersonPerWeek;
+  return `${hoursLabel}h/wk (${people.toFixed(2)} people)`;
+}
+
 export function HiringInsightsPanel({ weeks = 12 }: { weeks?: number }) {
   const [recommendations, setRecommendations] = useState<HiringRecommendation[]>([]);
+  const [planningHoursPerPersonPerWeek, setPlanningHoursPerPersonPerWeek] = useState(40);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
@@ -27,6 +38,9 @@ export function HiringInsightsPanel({ weeks = 12 }: { weeks?: number }) {
       })
       .then((json) => {
         setRecommendations(json.hiring_recommendations ?? []);
+        setPlanningHoursPerPersonPerWeek(
+          Number(json.planning_hours_per_person_per_week ?? 40)
+        );
       })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load")
@@ -95,6 +109,9 @@ export function HiringInsightsPanel({ weeks = 12 }: { weeks?: number }) {
                   </dd>
                 </div>
               </dl>
+              <p className="mb-3 text-[11px] text-zinc-500">
+                People equivalent uses {planningHoursPerPersonPerWeek.toFixed(1)}h per person per week.
+              </p>
 
               {rec.demand_sources && rec.demand_sources.length > 0 && (
                 <div>
@@ -133,7 +150,7 @@ export function HiringInsightsPanel({ weeks = 12 }: { weeks?: number }) {
                     <thead>
                       <tr className="border-b bg-zinc-50">
                         <th className="py-1.5 pr-3 text-left font-medium text-zinc-600">Project</th>
-                        <th className="py-1.5 text-right font-medium text-zinc-600">hrs / wk</th>
+                        <th className="py-1.5 text-right font-medium text-zinc-600">Demand / week</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -141,9 +158,10 @@ export function HiringInsightsPanel({ weeks = 12 }: { weeks?: number }) {
                         <tr key={src.project_name} className="border-b border-zinc-100">
                           <td className="py-1.5 pr-3 text-zinc-800">{src.project_name}</td>
                           <td className="py-1.5 text-right tabular-nums text-zinc-700">
-                            {src.hours_per_week % 1 === 0
-                              ? src.hours_per_week
-                              : src.hours_per_week.toFixed(1)}
+                            {formatHoursPerWeekWithPeople(
+                              src.hours_per_week,
+                              planningHoursPerPersonPerWeek
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -157,9 +175,11 @@ export function HiringInsightsPanel({ weeks = 12 }: { weeks?: number }) {
                               (sum, s) => sum + s.hours_per_week,
                               0
                             );
-                            return total % 1 === 0 ? total : total.toFixed(1);
+                            return formatHoursPerWeekWithPeople(
+                              total,
+                              planningHoursPerPersonPerWeek
+                            );
                           })()}
-                          {" "}hrs / wk
                         </td>
                       </tr>
                     </tfoot>

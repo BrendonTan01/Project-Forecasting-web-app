@@ -48,4 +48,5 @@ export interface ForecastResponse {
   hiring_recommendations: HiringRecommendation[];
   skill_shortages: SkillShortage[];
   proposals: ForecastProposal[];
+  planning_hours_per_person_per_week: number;
 }

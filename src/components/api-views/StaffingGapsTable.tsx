@@ -10,10 +10,19 @@ interface StaffingWeek {
 
 interface StaffingResponse {
   weeks: StaffingWeek[];
+  planning_hours_per_person_per_week?: number;
+}
+
+function formatHoursWithPeople(
+  staffingGap: number,
+  planningHoursPerPersonPerWeek: number
+): string {
+  return `${staffingGap.toFixed(1)}h (${(staffingGap / planningHoursPerPersonPerWeek).toFixed(2)} people)`;
 }
 
 export function StaffingGapsTable({ weeks = 12 }: { weeks?: number }) {
   const [data, setData] = useState<StaffingWeek[]>([]);
+  const [planningHoursPerPersonPerWeek, setPlanningHoursPerPersonPerWeek] = useState(40);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +32,12 @@ export function StaffingGapsTable({ weeks = 12 }: { weeks?: number }) {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json() as Promise<StaffingResponse>;
       })
-      .then((json) => setData(json.weeks))
+      .then((json) => {
+        setData(json.weeks);
+        setPlanningHoursPerPersonPerWeek(
+          Number(json.planning_hours_per_person_per_week ?? 40)
+        );
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : "Failed to load")
       )
@@ -36,12 +50,15 @@ export function StaffingGapsTable({ weeks = 12 }: { weeks?: number }) {
 
   return (
     <div className="overflow-x-auto">
+      <p className="mb-2 text-xs text-zinc-500">
+        People equivalent uses {planningHoursPerPersonPerWeek.toFixed(1)}h per person per week.
+      </p>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-zinc-50">
             <th className="px-3 py-2 text-left font-medium text-zinc-700">Week Start</th>
-            <th className="px-3 py-2 text-right font-medium text-zinc-700">Staffing Gap (hrs)</th>
-            <th className="px-3 py-2 text-right font-medium text-zinc-700">Additional Staff Needed</th>
+            <th className="px-3 py-2 text-right font-medium text-zinc-700">Staffing Gap</th>
+            <th className="px-3 py-2 text-right font-medium text-zinc-700">Additional Staff Needed (people)</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +67,10 @@ export function StaffingGapsTable({ weeks = 12 }: { weeks?: number }) {
               <td className="px-3 py-2 tabular-nums">{row.week_start}</td>
               <td className="px-3 py-2 text-right tabular-nums">
                 <span className={Number(row.staffing_gap) > 0 ? "text-red-600" : "text-green-600"}>
-                  {Number(row.staffing_gap).toFixed(1)}
+                  {formatHoursWithPeople(
+                    Number(row.staffing_gap),
+                    planningHoursPerPersonPerWeek
+                  )}
                 </span>
               </td>
               <td className="px-3 py-2 text-right tabular-nums">

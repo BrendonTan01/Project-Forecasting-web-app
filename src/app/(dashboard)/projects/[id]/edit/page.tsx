@@ -20,10 +20,15 @@ export default async function EditProjectPage({
   const supabase = await createClient();
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, client_name, estimated_hours, start_date, end_date, status")
+    .select("id, name, client_name, estimated_hours, start_date, end_date, status, office_scope")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
+  const { data: offices } = await supabase
+    .from("offices")
+    .select("id, name")
+    .eq("tenant_id", user.tenantId)
+    .order("name");
 
   if (!project) notFound();
 
@@ -37,6 +42,7 @@ export default async function EditProjectPage({
       </div>
 
       <ProjectForm
+        offices={(offices ?? []).map((o) => ({ id: o.id, name: o.name }))}
         project={{
           id: project.id,
           name: project.name,
@@ -45,6 +51,9 @@ export default async function EditProjectPage({
           start_date: project.start_date,
           end_date: project.end_date,
           status: project.status,
+          office_scope: Array.isArray(project.office_scope)
+            ? (project.office_scope as string[])
+            : null,
         }}
       />
     </div>

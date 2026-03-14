@@ -10,7 +10,7 @@ export default async function AdminSettingsPage() {
 
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("id, name, industry, default_currency")
+    .select("id, name, industry, default_currency, planning_hours_per_person_per_week")
     .eq("id", user.tenantId)
     .single();
 
@@ -21,7 +21,7 @@ export default async function AdminSettingsPage() {
       <div>
         <h2 className="font-semibold text-zinc-900">Organisation settings</h2>
         <p className="text-sm text-zinc-600">
-          Update your organisation&apos;s name, industry, and default currency.
+          Update your organisation&apos;s name, industry, default currency, and planning assumptions.
         </p>
       </div>
       <div className="app-card p-4 max-w-xl">
@@ -30,6 +30,8 @@ export default async function AdminSettingsPage() {
             name: tenant.name,
             industry: tenant.industry,
             default_currency: tenant.default_currency,
+            planning_hours_per_person_per_week:
+              Number(tenant.planning_hours_per_person_per_week ?? 40),
           }}
         />
       </div>

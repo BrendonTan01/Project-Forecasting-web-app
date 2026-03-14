@@ -12,6 +12,7 @@ interface Props {
   proposals: ForecastProposal[];
   selectedProposalIds: string[];
   onSelectedProposalIdsChange: (ids: string[]) => void;
+  planningHoursPerPersonPerWeek: number;
   showSkillShortages?: boolean;
   showForecastDrivers?: boolean;
 }
@@ -33,6 +34,11 @@ function formatWeekLabel(isoDate: string): string {
 
 function formatHours(value: number): string {
   return Number.isInteger(value) ? `${value}h` : `${value.toFixed(1)}h`;
+}
+
+function formatHoursWithPeople(value: number, planningHoursPerPersonPerWeek: number): string {
+  const people = value / planningHoursPerPersonPerWeek;
+  return `${formatHours(value)} (${people.toFixed(2)} people)`;
 }
 
 function toUtcDate(dateString: string): Date {
@@ -148,7 +154,13 @@ function ProposalSelectionSection({
   );
 }
 
-function StaffingRisksSection({ weeks }: { weeks: ForecastWeek[] }) {
+function StaffingRisksSection({
+  weeks,
+  planningHoursPerPersonPerWeek,
+}: {
+  weeks: ForecastWeek[];
+  planningHoursPerPersonPerWeek: number;
+}) {
   const risks: StaffingRisk[] = weeks
     .filter((w) => w.staffing_gap > 0)
     .sort((a, b) => b.staffing_gap - a.staffing_gap)
@@ -177,7 +189,7 @@ function StaffingRisksSection({ weeks }: { weeks: ForecastWeek[] }) {
                 <span
                   className={`app-badge ${isCritical ? "app-badge-danger" : "app-badge-warning"} shrink-0`}
                 >
-                  {risk.staffing_gap.toFixed(0)}h gap
+                  {formatHoursWithPeople(risk.staffing_gap, planningHoursPerPersonPerWeek)} gap
                 </span>
               </li>
             );
@@ -229,14 +241,19 @@ function HiringRecommendationsSection({
 
 export function SkillShortagesSection({
   shortages,
+  planningHoursPerPersonPerWeek,
 }: {
   shortages: SkillShortage[];
+  planningHoursPerPersonPerWeek: number;
 }) {
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
         Top Skill Shortages
       </h3>
+      <p className="mb-2 text-[11px] text-zinc-500">
+        People equivalent uses {planningHoursPerPersonPerWeek.toFixed(1)}h per person per week.
+      </p>
       {shortages.length === 0 ? (
         <p className="text-xs text-zinc-400 italic">No skill shortages detected</p>
       ) : (
@@ -250,7 +267,10 @@ export function SkillShortagesSection({
                 {shortage.skill}
               </p>
               <p className="mt-0.5 text-[11px] text-zinc-600 tabular-nums">
-                Demand {shortage.weekly_demand.toFixed(1)}h · Capacity {shortage.available_capacity.toFixed(1)}h · Shortage {shortage.shortage.toFixed(1)}h
+                Demand{" "}
+                {formatHoursWithPeople(shortage.weekly_demand, planningHoursPerPersonPerWeek)} · Capacity{" "}
+                {formatHoursWithPeople(shortage.available_capacity, planningHoursPerPersonPerWeek)} · Shortage{" "}
+                {formatHoursWithPeople(shortage.shortage, planningHoursPerPersonPerWeek)}
               </p>
             </li>
           ))}
@@ -343,16 +363,21 @@ export function ForecastDriversSection({ weeks }: { weeks: ForecastWeek[] }) {
 export function DashboardDetailRail({
   weeks,
   skillShortages,
+  planningHoursPerPersonPerWeek,
 }: {
   weeks: ForecastWeek[];
   skillShortages: SkillShortage[];
+  planningHoursPerPersonPerWeek: number;
 }) {
   return (
     <div className="app-card p-4">
       <h3 className="mb-3 text-sm font-semibold text-zinc-700">Detail Rail</h3>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded border border-zinc-100 p-3">
-          <SkillShortagesSection shortages={skillShortages} />
+          <SkillShortagesSection
+            shortages={skillShortages}
+            planningHoursPerPersonPerWeek={planningHoursPerPersonPerWeek}
+          />
         </div>
         <div className="rounded border border-zinc-100 p-3">
           <ForecastDriversSection weeks={weeks} />
@@ -371,6 +396,7 @@ export function DashboardActionPanel({
   proposals,
   selectedProposalIds,
   onSelectedProposalIdsChange,
+  planningHoursPerPersonPerWeek,
   showSkillShortages = true,
   showForecastDrivers = true,
 }: Props) {
@@ -384,14 +410,20 @@ export function DashboardActionPanel({
         />
       </div>
       <div className="py-4">
-        <StaffingRisksSection weeks={weeks} />
+        <StaffingRisksSection
+          weeks={weeks}
+          planningHoursPerPersonPerWeek={planningHoursPerPersonPerWeek}
+        />
       </div>
       <div className="py-4">
         <HiringRecommendationsSection recommendations={hiringRecommendations} />
       </div>
       {showSkillShortages && (
         <div className="py-4">
-          <SkillShortagesSection shortages={skillShortages} />
+          <SkillShortagesSection
+            shortages={skillShortages}
+            planningHoursPerPersonPerWeek={planningHoursPerPersonPerWeek}
+          />
         </div>
       )}
       {showForecastDrivers && (

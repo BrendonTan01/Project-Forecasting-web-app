@@ -139,13 +139,20 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
             proposals={data.proposals}
             selectedProposalIds={selectedProposalIds}
             onSelectedProposalIdsChange={setSelectedProposalIds}
+            planningHoursPerPersonPerWeek={Number(
+              data.planning_hours_per_person_per_week ?? 40
+            )}
             showSkillShortages={false}
             showForecastDrivers={false}
           />
         </div>
       </div>
 
-      <DashboardDetailRail weeks={data.weeks} skillShortages={data.skill_shortages} />
+      <DashboardDetailRail
+        weeks={data.weeks}
+        skillShortages={data.skill_shortages}
+        planningHoursPerPersonPerWeek={Number(data.planning_hours_per_person_per_week ?? 40)}
+      />
     </div>
   );
 }

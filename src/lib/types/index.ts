@@ -7,6 +7,7 @@ export interface Tenant {
   name: string;
   industry: string | null;
   default_currency: string | null;
+  planning_hours_per_person_per_week: number;
   created_at: string;
 }
 
@@ -51,6 +52,7 @@ export interface Project {
   start_date: string | null;
   end_date: string | null;
   status: string;
+  office_scope?: string[] | null;
   created_at?: string;
 }
 
