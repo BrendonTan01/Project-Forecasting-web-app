@@ -381,16 +381,25 @@ export function CapacityHeatmap({
                     );
                   }
 
+                  const showNoMatchingStaff = Boolean(skillId) && cell.matchingStaffCount === 0;
                   const { bg, text } = getCellStyle(cell.utilization);
                   return (
                     <td key={ws} className="px-1.5 py-1.5 text-center">
                       <button
                         type="button"
                         onClick={() => handleCellClick(cell)}
-                        className={`block w-full rounded px-2 py-1 text-xs font-semibold tabular-nums transition-colors ${bg} ${text} cursor-pointer`}
-                        title={`${office.name} — Week ${cell.week}: ${cell.utilization.toFixed(1)}% (click for details)`}
+                        className={`block w-full rounded px-2 py-1 text-xs font-semibold tabular-nums transition-colors cursor-pointer ${
+                          showNoMatchingStaff
+                            ? "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                            : `${bg} ${text}`
+                        }`}
+                        title={
+                          showNoMatchingStaff
+                            ? `${office.name} — Week ${cell.week}: no staff with selected skill`
+                            : `${office.name} — Week ${cell.week}: ${cell.utilization.toFixed(1)}% (click for details)`
+                        }
                       >
-                        {cell.utilization.toFixed(1)}%
+                        {showNoMatchingStaff ? "No staff" : `${cell.utilization.toFixed(1)}%`}
                       </button>
                     </td>
                   );

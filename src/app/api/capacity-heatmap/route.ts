@@ -14,6 +14,7 @@ export type HeatmapCell = {
   week: number;
   weekStart: string;
   utilization: number;
+  matchingStaffCount: number;
 };
 
 export type CapacityHeatmapResponse = {
@@ -154,6 +155,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       weeklyCap: Number(s.weekly_capacity_hours),
     });
   }
+  const matchingStaffCountByOfficeId = new Map<string, number>();
+  for (const office of officeRows ?? []) {
+    matchingStaffCountByOfficeId.set(office.id, 0);
+  }
+  for (const meta of staffMeta.values()) {
+    if (!meta.officeId) continue;
+    matchingStaffCountByOfficeId.set(
+      meta.officeId,
+      (matchingStaffCountByOfficeId.get(meta.officeId) ?? 0) + 1
+    );
+  }
 
   // Normalize and filter assignments to active projects only
   const allAssignments = ((assignmentRows ?? []) as RawAssignment[]).map((row) => ({
@@ -216,6 +228,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         week: idx + 1,
         weekStart: ws,
         utilization,
+        matchingStaffCount: matchingStaffCountByOfficeId.get(office.id) ?? 0,
       });
     });
   }
