@@ -64,7 +64,12 @@ export default async function AdminUsersPage() {
     <div className="space-y-6">
       {/* Current users */}
       <div className="app-card p-4">
-        <h2 className="mb-4 font-semibold text-zinc-900">Users ({users?.length ?? 0})</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-zinc-900">Users ({users?.length ?? 0})</h2>
+          <Link href="/admin/skills" className="app-link text-sm text-zinc-700">
+            Manage skills →
+          </Link>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
@@ -112,7 +117,12 @@ export default async function AdminUsersPage() {
 
       {/* Send invitation */}
       <div className="app-card p-4">
-        <h2 className="mb-4 font-semibold text-zinc-900">Invite a user</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-zinc-900">Invite a user</h2>
+          <Link href="/admin/skills" className="app-link text-sm text-zinc-700">
+            Manage skills →
+          </Link>
+        </div>
         <p className="mb-4 text-sm text-zinc-600">
           Generate an invite link to share. The link is valid for 7 days.
         </p>

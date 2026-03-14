@@ -92,6 +92,9 @@ export default async function AdminOverviewPage() {
           <Link href="/admin/users" className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm">
             Manage users
           </Link>
+          <Link href="/admin/skills" className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm">
+            Manage skills
+          </Link>
           <Link href="/admin/offices" className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm">
             Manage offices
           </Link>
