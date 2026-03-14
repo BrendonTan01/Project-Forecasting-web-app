@@ -101,13 +101,7 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
         </select>
       </div>
 
-      <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-blue-900">Forecasting Components</h2>
-          <p className="text-xs text-blue-800/80">
-            Scenario planning signals for upcoming demand and pipeline impact.
-          </p>
-        </div>
+      <section>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
           <div className="app-card min-w-0 flex-1 p-4">
             <h3 className="mb-1 text-sm font-semibold text-zinc-700">
@@ -142,13 +136,7 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
         </div>
       </section>
 
-      <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-emerald-900">Current Components</h2>
-          <p className="text-xs text-emerald-800/80">
-            Current-state operational signals based on committed work and present capacity.
-          </p>
-        </div>
+      <section>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
           <div className="app-card min-w-0 flex-1 p-4">
             <h3 className="mb-1 text-sm font-semibold text-zinc-700">

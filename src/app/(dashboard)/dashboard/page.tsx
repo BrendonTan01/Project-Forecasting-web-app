@@ -6,9 +6,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import {
-  getProjectHealthStatus,
-  getProjectHealthReason,
-  getProjectHealthLabel,
   buildRecentWeeklyHoursByProject,
 } from "@/lib/utils/projectHealth";
 import {
@@ -39,42 +36,6 @@ function signalBadgeClasses(tone: SignalTone): string {
 function safePercent(value: number): number {
   if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
-}
-
-function DeliverySignalIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-      className="h-3.5 w-3.5 shrink-0"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M10 2v8l5 3" />
-      <circle cx="10" cy="10" r="7" />
-    </svg>
-  );
-}
-
-function FinancialSignalIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-      className="h-3.5 w-3.5 shrink-0"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M10 3v14" />
-      <path d="M13.5 6.5c0-1.3-1.6-2.2-3.5-2.2S6.5 5.2 6.5 6.5 8.1 8.7 10 8.7s3.5 1 3.5 2.3S11.9 13.3 10 13.3s-3.5-1-3.5-2.3" />
-    </svg>
-  );
 }
 
 function SkillSignalIcon() {
@@ -295,15 +256,6 @@ export default async function DashboardPage({
                   const estimatedHours = Number(project.estimated_hours ?? 0);
                   const deliveryProgress =
                     estimatedHours > 0 ? (actualHours / estimatedHours) * 100 : null;
-                  const health = getProjectHealthStatus(actualHours, project.estimated_hours, project.start_date, {
-                    endDate: project.end_date,
-                    recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
-                  });
-                  const healthReason = getProjectHealthReason(actualHours, project.estimated_hours, project.start_date, {
-                    endDate: project.end_date,
-                    recentWeeklyHours: recentWeeklyHoursByProject[project.id] ?? [],
-                  });
-
                   const financialData = financialByProject[project.id] ?? {
                     actualCost: 0,
                     actualHours: 0,
@@ -336,16 +288,6 @@ export default async function DashboardPage({
                   );
                   const missingSkillCount = missingRequiredSkills.length;
                   const totalRequiredSkills = requiredSkills.size;
-                  const deliveryTone: SignalTone =
-                    health === "on_track" ? "success" : health === "at_risk" ? "warning" : health === "overrun" ? "danger" : "neutral";
-                  const financialTone: SignalTone =
-                    financialProgress === null
-                      ? "neutral"
-                      : financialProgress > 100
-                        ? "danger"
-                        : financialProgress >= 90
-                          ? "warning"
-                          : "success";
                   const skillTone: SignalTone =
                     totalRequiredSkills === 0
                       ? "neutral"
@@ -419,21 +361,6 @@ export default async function DashboardPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={signalBadgeClasses(deliveryTone)} title={healthReason}>
-                            <DeliverySignalIcon />
-                            <span>{getProjectHealthLabel(health)}</span>
-                          </span>
-                          <span
-                            className={signalBadgeClasses(financialTone)}
-                            title={
-                              financialProgress === null
-                                ? "Financial forecast is unavailable due to missing estimate/cost rates."
-                                : `Forecast completion spend is ${financialProgress.toFixed(1)}% of budget.`
-                            }
-                          >
-                            <FinancialSignalIcon />
-                            <span>Risk</span>
-                          </span>
                           <span
                             className={signalBadgeClasses(skillTone)}
                             title={
