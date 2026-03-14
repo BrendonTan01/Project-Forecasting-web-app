@@ -404,6 +404,7 @@ export function CapacityHeatmap({
         {/* Legend */}
         <div className="flex items-center gap-4 border-t border-zinc-200 bg-zinc-50 px-4 py-2.5">
           <span className="text-xs text-zinc-400">Utilization:</span>
+          <span className="text-xs text-zinc-500">Committed work only</span>
           <span className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-3 w-3 rounded bg-green-100" />
             <span className="text-zinc-600">&lt; 80%</span>

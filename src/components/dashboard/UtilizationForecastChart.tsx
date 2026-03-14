@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ForecastProposal, ForecastWeek } from "./types";
 import { getDemandUtilizationPercent } from "./forecastMetrics";
 
@@ -92,6 +92,7 @@ export function UtilizationForecastChart({ weeks, proposals = [], selectedPropos
     () => new Set(effectiveSelectedProposalIds),
     [effectiveSelectedProposalIds]
   );
+  const [hoveredWeekIndex, setHoveredWeekIndex] = useState<number | null>(null);
 
   if (weeks.length === 0) {
     return (
@@ -129,6 +130,26 @@ export function UtilizationForecastChart({ weeks, proposals = [], selectedPropos
     getter: (week: ForecastWeek) => getScenarioDemand(week, line.key),
   }));
 
+  const hoveredWeek = hoveredWeekIndex !== null ? weeks[hoveredWeekIndex] : null;
+  const hoveredValues = hoveredWeek
+    ? lineSeries.map((line) => ({
+        label: line.label,
+        color: line.color,
+        pct: getDemandUtilizationPercent(line.getter(hoveredWeek), hoveredWeek.total_capacity),
+      }))
+    : [];
+  const hoverX = hoveredWeekIndex !== null ? toX(hoveredWeekIndex, weeks.length) : null;
+  const tooltipWidth = 170;
+  const tooltipHeight = 22 + hoveredValues.length * 16;
+  const tooltipX =
+    hoverX === null
+      ? 0
+      : Math.min(
+          CHART.padLeft + chartW - tooltipWidth,
+          Math.max(CHART.padLeft + 6, hoverX + 8)
+        );
+  const tooltipY = CHART.padTop + 8;
+
   const allPcts = weeks.flatMap((w) =>
     w.total_capacity > 0
       ? lineSeries.map((l) => getDemandUtilizationPercent(l.getter(w), w.total_capacity))
@@ -147,6 +168,25 @@ export function UtilizationForecastChart({ weeks, proposals = [], selectedPropos
         width="100%"
         aria-label="Utilization forecast chart"
         role="img"
+        onMouseMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (weeks.length <= 1) {
+            setHoveredWeekIndex(0);
+            return;
+          }
+
+          const mouseX = ((event.clientX - rect.left) / rect.width) * CHART.viewW;
+          if (mouseX < CHART.padLeft || mouseX > CHART.padLeft + chartW) {
+            setHoveredWeekIndex(null);
+            return;
+          }
+
+          const relativeX = mouseX - CHART.padLeft;
+          const index = Math.round((relativeX / chartW) * (weeks.length - 1));
+          const boundedIndex = Math.max(0, Math.min(weeks.length - 1, index));
+          setHoveredWeekIndex(boundedIndex);
+        }}
+        onMouseLeave={() => setHoveredWeekIndex(null)}
       >
         {/* Y-axis grid lines */}
         {yGridValues.map((v) => {
@@ -241,6 +281,51 @@ export function UtilizationForecastChart({ weeks, proposals = [], selectedPropos
               </circle>
             );
           })
+        )}
+
+        {/* Hover guide and unified tooltip with all scenario values */}
+        {hoveredWeek && hoverX !== null && (
+          <g pointerEvents="none">
+            <line
+              x1={hoverX}
+              y1={CHART.padTop}
+              x2={hoverX}
+              y2={CHART.padTop + chartH}
+              stroke="#94a3b8"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <rect
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipWidth}
+              height={tooltipHeight}
+              rx={6}
+              fill="white"
+              stroke="#d1d5db"
+            />
+            <text
+              x={tooltipX + 8}
+              y={tooltipY + 14}
+              fontSize={10}
+              fill="#111827"
+              fontWeight={600}
+            >
+              {`w/c ${formatWeekLabel(hoveredWeek.week_start)}`}
+            </text>
+            {hoveredValues.map((entry, idx) => (
+              <text
+                key={entry.label}
+                x={tooltipX + 8}
+                y={tooltipY + 30 + idx * 16}
+                fontSize={10}
+                fill={entry.color}
+                fontWeight={500}
+              >
+                {`${entry.label}: ${entry.pct.toFixed(1)}%`}
+              </text>
+            ))}
+          </g>
         )}
 
         {/* X-axis week labels — skip every other when dense */}

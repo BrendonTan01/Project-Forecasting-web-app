@@ -124,7 +124,7 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
               Capacity Heatmap
             </h2>
             <p className="mb-4 text-xs text-zinc-500">
-              Office utilization by week — green: healthy, amber: approaching capacity, red: overloaded
+              Office utilization by week based on committed work only — green: healthy, amber: approaching capacity, red: overloaded
             </p>
             <CapacityHeatmap weeks={horizonWeeks} />
           </div>
