@@ -252,6 +252,12 @@ export function FeasibilityAnalysis({
     .map((id) => candidateById.get(id))
     .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const requiredSkills = feasResult.requiredSkills ?? [];
+  const coveredSkillIds = new Set(
+    selectedStaff.flatMap((candidate) => candidate.matchingSkillIds ?? [])
+  );
+  const coveredSkillCount = requiredSkills.filter((skill) => coveredSkillIds.has(skill.id)).length;
+  const allRequiredSkillsCovered = coveredSkillCount === requiredSkills.length;
   const splitTotal = selectedStaff.reduce(
     (sum, candidate) => sum + (splitPercentByStaff[candidate.id] ?? 0),
     0
@@ -317,14 +323,57 @@ export function FeasibilityAnalysis({
         <p className="mt-1 text-xs text-zinc-500">
           Uses {feasResult.staffUsedCount} staff and {feasResult.totalOverallocatedHours}h of overallocated time.
         </p>
+        {feasResult.hasSkillDemandModel && (
+          <p className="mt-1 text-xs text-zinc-500">
+            Skill-demand model active: feasibility is computed against required hours/week per proposal skill.
+          </p>
+        )}
       </div>
+
+      {feasResult.skillCoverage.length > 0 && (
+        <div className="app-card p-4">
+          <h3 className="text-sm font-semibold text-zinc-900">Skill coverage breakdown</h3>
+          <p className="mt-1 text-xs text-zinc-500">
+            Shows required vs achievable hours per skill across the full proposal window.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="app-table min-w-full">
+              <thead>
+                <tr className="border-b border-zinc-200 bg-zinc-50">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-700">Skill</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Required</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Achievable</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Shortfall</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feasResult.skillCoverage.map((row) => (
+                  <tr key={row.skillId} className="border-b border-zinc-100 last:border-0">
+                    <td className="px-3 py-2 text-sm text-zinc-800">{row.skillName}</td>
+                    <td className="px-3 py-2 text-right text-sm text-zinc-800">{row.requiredHours}h</td>
+                    <td className="px-3 py-2 text-right text-sm text-zinc-800">{row.achievableHours}h</td>
+                    <td className="px-3 py-2 text-right text-sm">
+                      <span className={row.shortfallHours > 0 ? "text-red-700" : "text-emerald-700"}>
+                        {row.shortfallHours}h
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="app-card p-4">
         <h3 className="text-sm font-semibold text-zinc-900">
           Recommended staff ({feasResult.recommendedStaff.length})
         </h3>
         <p className="mt-1 text-xs text-zinc-500">
-          Suggested from the selected allocation objective: {feasResult.optimizationLabel}.
+          Suggested from the selected allocation objective: {feasResult.optimizationLabel}
+          {requiredSkills.length > 0
+            ? ". Staff shown here match at least one required proposal skill."
+            : "."}
         </p>
         {feasResult.recommendedStaff.length > 0 ? (
           <ul className="mt-3 divide-y divide-zinc-100">
@@ -335,6 +384,11 @@ export function FeasibilityAnalysis({
                   <p className="text-xs text-zinc-600">
                     {staff.role} · {staff.office}
                   </p>
+                  {requiredSkills.length > 0 && (
+                    <p className="text-xs text-zinc-500">
+                      Skills: {staff.matchingSkillNames.length > 0 ? staff.matchingSkillNames.join(", ") : "None"}
+                    </p>
+                  )}
                 </Link>
               </li>
             ))}
@@ -349,8 +403,40 @@ export function FeasibilityAnalysis({
       <div className="app-card p-4">
         <h3 className="text-sm font-semibold text-zinc-900">Proposed staffing plan</h3>
         <p className="mt-1 text-xs text-zinc-500">
-          Select staff to draft a delivery team. Split defaults to equal shares and can be adjusted manually.
+          {requiredSkills.length > 0
+            ? "Select staff to draft a delivery team. Candidates are filtered to staff who match at least one required skill."
+            : "Select staff to draft a delivery team. Split defaults to equal shares and can be adjusted manually."}
         </p>
+        {requiredSkills.length > 0 && (
+          <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+            <p className="text-xs font-medium text-zinc-700">
+              Skill coverage: {coveredSkillCount}/{requiredSkills.length}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {requiredSkills.map((skill) => {
+                const covered = coveredSkillIds.has(skill.id);
+                return (
+                  <span
+                    key={skill.id}
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      covered ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {skill.name}
+                    {skill.requiredHoursPerWeek !== null ? ` ${skill.requiredHoursPerWeek}h/wk` : ""}
+                    {" "}
+                    {covered ? "(covered)" : "(missing)"}
+                  </span>
+                );
+              })}
+            </div>
+            {!allRequiredSkillsCovered && (
+              <p className="mt-2 text-xs text-amber-700">
+                Add staff that collectively cover all required skills before finalizing the staffing plan.
+              </p>
+            )}
+          </div>
+        )}
 
         {feasResult.staffCapacityCandidates.length > 0 ? (
           <>
@@ -367,7 +453,11 @@ export function FeasibilityAnalysis({
                         ? "border-zinc-900 bg-zinc-900 text-white"
                         : "border-zinc-300 text-zinc-600 hover:border-zinc-500"
                     }`}
-                    title={`${candidate.role} · ${candidate.office}`}
+                    title={`${candidate.role} · ${candidate.office}${
+                      requiredSkills.length > 0 && candidate.matchingSkillNames.length > 0
+                        ? ` · Skills: ${candidate.matchingSkillNames.join(", ")}`
+                        : ""
+                    }`}
                   >
                     {candidate.name}
                   </button>
@@ -381,6 +471,9 @@ export function FeasibilityAnalysis({
                   <thead>
                     <tr className="border-b border-zinc-200 bg-zinc-50">
                       <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-700">Staff</th>
+                      {requiredSkills.length > 0 && (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-700">Skill coverage</th>
+                      )}
                       <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Available (no overalloc)</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Split %</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Assigned hours</th>
@@ -399,6 +492,13 @@ export function FeasibilityAnalysis({
                             <p className="font-medium">{candidate.name}</p>
                             <p className="text-xs text-zinc-500">{candidate.role} · {candidate.office}</p>
                           </td>
+                          {requiredSkills.length > 0 && (
+                            <td className="px-3 py-2 text-sm text-zinc-700">
+                              {candidate.matchingSkillNames.length > 0
+                                ? candidate.matchingSkillNames.join(", ")
+                                : "None"}
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-right text-sm text-zinc-800">
                             {candidate.availableHoursWithoutOverallocation}h
                           </td>
@@ -430,7 +530,10 @@ export function FeasibilityAnalysis({
                     const assignedHours = round1((feasResult.totalRequired * splitPct) / 100);
                     return candidate.availableHoursWithoutOverallocation - assignedHours < 0;
                   });
-                  const planIsReady = splitIsValid && !hasOverallocationRisk;
+                  const planIsReady =
+                    splitIsValid &&
+                    !hasOverallocationRisk &&
+                    (requiredSkills.length === 0 || allRequiredSkillsCovered);
                   return (
                     <div
                       className={`mt-2 rounded-md px-3 py-2 text-xs ${
@@ -440,9 +543,11 @@ export function FeasibilityAnalysis({
                       }`}
                     >
                       {planIsReady
-                        ? "Plan is valid: split totals 100% and selected staff can cover assigned hours without overallocation."
+                        ? "Plan is valid: split totals 100%, selected staff can cover assigned hours without overallocation, and required skills are covered."
                         : !splitIsValid
                           ? "Plan is invalid: split must total exactly 100% before this staffing plan can be considered ready."
+                          : requiredSkills.length > 0 && !allRequiredSkillsCovered
+                            ? "Plan needs adjustment: selected staff do not yet cover all required skills."
                           : "Plan needs adjustment: one or more selected staff are overallocated for the assigned hours."}
                     </div>
                   );

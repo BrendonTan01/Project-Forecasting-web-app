@@ -3,4 +3,4 @@ ALTER TABLE public.project_proposals
   ADD COLUMN IF NOT EXISTS skills JSONB;
 
 COMMENT ON COLUMN public.project_proposals.skills IS
-  'JSON array of required skill entries for the proposal (e.g. [{ "id": "<uuid>", "name": "Design" }]).';
+  'JSON array of required skill entries for the proposal (e.g. [{ "id": "<uuid>", "name": "Design", "required_hours_per_week": 12 }]).';

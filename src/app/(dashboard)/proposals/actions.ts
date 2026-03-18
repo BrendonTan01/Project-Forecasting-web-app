@@ -19,7 +19,7 @@ export type ProposalFormData = {
   estimated_hours?: number;
   estimated_hours_per_week?: number;
   win_probability?: number;
-  skills?: Array<{ id: string; name: string }>;
+  skills?: Array<{ id: string; name: string; required_hours_per_week?: number }>;
   office_scope?: string[] | null;
   optimization_mode?: ProposalOptimizationMode;
   status: "draft" | "submitted" | "won" | "lost";

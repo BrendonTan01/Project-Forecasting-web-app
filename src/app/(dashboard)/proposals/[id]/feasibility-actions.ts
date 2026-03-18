@@ -39,6 +39,15 @@ export type FeasibilityComparison = {
 export type FeasibilityResult = {
   optimizationMode: ProposalOptimizationMode;
   optimizationLabel: string;
+  requiredSkills: Array<{ id: string; name: string; requiredHoursPerWeek: number | null }>;
+  hasSkillDemandModel: boolean;
+  skillCoverage: Array<{
+    skillId: string;
+    skillName: string;
+    requiredHours: number;
+    achievableHours: number;
+    shortfallHours: number;
+  }>;
   weeks: WeekFeasibility[];
   totalRequired: number;
   totalAchievable: number;
@@ -51,6 +60,8 @@ export type FeasibilityResult = {
     name: string;
     role: string;
     office: string;
+    matchingSkillIds: string[];
+    matchingSkillNames: string[];
   }>;
   staffCapacityCandidates: Array<{
     id: string;
@@ -58,6 +69,8 @@ export type FeasibilityResult = {
     role: string;
     office: string;
     availableHoursWithoutOverallocation: number;
+    matchingSkillIds: string[];
+    matchingSkillNames: string[];
   }>;
   officeNames: string[];
   comparisons?: FeasibilityComparison[];
@@ -125,6 +138,7 @@ type FeasibilityBaseData = {
     estimated_hours: number | null;
     estimated_hours_per_week: number | null;
     optimization_mode: ProposalOptimizationMode | null;
+    skills: Array<{ id: string; name: string; requiredHoursPerWeek: number | null }>;
   };
   staff: Array<{
     id: string;
@@ -134,6 +148,7 @@ type FeasibilityBaseData = {
     role: string;
     office: string;
     officeId: string | null;
+    matchingSkillIds: string[];
   }>;
   overlappingProjects: Array<{ id: string; start_date: string | null; end_date: string | null }>;
   assignments: Array<{
@@ -163,7 +178,7 @@ async function getFeasibilityBaseData(
 
     const { data: proposal, error: proposalError } = await supabase
       .from("project_proposals")
-      .select("proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, optimization_mode")
+      .select("proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, optimization_mode, skills")
       .eq("id", proposalId)
       .eq("tenant_id", tenantId)
       .single();
@@ -171,6 +186,33 @@ async function getFeasibilityBaseData(
     if (proposalError || !proposal) {
       return { error: "Proposal not found" };
     }
+
+    const proposalSkills = Array.isArray(proposal.skills)
+      ? proposal.skills
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const maybeSkill = entry as {
+              id?: unknown;
+              name?: unknown;
+              required_hours_per_week?: unknown;
+            };
+            if (typeof maybeSkill.id !== "string" || typeof maybeSkill.name !== "string") {
+              return null;
+            }
+            const requiredHoursPerWeek =
+              typeof maybeSkill.required_hours_per_week === "number" &&
+              Number.isFinite(maybeSkill.required_hours_per_week) &&
+              maybeSkill.required_hours_per_week >= 0
+                ? maybeSkill.required_hours_per_week
+                : null;
+            return { id: maybeSkill.id, name: maybeSkill.name, requiredHoursPerWeek };
+          })
+          .filter(
+            (entry): entry is { id: string; name: string; requiredHoursPerWeek: number | null } =>
+              Boolean(entry)
+          )
+      : [];
+    const requiredSkillIds = new Set(proposalSkills.map((skill) => skill.id));
 
     let staffQuery = supabase
       .from("staff_profiles")
@@ -182,7 +224,7 @@ async function getFeasibilityBaseData(
     }
 
     const { data: staffRows } = await staffQuery;
-    const staff = (staffRows ?? []).map((row) => {
+    const rawStaff = (staffRows ?? []).map((row) => {
       const userRecord = row.users as
         | {
             name?: string;
@@ -210,11 +252,47 @@ async function getFeasibilityBaseData(
         role: user?.role ?? "staff",
         office: officeRecord?.name ?? "No office",
         officeId: user?.office_id ?? null,
+        matchingSkillIds: [] as string[],
       };
     });
 
-    if (staff.length === 0) {
+    if (rawStaff.length === 0) {
       return { error: "No staff found for the selected offices" };
+    }
+
+    const rawStaffIds = rawStaff.map((member) => member.id);
+    const { data: staffSkillRows } =
+      requiredSkillIds.size > 0
+        ? await supabase
+            .from("staff_skills")
+            .select("staff_id, skill_id")
+            .eq("tenant_id", tenantId)
+            .in("staff_id", rawStaffIds)
+            .in("skill_id", Array.from(requiredSkillIds))
+        : { data: [] };
+
+    const staffSkillIdsByStaff = new Map<string, Set<string>>();
+    for (const row of staffSkillRows ?? []) {
+      if (!staffSkillIdsByStaff.has(row.staff_id)) {
+        staffSkillIdsByStaff.set(row.staff_id, new Set<string>());
+      }
+      staffSkillIdsByStaff.get(row.staff_id)!.add(row.skill_id);
+    }
+
+    const staff = rawStaff
+      .map((member) => ({
+        ...member,
+        matchingSkillIds: Array.from(staffSkillIdsByStaff.get(member.id) ?? []),
+      }))
+      .filter((member) =>
+        requiredSkillIds.size === 0 ? true : member.matchingSkillIds.length > 0
+      );
+
+    if (staff.length === 0) {
+      return {
+        error:
+          "No in-scope staff match the required proposal skills. Adjust skills or office scope and rerun simulation.",
+      };
     }
 
     const officeNames = Array.from(new Set(staff.map((member) => member.office).filter(Boolean))).sort();
@@ -264,6 +342,7 @@ async function getFeasibilityBaseData(
       estimated_hours: proposal.estimated_hours,
       estimated_hours_per_week: proposal.estimated_hours_per_week,
       optimization_mode: proposal.optimization_mode,
+      skills: proposalSkills,
     },
     staff,
     overlappingProjects: overlappingProjects ?? [],
@@ -290,6 +369,105 @@ async function getFeasibilityBaseData(
 }
 
 type ComputedFeasibilityCore = Omit<FeasibilityResult, "optimizationMode" | "optimizationLabel" | "comparisons" | "officeNames">;
+
+function allocateSkillDemandForWeek(params: {
+  requiredSkills: Array<{ id: string; requiredHours: number }>;
+  optimizationMode: ProposalOptimizationMode;
+  allowOverallocation: boolean;
+  staffPool: StaffCapacitySlice[];
+  matchingSkillIdsByStaff: Map<string, Set<string>>;
+}): {
+  achievableHours: number;
+  allocatedStaffIds: Set<string>;
+  overallocatedStaffIds: Set<string>;
+  overallocatedHours: number;
+  skillCoverageById: Map<string, { requiredHours: number; achievableHours: number }>;
+} {
+  const {
+    requiredSkills,
+    optimizationMode,
+    allowOverallocation,
+    staffPool,
+    matchingSkillIdsByStaff,
+  } = params;
+  const assignedByStaff = new Map<string, number>();
+  const staffById = new Map(staffPool.map((member) => [member.id, member] as const));
+  const skillCoverageById = new Map<string, { requiredHours: number; achievableHours: number }>();
+  for (const skill of requiredSkills) {
+    skillCoverageById.set(skill.id, { requiredHours: skill.requiredHours, achievableHours: 0 });
+  }
+
+  const sortedSkills = [...requiredSkills].sort((a, b) => {
+    const aEligible = staffPool.filter((member) =>
+      matchingSkillIdsByStaff.get(member.id)?.has(a.id)
+    ).length;
+    const bEligible = staffPool.filter((member) =>
+      matchingSkillIdsByStaff.get(member.id)?.has(b.id)
+    ).length;
+    if (aEligible !== bEligible) return aEligible - bEligible;
+    return b.requiredHours - a.requiredHours;
+  });
+
+  for (const skill of sortedSkills) {
+    const eligiblePool: StaffCapacitySlice[] = [];
+    for (const member of staffPool) {
+      if (!matchingSkillIdsByStaff.get(member.id)?.has(skill.id)) continue;
+      const alreadyAssigned = assignedByStaff.get(member.id) ?? 0;
+      const remainingCap = Math.max(0, member.freeAtCap - alreadyAssigned);
+      if (remainingCap <= 0) continue;
+      const remainingAt100 = Math.max(0, member.freeAt100 - alreadyAssigned);
+      eligiblePool.push({
+        ...member,
+        freeAtCap: remainingCap,
+        freeAt100: remainingAt100,
+      });
+    }
+
+    const allocation = allocateForMode(
+      optimizationMode,
+      eligiblePool,
+      skill.requiredHours,
+      allowOverallocation
+    );
+
+    let skillAchievable = 0;
+    for (const [staffId, hours] of Object.entries(allocation.assignedHoursByStaff)) {
+      if (hours <= 0) continue;
+      assignedByStaff.set(staffId, (assignedByStaff.get(staffId) ?? 0) + hours);
+      skillAchievable += hours;
+    }
+
+    const current = skillCoverageById.get(skill.id);
+    if (current) {
+      current.achievableHours = round1(skillAchievable);
+    }
+  }
+
+  const allocatedStaffIds = new Set<string>();
+  const overallocatedStaffIds = new Set<string>();
+  let overallocatedHours = 0;
+  let achievableHours = 0;
+  for (const [staffId, assigned] of assignedByStaff.entries()) {
+    if (assigned <= 0) continue;
+    allocatedStaffIds.add(staffId);
+    achievableHours += assigned;
+    const staff = staffById.get(staffId);
+    if (!staff) continue;
+    const overAfterAssignment = Math.max(0, staff.committedHours + assigned - staff.effectiveCapacity);
+    if (overAfterAssignment > 0) {
+      overallocatedStaffIds.add(staffId);
+      overallocatedHours += overAfterAssignment;
+    }
+  }
+
+  return {
+    achievableHours: round1(achievableHours),
+    allocatedStaffIds,
+    overallocatedStaffIds,
+    overallocatedHours: round1(overallocatedHours),
+    skillCoverageById,
+  };
+}
 
 function computeFeasibilityCore(
   baseData: FeasibilityBaseData,
@@ -336,6 +514,18 @@ function computeFeasibilityCore(
   const weeks: WeekFeasibility[] = [];
   const staffUsedById = new Set<string>();
   const freeAt100ByStaff = new Map<string, number>();
+  const matchingSkillIdsByStaff = new Map(
+    baseData.staff.map((staff) => [staff.id, new Set(staff.matchingSkillIds)] as const)
+  );
+  const hasSkillDemandModel = baseData.proposal.skills.some(
+    (skill) => skill.requiredHoursPerWeek !== null && skill.requiredHoursPerWeek > 0
+  );
+  const skillTotals = new Map(
+    baseData.proposal.skills.map((skill) => [
+      skill.id,
+      { requiredHours: 0, achievableHours: 0 },
+    ] as const)
+  );
   let rawTotalAchievable = 0;
   let rawTotalOverallocatedHours = 0;
   const firstMonday = toUtcDate(toWeekMonday(baseData.proposal.proposed_start_date));
@@ -375,10 +565,21 @@ function computeFeasibilityCore(
     const workDays = workingDaysInRange(clampStart, clampEnd);
     const weekFraction = workDays / 5; // 5 working days in a full week
 
-    const requiredHours =
+    const baselineRequiredHours =
       estimatedHoursPerWeek !== null
         ? estimatedHoursPerWeek * weekFraction
         : ((estimatedTotalHours ?? 0) * workDays) / totalWorkingDays;
+    const skillRequiredForWeek = hasSkillDemandModel
+      ? baseData.proposal.skills
+          .filter((skill) => skill.requiredHoursPerWeek !== null && skill.requiredHoursPerWeek > 0)
+          .map((skill) => ({
+            id: skill.id,
+            requiredHours: (skill.requiredHoursPerWeek ?? 0) * weekFraction,
+          }))
+      : [];
+    const requiredHours = hasSkillDemandModel
+      ? skillRequiredForWeek.reduce((sum, skill) => sum + skill.requiredHours, 0)
+      : baselineRequiredHours;
 
     const weekStaffCapacity: StaffCapacitySlice[] = [];
     const staffLabelsById = new Map<string, string>();
@@ -416,21 +617,49 @@ function computeFeasibilityCore(
     const freeCapacityAt100 = weekStaffCapacity.reduce((sum, member) => sum + member.freeAt100, 0);
     const cappedTotalCapacity = allowOverallocation ? totalFreeCapacity : freeCapacityAt100;
     const targetHours = Math.min(requiredHours, cappedTotalCapacity);
-    const allocation = allocateForMode(
-      optimizationMode,
-      weekStaffCapacity,
-      targetHours,
-      allowOverallocation
-    );
-    const achievableHours = allocation.achievableHours;
+    let achievableHours = 0;
+    let allocatedStaffIds = new Set<string>();
+    let overallocatedStaffIds = new Set<string>();
+    let overallocatedHours = 0;
+
+    if (hasSkillDemandModel && skillRequiredForWeek.length > 0) {
+      const skillAllocation = allocateSkillDemandForWeek({
+        requiredSkills: skillRequiredForWeek,
+        optimizationMode,
+        allowOverallocation,
+        staffPool: weekStaffCapacity,
+        matchingSkillIdsByStaff,
+      });
+      achievableHours = skillAllocation.achievableHours;
+      allocatedStaffIds = skillAllocation.allocatedStaffIds;
+      overallocatedStaffIds = skillAllocation.overallocatedStaffIds;
+      overallocatedHours = skillAllocation.overallocatedHours;
+      for (const [skillId, coverage] of skillAllocation.skillCoverageById.entries()) {
+        const totals = skillTotals.get(skillId);
+        if (!totals) continue;
+        totals.requiredHours += coverage.requiredHours;
+        totals.achievableHours += coverage.achievableHours;
+      }
+    } else {
+      const allocation = allocateForMode(
+        optimizationMode,
+        weekStaffCapacity,
+        targetHours,
+        allowOverallocation
+      );
+      achievableHours = allocation.achievableHours;
+      allocatedStaffIds = new Set(allocation.allocatedStaffIds);
+      overallocatedStaffIds = new Set(allocation.overallocatedStaffIds);
+      overallocatedHours = allocation.overallocatedHours;
+    }
+
     const overallocatedStaffNames = new Set<string>(
-      allocation.overallocatedStaffIds.map((id) => staffLabelsById.get(id) ?? "Unknown staff")
+      Array.from(overallocatedStaffIds).map((id) => staffLabelsById.get(id) ?? "Unknown staff")
     );
-    for (const staffId of allocation.allocatedStaffIds) {
+    for (const staffId of allocatedStaffIds) {
       staffUsedById.add(staffId);
     }
-    const allocatedStaffCount = allocation.allocatedStaffCount;
-    const overallocatedHours = allocation.overallocatedHours;
+    const allocatedStaffCount = allocatedStaffIds.size;
     rawTotalAchievable += achievableHours;
     rawTotalOverallocatedHours += overallocatedHours;
 
@@ -458,14 +687,39 @@ function computeFeasibilityCore(
 
   const roundedWeeklyTotalRequired = weeks.reduce((s, w) => s + w.requiredHours, 0);
   const totalRequired =
-    estimatedHoursPerWeek !== null ? roundedWeeklyTotalRequired : (estimatedTotalHours ?? roundedWeeklyTotalRequired);
+    hasSkillDemandModel
+      ? roundedWeeklyTotalRequired
+      : estimatedHoursPerWeek !== null
+        ? roundedWeeklyTotalRequired
+        : (estimatedTotalHours ?? roundedWeeklyTotalRequired);
   const totalAchievable = rawTotalAchievable;
   const feasibilityPercent =
     totalRequired > 0 ? Math.round((totalAchievable / totalRequired) * 1000) / 10 : 100;
   const staffUsedCount = staffUsedById.size;
   const totalOverallocatedHours = rawTotalOverallocatedHours;
+  const requiredSkillNameById = new Map(
+    baseData.proposal.skills.map((skill) => [skill.id, skill.name] as const)
+  );
+  const skillCoverage = baseData.proposal.skills
+    .map((skill) => {
+      const totals = skillTotals.get(skill.id);
+      const required = round1(totals?.requiredHours ?? 0);
+      const achievable = round1(totals?.achievableHours ?? 0);
+      return {
+        skillId: skill.id,
+        skillName: skill.name,
+        requiredHours: required,
+        achievableHours: achievable,
+        shortfallHours: round1(Math.max(0, required - achievable)),
+      };
+    })
+    .filter((entry) => entry.requiredHours > 0 || entry.achievableHours > 0)
+    .sort((a, b) => a.skillName.localeCompare(b.skillName));
 
   return {
+    requiredSkills: baseData.proposal.skills,
+    hasSkillDemandModel,
+    skillCoverage,
     weeks,
     totalRequired: round1(totalRequired),
     totalAchievable: round1(totalAchievable),
@@ -476,11 +730,17 @@ function computeFeasibilityCore(
     recommendedStaff: Array.from(staffUsedById)
       .map((staffId) => {
         const meta = baseData.staff.find((staff) => staff.id === staffId);
+        const matchingSkillIds = meta?.matchingSkillIds ?? [];
         return {
           id: staffId,
           name: meta?.name ?? meta?.email ?? "Unknown staff",
           role: meta?.role ?? "staff",
           office: meta?.office ?? "No office",
+          matchingSkillIds,
+          matchingSkillNames: matchingSkillIds
+            .map((skillId) => requiredSkillNameById.get(skillId))
+            .filter((name): name is string => Boolean(name))
+            .sort((a, b) => a.localeCompare(b)),
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name)),
@@ -491,6 +751,11 @@ function computeFeasibilityCore(
         role: staff.role,
         office: staff.office,
         availableHoursWithoutOverallocation: round1(freeAt100ByStaff.get(staff.id) ?? 0),
+        matchingSkillIds: staff.matchingSkillIds,
+        matchingSkillNames: staff.matchingSkillIds
+          .map((skillId) => requiredSkillNameById.get(skillId))
+          .filter((name): name is string => Boolean(name))
+          .sort((a, b) => a.localeCompare(b)),
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
@@ -550,6 +815,7 @@ export async function computeFeasibility(
   return {
     optimizationMode,
     optimizationLabel: PROPOSAL_OPTIMIZATION_MODE_LABELS[optimizationMode],
+    requiredSkills: baseData.proposal.skills,
     ...primaryCore,
     officeNames: baseData.officeNames,
     comparisons,

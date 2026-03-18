@@ -65,13 +65,23 @@ export default async function ProposalDetailPage({
     ? proposal.skills
         .map((entry) => {
           if (!entry || typeof entry !== "object") return null;
-          const maybeSkill = entry as { id?: unknown; name?: unknown };
+          const maybeSkill = entry as {
+            id?: unknown;
+            name?: unknown;
+            required_hours_per_week?: unknown;
+          };
           if (typeof maybeSkill.id !== "string" || typeof maybeSkill.name !== "string") {
             return null;
           }
-          return { id: maybeSkill.id, name: maybeSkill.name };
+          const requiredHours =
+            typeof maybeSkill.required_hours_per_week === "number"
+              ? maybeSkill.required_hours_per_week
+              : undefined;
+          return { id: maybeSkill.id, name: maybeSkill.name, required_hours_per_week: requiredHours };
         })
-        .filter((entry): entry is { id: string; name: string } => Boolean(entry))
+        .filter(
+          (entry): entry is { id: string; name: string; required_hours_per_week?: number } => Boolean(entry)
+        )
     : [];
   const optimizationMode = normalizeProposalOptimizationMode(proposal.optimization_mode);
 
@@ -161,6 +171,7 @@ export default async function ProposalDetailPage({
                 className="rounded-full border border-zinc-300 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700"
               >
                 {skill.name}
+                {skill.required_hours_per_week !== undefined ? ` (${skill.required_hours_per_week}h/wk)` : ""}
               </span>
             ))}
           </div>

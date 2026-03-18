@@ -8,7 +8,7 @@ import { Button, Card, Input, Select, Textarea } from "@/components/ui/primitive
 
 type Office = { id: string; name: string };
 type SkillOption = { id: string; name: string };
-type ProposalSkill = { id: string; name: string };
+type ProposalSkill = { id: string; name: string; required_hours_per_week?: number };
 
 type ProposalFormProps = {
   offices: Office[];
@@ -107,8 +107,22 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(
     () => new Set(initialSkills.map((skill) => skill.id))
   );
+  const [skillHoursById, setSkillHoursById] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      initialSkills.map((skill) => [
+        skill.id,
+        skill.required_hours_per_week !== undefined && skill.required_hours_per_week !== null
+          ? `${skill.required_hours_per_week}`
+          : "",
+      ])
+    )
+  );
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(() => new Set(initialOfficeScope));
   const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(initialOfficeScope.length > 0);
+  const selectedSkillsWithInputs = Array.from(selectedSkillIds)
+    .map((id) => availableSkillsById.get(id) ?? initialSkillsById.get(id))
+    .filter((skill): skill is ProposalSkill => Boolean(skill))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   function syncLinkedHours(
     nextStartDate: string,
@@ -149,10 +163,20 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
   function toggleSkill(id: string) {
     setSelectedSkillIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
+  }
+
+  function updateSkillHours(id: string, value: string) {
+    setSkillHoursById((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -169,6 +193,23 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
     const finalSkills = Array.from(selectedSkillIds)
       .map((id) => availableSkillsById.get(id) ?? initialSkillsById.get(id))
       .filter((skill): skill is ProposalSkill => Boolean(skill));
+    const finalSkillsWithDemand: ProposalSkill[] = finalSkills.map((skill) => {
+      const parsedHours = parseOptionalNumber(skillHoursById[skill.id] ?? "");
+      return parsedHours === undefined
+        ? { id: skill.id, name: skill.name }
+        : { id: skill.id, name: skill.name, required_hours_per_week: parsedHours };
+    });
+    const submitWeeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+    const submitDerivedSkillTargetHoursPerWeek =
+      submitWeeks !== null && submitWeeks > 0 && finalTotalHours !== undefined
+        ? roundToSingleDecimal(finalTotalHours / submitWeeks)
+        : null;
+    const submitAllocatedSkillHoursPerWeek = roundToSingleDecimal(
+      finalSkillsWithDemand.reduce((sum, skill) => sum + (skill.required_hours_per_week ?? 0), 0)
+    );
+    const hasAnySubmitSkillHours = finalSkillsWithDemand.some(
+      (skill) => skill.required_hours_per_week !== undefined
+    );
 
     const data: ProposalFormData = {
       name: (formData.get("name") as string)?.trim() ?? "",
@@ -178,7 +219,7 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
       estimated_hours: finalTotalHours,
       estimated_hours_per_week: finalPerWeek,
       win_probability: finalWinProbability,
-      skills: finalSkills,
+      skills: finalSkillsWithDemand,
       office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
       status: ((formData.get("status") as string) || "draft") as ProposalFormData["status"],
       notes: (formData.get("notes") as string)?.trim() || undefined,
@@ -219,6 +260,18 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
       return;
     }
 
+    if (
+      submitDerivedSkillTargetHoursPerWeek !== null &&
+      hasAnySubmitSkillHours &&
+      Math.abs(submitAllocatedSkillHoursPerWeek - submitDerivedSkillTargetHoursPerWeek) > 0.5
+    ) {
+      setError(
+        `Skill hours/week (${submitAllocatedSkillHoursPerWeek}h) should add up to the derived weekly requirement (${submitDerivedSkillTargetHoursPerWeek}h).`
+      );
+      setSubmitting(false);
+      return;
+    }
+
     const result = isEdit ? await updateProposal(proposal.id, data) : await createProposal(data);
     if (result.error) {
       setError(result.error);
@@ -239,6 +292,26 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
   const inputClass = "app-input";
 
   const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
+  const parsedTotalHours = parseOptionalNumber(totalHours);
+  const derivedSkillTargetHoursPerWeek =
+    weeks !== null && weeks > 0 && parsedTotalHours !== undefined
+      ? roundToSingleDecimal(parsedTotalHours / weeks)
+      : null;
+  const allocatedSkillHoursPerWeek = roundToSingleDecimal(
+    selectedSkillsWithInputs.reduce(
+      (sum, skill) => sum + (parseOptionalNumber(skillHoursById[skill.id] ?? "") ?? 0),
+      0
+    )
+  );
+  const hasAnySkillHoursInput = selectedSkillsWithInputs.some(
+    (skill) => parseOptionalNumber(skillHoursById[skill.id] ?? "") !== undefined
+  );
+  const skillHoursGap =
+    derivedSkillTargetHoursPerWeek === null
+      ? null
+      : roundToSingleDecimal(derivedSkillTargetHoursPerWeek - allocatedSkillHoursPerWeek);
+  const skillHoursAligned =
+    skillHoursGap === null ? false : Math.abs(skillHoursGap) <= 0.5;
   const timelineComplete = Boolean(startDate && endDate);
   const officeScopeHint = "Office scope limits which offices are considered when running simulation settings.";
 
@@ -467,7 +540,8 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
           Select the skills this proposal will likely require.
         </p>
         {skills.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
             {skills.map((skill) => {
               const checked = selectedSkillIds.has(skill.id);
               return (
@@ -486,6 +560,76 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
                 </button>
               );
             })}
+            </div>
+            {selectedSkillIds.size > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-zinc-500">
+                  Optional: set required hours/week per skill for stricter skill-aware feasibility.
+                </p>
+                {derivedSkillTargetHoursPerWeek !== null ? (
+                  <div
+                    className={`rounded-md px-3 py-2 text-xs ${
+                      !hasAnySkillHoursInput
+                        ? "bg-zinc-50 text-zinc-600"
+                        : skillHoursAligned
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-amber-50 text-amber-800"
+                    }`}
+                  >
+                    <p>
+                      Target from total hours + timeline:{" "}
+                      <span className="font-semibold">{derivedSkillTargetHoursPerWeek}h/week</span>
+                    </p>
+                    <p>
+                      Allocated across skills:{" "}
+                      <span className="font-semibold">{allocatedSkillHoursPerWeek}h/week</span>
+                      {hasAnySkillHoursInput && skillHoursGap !== null && (
+                        <>
+                          {" "}
+                          (
+                          {skillHoursGap > 0
+                            ? `${skillHoursGap}h remaining`
+                            : skillHoursGap < 0
+                              ? `${Math.abs(skillHoursGap)}h over`
+                              : "matched"}
+                          )
+                        </>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                    Set total project hours and both timeline dates to calculate target skill hours/week.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {selectedSkillsWithInputs.map((skill) => (
+                      <div
+                        key={skill.id}
+                        className="grid grid-cols-12 items-center gap-2 rounded border border-zinc-200 px-3 py-2"
+                      >
+                        <span className="col-span-6 text-sm text-zinc-800">{skill.name}</span>
+                        <label
+                          htmlFor={`skill-hours-${skill.id}`}
+                          className="col-span-3 text-right text-xs text-zinc-500"
+                        >
+                          Required hrs/week
+                        </label>
+                        <Input
+                          id={`skill-hours-${skill.id}`}
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={skillHoursById[skill.id] ?? ""}
+                          onChange={(e) => updateSkillHours(skill.id, e.target.value)}
+                          className="col-span-3 app-input px-2 py-1 text-sm"
+                          placeholder="Optional"
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-xs text-zinc-500">

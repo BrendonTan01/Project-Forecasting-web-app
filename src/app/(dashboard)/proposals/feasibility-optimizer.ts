@@ -15,6 +15,7 @@ export type AllocationResult = {
   allocatedStaffIds: string[];
   overallocatedStaffIds: string[];
   overallocatedHours: number;
+  assignedHoursByStaff: Record<string, number>;
 };
 
 function rankGreedyCandidates(
@@ -185,5 +186,6 @@ export function allocateForMode(
     allocatedStaffIds: Array.from(allocatedStaffIds),
     overallocatedStaffIds: Array.from(overallocatedStaffIds),
     overallocatedHours,
+    assignedHoursByStaff: assignedByStaff,
   };
 }
