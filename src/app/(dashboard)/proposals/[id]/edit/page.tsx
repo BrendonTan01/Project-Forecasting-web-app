@@ -18,15 +18,20 @@ export default async function EditProposalPage({
   }
 
   const supabase = await createClient();
-  const [{ data: proposal }, { data: offices }] = await Promise.all([
+  const [{ data: proposal }, { data: offices }, { data: skills }] = await Promise.all([
     supabase
       .from("project_proposals")
-      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, win_probability, office_scope, optimization_mode, status, notes")
+      .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, win_probability, skills, office_scope, status, notes")
       .eq("id", id)
       .eq("tenant_id", user.tenantId)
       .single(),
     supabase
       .from("offices")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId)
+      .order("name"),
+    supabase
+      .from("skills")
       .select("id, name")
       .eq("tenant_id", user.tenantId)
       .order("name"),
@@ -44,6 +49,7 @@ export default async function EditProposalPage({
       </div>
       <ProposalForm
         offices={offices ?? []}
+        skills={skills ?? []}
         proposal={{
           id: proposal.id,
           name: proposal.name,
@@ -53,8 +59,19 @@ export default async function EditProposalPage({
           estimated_hours: proposal.estimated_hours,
           estimated_hours_per_week: proposal.estimated_hours_per_week,
           win_probability: proposal.win_probability,
+          skills: Array.isArray(proposal.skills)
+            ? proposal.skills
+                .map((entry) => {
+                  if (!entry || typeof entry !== "object") return null;
+                  const maybeSkill = entry as { id?: unknown; name?: unknown };
+                  if (typeof maybeSkill.id !== "string" || typeof maybeSkill.name !== "string") {
+                    return null;
+                  }
+                  return { id: maybeSkill.id, name: maybeSkill.name };
+                })
+                .filter((entry): entry is { id: string; name: string } => Boolean(entry))
+            : null,
           office_scope: proposal.office_scope as string[] | null,
-          optimization_mode: proposal.optimization_mode,
           status: proposal.status,
           notes: proposal.notes,
         }}

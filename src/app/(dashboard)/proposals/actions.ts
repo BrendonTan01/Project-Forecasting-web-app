@@ -19,6 +19,7 @@ export type ProposalFormData = {
   estimated_hours?: number;
   estimated_hours_per_week?: number;
   win_probability?: number;
+  skills?: Array<{ id: string; name: string }>;
   office_scope?: string[] | null;
   optimization_mode?: ProposalOptimizationMode;
   status: "draft" | "submitted" | "won" | "lost";
@@ -52,6 +53,7 @@ export async function createProposal(data: ProposalFormData) {
       estimated_hours: data.estimated_hours ?? null,
       estimated_hours_per_week: data.estimated_hours_per_week ?? null,
       win_probability: normalizeWinProbability(data.win_probability),
+      skills: data.skills?.length ? data.skills : null,
       office_scope: data.office_scope?.length ? data.office_scope : null,
       optimization_mode: normalizeProposalOptimizationMode(data.optimization_mode ?? DEFAULT_PROPOSAL_OPTIMIZATION_MODE),
       status: data.status,
@@ -113,6 +115,7 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
   if (data.estimated_hours !== undefined) updateData.estimated_hours = data.estimated_hours ?? null;
   if (data.estimated_hours_per_week !== undefined) updateData.estimated_hours_per_week = data.estimated_hours_per_week ?? null;
   if (data.win_probability !== undefined) updateData.win_probability = normalizeWinProbability(data.win_probability);
+  if ("skills" in data) updateData.skills = data.skills?.length ? data.skills : null;
   if ("office_scope" in data) updateData.office_scope = data.office_scope?.length ? data.office_scope : null;
   if (data.optimization_mode !== undefined) {
     updateData.optimization_mode = normalizeProposalOptimizationMode(data.optimization_mode);

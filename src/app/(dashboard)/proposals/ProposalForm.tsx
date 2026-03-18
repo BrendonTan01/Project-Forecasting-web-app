@@ -5,18 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProposal, updateProposal, type ProposalFormData } from "./actions";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui/primitives";
-import {
-  DEFAULT_PROPOSAL_OPTIMIZATION_MODE,
-  PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS,
-  PROPOSAL_OPTIMIZATION_MODE_LABELS,
-  PROPOSAL_OPTIMIZATION_MODES,
-  normalizeProposalOptimizationMode,
-} from "./optimization-modes";
 
 type Office = { id: string; name: string };
+type SkillOption = { id: string; name: string };
+type ProposalSkill = { id: string; name: string };
 
 type ProposalFormProps = {
   offices: Office[];
+  skills: SkillOption[];
   proposal?: {
     id: string;
     name: string;
@@ -26,8 +22,8 @@ type ProposalFormProps = {
     estimated_hours?: number | null;
     estimated_hours_per_week?: number | null;
     win_probability?: number | null;
+    skills?: ProposalSkill[] | null;
     office_scope?: string[] | null;
-    optimization_mode?: string | null;
     status: "draft" | "submitted" | "won" | "lost";
     notes?: string | null;
   };
@@ -87,7 +83,7 @@ function fmtHours(h: number): string {
   return `${Math.round(h * 10) / 10}h`;
 }
 
-export function ProposalForm({ offices, proposal }: ProposalFormProps) {
+export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -104,12 +100,15 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     if (proposal?.estimated_hours_per_week && !proposal?.estimated_hours) return "per_week";
     return "total";
   });
+  const initialSkills = proposal?.skills ?? [];
   const initialOfficeScope = proposal?.office_scope ?? [];
+  const initialSkillsById = new Map(initialSkills.map((skill) => [skill.id, skill]));
+  const availableSkillsById = new Map(skills.map((skill) => [skill.id, skill]));
+  const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(
+    () => new Set(initialSkills.map((skill) => skill.id))
+  );
   const [selectedOffices, setSelectedOffices] = useState<Set<string>>(() => new Set(initialOfficeScope));
   const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(initialOfficeScope.length > 0);
-  const [optimizationMode, setOptimizationMode] = useState(
-    normalizeProposalOptimizationMode(proposal?.optimization_mode ?? DEFAULT_PROPOSAL_OPTIMIZATION_MODE)
-  );
 
   function syncLinkedHours(
     nextStartDate: string,
@@ -147,6 +146,15 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     });
   }
 
+  function toggleSkill(id: string) {
+    setSelectedSkillIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -158,6 +166,9 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
     const finalTotalHours = parseOptionalNumber(totalHours);
     const finalPerWeek = parseOptionalNumber(hoursPerWeek);
     const finalWinProbability = parseOptionalNumber(winProbability);
+    const finalSkills = Array.from(selectedSkillIds)
+      .map((id) => availableSkillsById.get(id) ?? initialSkillsById.get(id))
+      .filter((skill): skill is ProposalSkill => Boolean(skill));
 
     const data: ProposalFormData = {
       name: (formData.get("name") as string)?.trim() ?? "",
@@ -167,8 +178,8 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
       estimated_hours: finalTotalHours,
       estimated_hours_per_week: finalPerWeek,
       win_probability: finalWinProbability,
+      skills: finalSkills,
       office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
-      optimization_mode: optimizationMode,
       status: ((formData.get("status") as string) || "draft") as ProposalFormData["status"],
       notes: (formData.get("notes") as string)?.trim() || undefined,
     };
@@ -229,15 +240,7 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
 
   const weeks = startDate && endDate ? countProjectWeeks(startDate, endDate) : null;
   const timelineComplete = Boolean(startDate && endDate);
-  const optimizationModesTooltip = PROPOSAL_OPTIMIZATION_MODES.map(
-    (mode) => `${PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}: ${PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[mode]}`
-  ).join("\n");
-  const officeScopeHint =
-    optimizationMode === "single_office_preferred"
-      ? "Single office preferred will concentrate work in one office within this scope."
-      : optimizationMode === "multi_office_balanced"
-        ? "Multi-office balanced will spread work across offices within this scope."
-        : "Office scope limits which offices are considered before optimization is applied.";
+  const officeScopeHint = "Office scope limits which offices are considered when running simulation settings.";
 
   return (
     <form
@@ -457,36 +460,38 @@ export function ProposalForm({ offices, proposal }: ProposalFormProps) {
         </div>
       </div>
 
-      {/* Allocation objective */}
+      {/* Skills needed */}
       <div className="app-card-soft p-4">
-        <div className="mb-1 flex items-center gap-2">
-          <h2 className="font-medium text-zinc-900">Allocation objective</h2>
-          <span
-            className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-zinc-300 text-xs text-zinc-500"
-            title={optimizationModesTooltip}
-            aria-label="Show allocation objective descriptions"
-          >
-            ?
-          </span>
-        </div>
+        <h2 className="mb-1 font-medium text-zinc-900">Skills needed</h2>
         <p className="mb-3 text-xs text-zinc-500">
-          Choose what the feasibility engine should optimize for.
+          Select the skills this proposal will likely require.
         </p>
-        <Select
-          id="optimization_mode"
-          name="optimization_mode"
-          value={optimizationMode}
-          onChange={(e) => setOptimizationMode(normalizeProposalOptimizationMode(e.target.value))}
-        >
-          {PROPOSAL_OPTIMIZATION_MODES.map((mode) => (
-            <option key={mode} value={mode}>
-              {PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}
-            </option>
-          ))}
-        </Select>
-        <p className="mt-2 text-xs text-zinc-500">
-          {PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[optimizationMode]}
-        </p>
+        {skills.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {skills.map((skill) => {
+              const checked = selectedSkillIds.has(skill.id);
+              return (
+                <button
+                  key={skill.id}
+                  type="button"
+                  aria-pressed={checked}
+                  onClick={() => toggleSkill(skill.id)}
+                  className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                    checked
+                      ? "border-zinc-900 bg-zinc-900 text-white"
+                      : "border-zinc-300 text-zinc-600 hover:border-zinc-500 hover:text-zinc-900"
+                  }`}
+                >
+                  {skill.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-zinc-500">
+            No skills are configured yet. Add skills in Settings to tag proposal demand accurately.
+          </p>
+        )}
       </div>
 
       {/* Office scope */}

@@ -13,11 +13,18 @@ export default async function NewProposalPage() {
   }
 
   const supabase = await createClient();
-  const { data: offices } = await supabase
-    .from("offices")
-    .select("id, name")
-    .eq("tenant_id", user.tenantId)
-    .order("name");
+  const [{ data: offices }, { data: skills }] = await Promise.all([
+    supabase
+      .from("offices")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId)
+      .order("name"),
+    supabase
+      .from("skills")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId)
+      .order("name"),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -27,7 +34,7 @@ export default async function NewProposalPage() {
         </Link>
         <h1 className="app-page-title mt-2">Add new proposal</h1>
       </div>
-      <ProposalForm offices={offices ?? []} />
+      <ProposalForm offices={offices ?? []} skills={skills ?? []} />
     </div>
   );
 }
