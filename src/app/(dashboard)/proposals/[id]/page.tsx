@@ -61,27 +61,28 @@ export default async function ProposalDetailPage({
   };
 
   const officeScope = proposal.office_scope as string[] | null;
-  const proposalSkills = Array.isArray(proposal.skills)
-    ? proposal.skills
-        .map((entry) => {
-          if (!entry || typeof entry !== "object") return null;
-          const maybeSkill = entry as {
-            id?: unknown;
-            name?: unknown;
-            required_hours_per_week?: unknown;
-          };
-          if (typeof maybeSkill.id !== "string" || typeof maybeSkill.name !== "string") {
-            return null;
-          }
-          const requiredHours =
-            typeof maybeSkill.required_hours_per_week === "number"
-              ? maybeSkill.required_hours_per_week
-              : undefined;
-          return { id: maybeSkill.id, name: maybeSkill.name, required_hours_per_week: requiredHours };
-        })
-        .filter(
-          (entry): entry is { id: string; name: string; required_hours_per_week?: number } => Boolean(entry)
-        )
+  const proposalSkills: Array<{ id: string; name: string; required_hours_per_week?: number }> = Array.isArray(
+    proposal.skills
+  )
+    ? proposal.skills.flatMap((entry) => {
+        if (!entry || typeof entry !== "object") return [];
+        const maybeSkill = entry as {
+          id?: unknown;
+          name?: unknown;
+          required_hours_per_week?: unknown;
+        };
+        if (typeof maybeSkill.id !== "string" || typeof maybeSkill.name !== "string") {
+          return [];
+        }
+        if (typeof maybeSkill.required_hours_per_week === "number") {
+          return [{
+            id: maybeSkill.id,
+            name: maybeSkill.name,
+            required_hours_per_week: maybeSkill.required_hours_per_week,
+          }];
+        }
+        return [{ id: maybeSkill.id, name: maybeSkill.name }];
+      })
     : [];
   const optimizationMode = normalizeProposalOptimizationMode(proposal.optimization_mode);
 

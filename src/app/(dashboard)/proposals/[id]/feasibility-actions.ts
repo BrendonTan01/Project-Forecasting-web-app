@@ -520,11 +520,11 @@ function computeFeasibilityCore(
   const hasSkillDemandModel = baseData.proposal.skills.some(
     (skill) => skill.requiredHoursPerWeek !== null && skill.requiredHoursPerWeek > 0
   );
-  const skillTotals = new Map(
+  const skillTotals = new Map<string, { requiredHours: number; achievableHours: number }>(
     baseData.proposal.skills.map((skill) => [
       skill.id,
       { requiredHours: 0, achievableHours: 0 },
-    ] as const)
+    ])
   );
   let rawTotalAchievable = 0;
   let rawTotalOverallocatedHours = 0;
@@ -815,7 +815,6 @@ export async function computeFeasibility(
   return {
     optimizationMode,
     optimizationLabel: PROPOSAL_OPTIMIZATION_MODE_LABELS[optimizationMode],
-    requiredSkills: baseData.proposal.skills,
     ...primaryCore,
     officeNames: baseData.officeNames,
     comparisons,
