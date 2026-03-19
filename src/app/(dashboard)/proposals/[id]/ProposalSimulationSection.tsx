@@ -14,12 +14,15 @@ import {
 
 type Office = { id: string; name: string };
 
+type SavedTeamMember = { staff_id: string; split_percent: number };
+
 type Props = {
   proposalId: string;
   allOffices: Office[];
   initialOfficeScope: string[] | null;
   initialOptimizationMode: ProposalOptimizationMode;
   initialResult: FeasibilityResult | { error: string } | null;
+  savedTeam?: SavedTeamMember[] | null;
 };
 
 function normalizeScopeKey(scope: string[] | null): string {
@@ -49,6 +52,7 @@ export function ProposalSimulationSection({
   initialOfficeScope,
   initialOptimizationMode,
   initialResult,
+  savedTeam,
 }: Props) {
   const proposalScopedOfficeIds = (initialOfficeScope ?? []).filter((id) =>
     allOffices.some((office) => office.id === id)
@@ -391,10 +395,12 @@ export function ProposalSimulationSection({
           </p>
         </div>
         <FeasibilityAnalysis
+          proposalId={proposalId}
           result={feasibilityResult}
           isPending={feasibilityLoading}
           simulationActive={simulationActive}
           simulationData={impactData}
+          savedTeam={savedTeam ?? null}
         />
       </div>
     </div>

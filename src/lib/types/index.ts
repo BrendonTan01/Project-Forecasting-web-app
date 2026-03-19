@@ -60,6 +60,11 @@ export interface Project {
 
 export type ProposalStatus = "draft" | "submitted" | "won" | "lost" | "converted";
 
+export interface ProposedTeamMember {
+  staff_id: string;
+  split_percent: number;
+}
+
 export interface ProjectProposal {
   id: string;
   tenant_id: string;
@@ -73,6 +78,7 @@ export interface ProjectProposal {
   skills?: Array<{ id: string; name: string; required_hours_per_week?: number }> | null;
   office_scope: string[] | null;
   optimization_mode?: string | null;
+  proposed_team?: ProposedTeamMember[] | null;
   status: ProposalStatus;
   notes: string | null;
   created_at?: string;

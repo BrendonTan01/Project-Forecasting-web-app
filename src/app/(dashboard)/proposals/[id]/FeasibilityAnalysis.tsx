@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { FeasibilityResult, WeekFeasibility } from "./feasibility-actions";
 import type { SimulationResult } from "./ProposalImpactPanel";
+import { saveProposedTeam } from "../actions";
+
+type SavedTeamMember = { staff_id: string; split_percent: number };
 
 type Props = {
+  proposalId: string;
   result: FeasibilityResult | { error: string } | null;
   isPending?: boolean;
   simulationActive?: boolean;
   simulationData?: SimulationResult | null;
+  savedTeam?: SavedTeamMember[] | null;
 };
 
 function formatDate(iso: string): string {
@@ -183,10 +188,12 @@ function generateInsight(result: FeasibilityResult): string {
 }
 
 export function FeasibilityAnalysis({
+  proposalId,
   result,
   isPending = false,
   simulationActive = false,
   simulationData = null,
+  savedTeam = null,
 }: Props) {
   const hasResult = result && !("error" in result);
   const feasResult = hasResult ? (result as FeasibilityResult) : null;
@@ -205,6 +212,9 @@ export function FeasibilityAnalysis({
   const riskUnchanged = baselineCapacityRisk === simulationCapacityRisk;
   const [selectedProposedStaffIds, setSelectedProposedStaffIds] = useState<Set<string>>(new Set());
   const [splitPercentByStaff, setSplitPercentByStaff] = useState<Record<string, number>>({});
+  const [teamSaveStatus, setTeamSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [teamSaveError, setTeamSaveError] = useState<string | null>(null);
+  const [teamIsDirty, setTeamIsDirty] = useState(false);
 
   useEffect(() => {
     if (!feasResult) {
@@ -213,13 +223,50 @@ export function FeasibilityAnalysis({
       return;
     }
     const validIds = new Set(feasResult.staffCapacityCandidates.map((candidate) => candidate.id));
+
+    // Pre-populate from savedTeam when simulation result first arrives
+    if (savedTeam && savedTeam.length > 0) {
+      const savedIds = savedTeam
+        .filter((m) => validIds.has(m.staff_id))
+        .map((m) => m.staff_id);
+      if (savedIds.length > 0) {
+        const savedSplit: Record<string, number> = {};
+        for (const m of savedTeam) {
+          if (validIds.has(m.staff_id)) savedSplit[m.staff_id] = m.split_percent;
+        }
+        setSelectedProposedStaffIds(new Set(savedIds));
+        setSplitPercentByStaff(savedSplit);
+        setTeamIsDirty(false);
+        return;
+      }
+    }
+
     setSelectedProposedStaffIds((prev) => {
       const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
       if (next.size === prev.size) return prev;
       setSplitPercentByStaff(buildEqualSplit(Array.from(next)));
       return next;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feasResult]);
+
+  async function handleSaveTeam() {
+    setTeamSaveStatus("saving");
+    setTeamSaveError(null);
+    const team = Array.from(selectedProposedStaffIds).map((id) => ({
+      staff_id: id,
+      split_percent: splitPercentByStaff[id] ?? 0,
+    }));
+    const result = await saveProposedTeam(proposalId, team);
+    if (result.error) {
+      setTeamSaveStatus("error");
+      setTeamSaveError(result.error);
+      return;
+    }
+    setTeamSaveStatus("saved");
+    setTeamIsDirty(false);
+    setTimeout(() => setTeamSaveStatus("idle"), 3000);
+  }
 
   if (isPending) {
     return (
@@ -274,6 +321,7 @@ export function FeasibilityAnalysis({
     const ids = Array.from(next).sort();
     setSelectedProposedStaffIds(next);
     setSplitPercentByStaff(buildEqualSplit(ids));
+    setTeamIsDirty(true);
   }
 
   function handleSplitChange(id: string, value: string) {
@@ -284,6 +332,7 @@ export function FeasibilityAnalysis({
       ...prev,
       [id]: round1(clamped),
     }));
+    setTeamIsDirty(true);
   }
 
   return (
@@ -401,12 +450,40 @@ export function FeasibilityAnalysis({
       </div>
 
       <div className="app-card p-4">
-        <h3 className="text-sm font-semibold text-zinc-900">Proposed staffing plan</h3>
-        <p className="mt-1 text-xs text-zinc-500">
-          {requiredSkills.length > 0
-            ? "Select staff to draft a delivery team. Candidates are filtered to staff who match at least one required skill."
-            : "Select staff to draft a delivery team. Split defaults to equal shares and can be adjusted manually."}
-        </p>
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-900">Proposed staffing plan</h3>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              {requiredSkills.length > 0
+                ? "Select staff to draft a delivery team. Candidates are filtered to staff who match at least one required skill."
+                : "Select staff to draft a delivery team. Split defaults to equal shares and can be adjusted manually."}
+            </p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Use &quot;Save team&quot; to persist the team to the proposal — it will be preserved across simulation runs and carried over when converting to a project.
+            </p>
+          </div>
+          {selectedProposedStaffIds.size > 0 && (
+            <div className="flex shrink-0 items-center gap-2">
+              {teamIsDirty && (
+                <span className="text-xs text-amber-600">Unsaved changes</span>
+              )}
+              {teamSaveStatus === "saved" && !teamIsDirty && (
+                <span className="text-xs text-emerald-600">Saved</span>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveTeam}
+                disabled={teamSaveStatus === "saving"}
+                className="app-btn app-btn-primary focus-ring px-3 py-1.5 text-xs"
+              >
+                {teamSaveStatus === "saving" ? "Saving…" : "Save team"}
+              </button>
+            </div>
+          )}
+        </div>
+        {teamSaveError && (
+          <p className="mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{teamSaveError}</p>
+        )}
         {requiredSkills.length > 0 && (
           <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3">
             <p className="text-xs font-medium text-zinc-700">
@@ -558,7 +635,10 @@ export function FeasibilityAnalysis({
                   </p>
                   <button
                     type="button"
-                    onClick={() => setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)))}
+                    onClick={() => {
+                      setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)));
+                      setTeamIsDirty(true);
+                    }}
                     className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs"
                   >
                     Rebalance equally

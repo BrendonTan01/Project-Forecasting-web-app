@@ -8,16 +8,31 @@ import { Button, Card, Input } from "@/components/ui/primitives";
 
 type Skill = { id: string; name: string; required_hours_per_week?: number };
 
+export type ProposedTeamMemberResolved = {
+  staff_id: string;
+  split_percent: number;
+  name: string;
+  role: string;
+  office: string;
+  weekly_capacity_hours: number;
+};
+
 function parseOptionalNumber(value: string): number | undefined {
   if (!value.trim()) return undefined;
   const parsed = Number.parseFloat(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function round1(v: number) {
+  return Math.round(v * 10) / 10;
+}
+
 type ConvertProposalFormProps = {
   proposalId: string;
   proposalName: string;
   offices: { id: string; name: string }[];
+  proposedTeam?: ProposedTeamMemberResolved[];
+  estimatedHoursPerWeek?: number | null;
   defaults: {
     name: string;
     client_name: string | null;
@@ -34,6 +49,8 @@ export function ConvertProposalForm({
   proposalId,
   proposalName,
   offices,
+  proposedTeam = [],
+  estimatedHoursPerWeek = null,
   defaults,
 }: ConvertProposalFormProps) {
   const router = useRouter();
@@ -58,6 +75,21 @@ export function ConvertProposalForm({
     )
   );
 
+  // Per-member allocation % override (defaults to computed from split_percent + weekly capacity)
+  const [teamAllocationById, setTeamAllocationById] = useState<Record<string, string>>(() => {
+    const result: Record<string, string> = {};
+    for (const member of proposedTeam) {
+      if (estimatedHoursPerWeek && member.weekly_capacity_hours > 0) {
+        const weeklyHours = round1((estimatedHoursPerWeek * member.split_percent) / 100);
+        const allocPct = round1((weeklyHours / member.weekly_capacity_hours) * 100);
+        result[member.staff_id] = String(allocPct);
+      } else {
+        result[member.staff_id] = String(member.split_percent);
+      }
+    }
+    return result;
+  });
+
   function toggleOffice(id: string) {
     setSelectedOffices((prev) => {
       const next = new Set(prev);
@@ -65,6 +97,10 @@ export function ConvertProposalForm({
       else next.add(id);
       return next;
     });
+  }
+
+  function handleAllocationChange(staffId: string, value: string) {
+    setTeamAllocationById((prev) => ({ ...prev, [staffId]: value }));
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -105,6 +141,19 @@ export function ConvertProposalForm({
       return;
     }
 
+    const teamAssignments = proposedTeam.map((member) => {
+      const allocPctRaw = teamAllocationById[member.staff_id] ?? "";
+      const allocPct = parseOptionalNumber(allocPctRaw) ?? member.split_percent;
+      const weeklyHours = estimatedHoursPerWeek
+        ? round1((estimatedHoursPerWeek * member.split_percent) / 100)
+        : round1((member.weekly_capacity_hours * allocPct) / 100);
+      return {
+        staff_id: member.staff_id,
+        allocation_percentage: Math.min(200, Math.max(0, allocPct)),
+        weekly_hours_allocated: weeklyHours,
+      };
+    });
+
     const result = await convertProposalToProject(proposalId, {
       name,
       client_name: (formData.get("client_name") as string)?.trim() || undefined,
@@ -114,6 +163,7 @@ export function ConvertProposalForm({
       office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
       notes: (formData.get("notes") as string)?.trim() || undefined,
       skills: editedSkills,
+      team_assignments: teamAssignments.length > 0 ? teamAssignments : undefined,
     });
 
     if (result.error) {
@@ -311,6 +361,68 @@ export function ConvertProposalForm({
                   />
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {proposedTeam.length > 0 && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
+            <p className="mb-1 text-sm font-medium text-blue-900">
+              Proposed team ({proposedTeam.length} member{proposedTeam.length !== 1 ? "s" : ""})
+            </p>
+            <p className="mb-3 text-xs text-blue-700">
+              These staff members will be assigned to the project on creation. Review and adjust allocation percentages as needed.
+              {estimatedHoursPerWeek
+                ? ` Weekly hours shown are based on ${estimatedHoursPerWeek}h/week × split %.`
+                : ""}
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-blue-200">
+                    <th className="py-1.5 pr-3 text-left text-xs font-semibold text-blue-800">Staff member</th>
+                    <th className="py-1.5 pr-3 text-right text-xs font-semibold text-blue-800">Split %</th>
+                    {estimatedHoursPerWeek && (
+                      <th className="py-1.5 pr-3 text-right text-xs font-semibold text-blue-800">Weekly hrs</th>
+                    )}
+                    <th className="py-1.5 text-right text-xs font-semibold text-blue-800">Allocation %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proposedTeam.map((member) => {
+                    const weeklyHours = estimatedHoursPerWeek
+                      ? round1((estimatedHoursPerWeek * member.split_percent) / 100)
+                      : null;
+                    const allocPctStr = teamAllocationById[member.staff_id] ?? "";
+                    return (
+                      <tr key={member.staff_id} className="border-b border-blue-100 last:border-0">
+                        <td className="py-1.5 pr-3 text-zinc-900">
+                          <p className="font-medium">{member.name}</p>
+                          <p className="text-xs text-zinc-500">{member.role} · {member.office}</p>
+                        </td>
+                        <td className="py-1.5 pr-3 text-right text-zinc-700">{member.split_percent}%</td>
+                        {estimatedHoursPerWeek && (
+                          <td className="py-1.5 pr-3 text-right text-zinc-700">{weeklyHours}h/wk</td>
+                        )}
+                        <td className="py-1.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="200"
+                              step="1"
+                              value={allocPctStr}
+                              onChange={(e) => handleAllocationChange(member.staff_id, e.target.value)}
+                              className="w-20 app-input px-2 py-1 text-right text-sm"
+                            />
+                            <span className="text-xs text-zinc-500">%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
