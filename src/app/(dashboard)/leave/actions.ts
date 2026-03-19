@@ -65,6 +65,37 @@ export async function updateLeaveRequestStatus(
 
   const supabase = await createClient();
 
+  const { data: targetRequest } = await supabase
+    .from("leave_requests")
+    .select(`
+      id,
+      staff_id,
+      staff_profiles (
+        users (office_id)
+      )
+    `)
+    .eq("id", leaveRequestId)
+    .eq("tenant_id", user.tenantId)
+    .single();
+
+  if (!targetRequest) return { error: "Leave request not found." };
+
+  if (user.role === "manager") {
+    if (!user.officeId) {
+      return { error: "Manager account must be assigned to an office." };
+    }
+    const staffProfile = Array.isArray(targetRequest.staff_profiles)
+      ? targetRequest.staff_profiles[0]
+      : targetRequest.staff_profiles;
+    const usersRaw = staffProfile ? (staffProfile as unknown as { users?: unknown }).users : null;
+    const staffUser = Array.isArray(usersRaw)
+      ? (usersRaw[0] as { office_id?: string | null } | undefined)
+      : (usersRaw as { office_id?: string | null } | null);
+    if (staffUser?.office_id !== user.officeId) {
+      return { error: "Managers can only approve leave requests from their office." };
+    }
+  }
+
   const { error } = await supabase
     .from("leave_requests")
     .update({ status })

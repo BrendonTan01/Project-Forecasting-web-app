@@ -26,11 +26,13 @@ export default async function LeavePage() {
   if (!user) return null;
 
   const supabase = await createClient();
-  const isManager = user.role !== "staff";
+  const canApproveLeave = user.role !== "staff";
+  const isManager = user.role === "manager";
+  const isAdministrator = user.role === "administrator";
 
-  if (isManager) {
-    // Manager/admin view: all tenant leave requests, grouped by status
-    const { data: allRequests } = await supabase
+  if (canApproveLeave) {
+    // Admin view: all tenant leave requests. Manager view: office-scoped requests only.
+    const { data: rawRequests } = await supabase
       .from("leave_requests")
       .select(`
         id,
@@ -42,11 +44,25 @@ export default async function LeavePage() {
         staff_profiles (
           id,
           name,
-          users (name, email)
+          users (name, email, office_id)
         )
       `)
       .eq("tenant_id", user.tenantId)
       .order("created_at", { ascending: false });
+
+    const allRequests = (rawRequests ?? []).filter((request) => {
+      if (isAdministrator) return true;
+      if (!isManager) return false;
+      if (!user.officeId) return false;
+      const staffProfile = Array.isArray(request.staff_profiles)
+        ? request.staff_profiles[0]
+        : request.staff_profiles;
+      const usersRaw = staffProfile ? (staffProfile as unknown as { users?: unknown }).users : null;
+      const staffUser = Array.isArray(usersRaw)
+        ? (usersRaw[0] as { office_id?: string | null } | undefined)
+        : (usersRaw as { office_id?: string | null } | null);
+      return staffUser?.office_id === user.officeId;
+    });
 
     const pending = (allRequests ?? []).filter((r) => r.status === "pending");
     const decided = (allRequests ?? []).filter((r) => r.status !== "pending");
@@ -110,7 +126,9 @@ export default async function LeavePage() {
         <div>
           <h1 className="app-page-title">Leave requests</h1>
           <p className="text-sm text-zinc-600">
-            Review and approve or reject leave requests from your team.
+            {isAdministrator
+              ? "Review and approve or reject leave requests across your organization."
+              : "Review and approve or reject leave requests from your office."}
           </p>
         </div>
 

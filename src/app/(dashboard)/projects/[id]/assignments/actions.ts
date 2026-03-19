@@ -8,6 +8,7 @@ import {
   scheduleForecastRecalculation,
   scheduleHiringPredictionsRecalculation,
 } from "@/lib/forecast/engine";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 export async function upsertProjectAssignment(
   projectId: string,
@@ -24,26 +25,38 @@ export async function upsertProjectAssignment(
   }
 
   const supabase = await createClient();
+  if (user.role === "manager" && !user.officeId) {
+    return { error: "Manager account must be assigned to an office." };
+  }
 
   // Verify the project belongs to this tenant
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id, office_scope")
     .eq("id", projectId)
     .eq("tenant_id", user.tenantId)
     .single();
 
   if (!project) return { error: "Project not found." };
+  if (user.role === "manager" && !isOfficeInScope(project.office_scope, user.officeId)) {
+    return { error: "You can only manage assignments in your assigned office." };
+  }
 
   // Verify the staff member belongs to this tenant
   const { data: staff } = await supabase
     .from("staff_profiles")
-    .select("id")
+    .select("id, users!inner(office_id)")
     .eq("id", staffId)
     .eq("tenant_id", user.tenantId)
     .single();
 
   if (!staff) return { error: "Staff member not found." };
+  if (user.role === "manager") {
+    const usersRecord = Array.isArray(staff.users) ? staff.users[0] : staff.users;
+    if ((usersRecord as { office_id?: string | null } | null)?.office_id !== user.officeId) {
+      return { error: "You can only assign staff from your office." };
+    }
+  }
 
   const { data: existingBaseAssignment, error: existingBaseErr } = await supabase
     .from("project_assignments")
@@ -97,16 +110,22 @@ export async function removeProjectAssignment(projectId: string, assignmentId: s
   }
 
   const supabase = await createClient();
+  if (user.role === "manager" && !user.officeId) {
+    return { error: "Manager account must be assigned to an office." };
+  }
 
   // Verify the project belongs to this tenant before deleting
   const { data: project } = await supabase
     .from("projects")
-    .select("id")
+    .select("id, office_scope")
     .eq("id", projectId)
     .eq("tenant_id", user.tenantId)
     .single();
 
   if (!project) return { error: "Project not found." };
+  if (user.role === "manager" && !isOfficeInScope(project.office_scope, user.officeId)) {
+    return { error: "You can only manage assignments in your assigned office." };
+  }
 
   const { error } = await supabase
     .from("project_assignments")

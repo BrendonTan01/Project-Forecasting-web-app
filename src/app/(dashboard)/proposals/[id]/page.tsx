@@ -8,6 +8,7 @@ import { ProposalSimulationSection } from "./ProposalSimulationSection";
 import { ProposalStatusChanger } from "./ProposalStatusChanger";
 import { normalizeProposalOptimizationMode } from "../optimization-modes";
 import type { ProposedTeamMember } from "@/lib/types";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   draft: { label: "Draft", colour: "bg-zinc-100 text-zinc-700" },
@@ -57,6 +58,11 @@ export default async function ProposalDetailPage({
   ]);
 
   if (!proposal) notFound();
+  if (user.role === "manager") {
+    if (!user.officeId || !isOfficeInScope(proposal.office_scope, user.officeId)) {
+      notFound();
+    }
+  }
 
   // If this proposal has been converted, look up the linked project.
   let linkedProjectId: string | null = null;
@@ -246,6 +252,7 @@ export default async function ProposalDetailPage({
         initialOptimizationMode={optimizationMode}
         initialResult={null}
         savedTeam={proposedTeam}
+        canManageProposal={canManageProposals}
       />
 
       {/* Notes */}

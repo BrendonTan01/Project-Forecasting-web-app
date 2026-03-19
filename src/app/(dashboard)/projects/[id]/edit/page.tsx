@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ProjectForm } from "../../ProjectForm";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 export default async function EditProjectPage({
   params,
@@ -16,6 +17,9 @@ export default async function EditProjectPage({
   if (!hasPermission(user.role, "projects:manage")) {
     redirect("/projects");
   }
+  if (user.role === "manager" && !user.officeId) {
+    redirect("/projects");
+  }
 
   const supabase = await createClient();
   const { data: project } = await supabase
@@ -24,13 +28,20 @@ export default async function EditProjectPage({
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
-  const { data: offices } = await supabase
+  if (!project) notFound();
+  if (user.role === "manager" && !isOfficeInScope(project.office_scope, user.officeId)) {
+    notFound();
+  }
+
+  let officesQuery = supabase
     .from("offices")
     .select("id, name")
     .eq("tenant_id", user.tenantId)
     .order("name");
-
-  if (!project) notFound();
+  if (user.role === "manager" && user.officeId) {
+    officesQuery = officesQuery.eq("id", user.officeId);
+  }
+  const { data: offices } = await officesQuery;
 
   return (
     <div className="space-y-6">

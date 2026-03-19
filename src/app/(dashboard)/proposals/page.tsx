@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 const proposalStatusConfig: Record<string, { label: string; colour: string }> = {
   draft: { label: "Draft", colour: "bg-zinc-100 text-zinc-700" },
@@ -24,6 +25,19 @@ export default async function ProposalsPage({
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
   const canManageProposals = hasPermission(user.role, "proposals:manage");
+  const managerOfficeId = user.role === "manager" ? user.officeId : null;
+  const managerMissingOffice = user.role === "manager" && !managerOfficeId;
+
+  if (managerMissingOffice) {
+    return (
+      <div className="app-card p-6">
+        <h1 className="app-page-title">Project Proposals</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          Your manager account is not assigned to an office yet. Ask an administrator to set your office to access scoped proposals.
+        </p>
+      </div>
+    );
+  }
 
   const { status } = await searchParams;
   const supabase = await createClient();
@@ -38,7 +52,8 @@ export default async function ProposalsPage({
       proposed_end_date,
       estimated_hours,
       estimated_hours_per_week,
-      status
+      status,
+      office_scope
     `)
     .eq("tenant_id", user.tenantId)
     .order("created_at", { ascending: false });
@@ -48,7 +63,9 @@ export default async function ProposalsPage({
   }
 
   const { data: proposals } = await query;
-  const proposalList = proposals ?? [];
+  const proposalList = (proposals ?? []).filter((proposal) =>
+    user.role === "manager" ? isOfficeInScope((proposal as { office_scope?: unknown }).office_scope, managerOfficeId) : true
+  );
   const countsByStatus = proposalList.reduce<Record<string, number>>((acc, proposal) => {
     acc[proposal.status] = (acc[proposal.status] ?? 0) + 1;
     return acc;

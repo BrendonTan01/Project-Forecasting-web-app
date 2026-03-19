@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { simulateProposalImpact } from "@/lib/forecast/simulate";
+import { createClient } from "@/lib/supabase/server";
+import { enforceManagerOfficeIds, isOfficeInScope } from "@/lib/office-scope";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUserWithTenant();
@@ -10,7 +12,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!hasPermission(user.role, "financials:view")) {
+  if (!hasPermission(user.role, "proposals:simulate")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -33,7 +35,27 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await simulateProposalImpact(proposalId, user.tenantId, undefined, officeIds);
+    const supabase = await createClient();
+    const { data: proposal } = await supabase
+      .from("project_proposals")
+      .select("id, office_scope")
+      .eq("id", proposalId)
+      .eq("tenant_id", user.tenantId)
+      .maybeSingle();
+
+    if (!proposal) {
+      return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
+    }
+
+    let effectiveOfficeIds = officeIds;
+    if (user.role === "manager") {
+      if (!user.officeId || !isOfficeInScope(proposal.office_scope, user.officeId)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      effectiveOfficeIds = enforceManagerOfficeIds(officeIds, user.officeId);
+    }
+
+    const result = await simulateProposalImpact(proposalId, user.tenantId, undefined, effectiveOfficeIds);
 
     if (!result) {
       return NextResponse.json(

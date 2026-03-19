@@ -23,6 +23,7 @@ type Props = {
   initialOptimizationMode: ProposalOptimizationMode;
   initialResult: FeasibilityResult | { error: string } | null;
   savedTeam?: SavedTeamMember[] | null;
+  canManageProposal?: boolean;
 };
 
 function normalizeScopeKey(scope: string[] | null): string {
@@ -53,6 +54,7 @@ export function ProposalSimulationSection({
   initialOptimizationMode,
   initialResult,
   savedTeam,
+  canManageProposal = true,
 }: Props) {
   const proposalScopedOfficeIds = (initialOfficeScope ?? []).filter((id) =>
     allOffices.some((office) => office.id === id)
@@ -410,6 +412,7 @@ export function ProposalSimulationSection({
           maxOverallocationPercent={maxOverallocationPercent}
           optimizationMode={optimizationMode}
           includeManagers={includeManagers}
+          canManageProposal={canManageProposal}
         />
       </div>
     </div>

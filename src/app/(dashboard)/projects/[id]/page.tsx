@@ -18,6 +18,7 @@ import {
 import ProjectSkillRequirementsManager from "./ProjectSkillRequirementsManager";
 import type { SkillItem } from "@/app/api/skills/route";
 import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 function parseOfficeScope(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -64,6 +65,11 @@ export default async function ProjectDetailPage({
     .single();
 
   if (!project) notFound();
+  if (user.role === "manager") {
+    if (!user.officeId || !isOfficeInScope(project.office_scope, user.officeId)) {
+      notFound();
+    }
+  }
 
   // Actual hours
   const { data: timeEntries } = await supabase

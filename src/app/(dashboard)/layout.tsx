@@ -36,7 +36,7 @@ export default async function DashboardLayout({
       href: "/proposals",
       label: "Proposals",
       group: "planning",
-      canAccess: (role) => hasPermission(role, "proposals:manage"),
+      canAccess: (role) => role !== "staff",
     },
     { href: "/staff", label: "Staff", group: "planning", canAccess: () => true },
     {

@@ -5,6 +5,7 @@ import type { UserRole } from "@/lib/types";
  *
  * "projects:manage"     – create / edit / delete projects
  * "proposals:manage"    – create / edit / delete proposals
+ * "proposals:simulate"  – run proposal simulation scenarios
  * "assignments:manage"  – assign / remove staff on projects
  * "staff:manage"        – invite, deactivate, change roles
  * "financials:view"     – revenue & utilisation dashboards
@@ -15,6 +16,7 @@ import type { UserRole } from "@/lib/types";
 export type Permission =
   | "projects:manage"
   | "proposals:manage"
+  | "proposals:simulate"
   | "assignments:manage"
   | "staff:manage"
   | "financials:view"
@@ -26,6 +28,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
   administrator: new Set<Permission>([
     "projects:manage",
     "proposals:manage",
+    "proposals:simulate",
     "assignments:manage",
     "staff:manage",
     "financials:view",
@@ -35,7 +38,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
   ]),
   manager: new Set<Permission>([
     "projects:manage",
-    "proposals:manage",
+    "proposals:simulate",
     "assignments:manage",
     "financials:view",
     "time_entries:create",

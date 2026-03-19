@@ -5,6 +5,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { writeAuditLog } from "@/lib/audit/log";
+import { enforceManagerOfficeIds, isOfficeInScope } from "@/lib/office-scope";
 import {
   scheduleForecastRecalculation,
   scheduleHiringPredictionsRecalculation,
@@ -22,6 +23,22 @@ export type ProjectFormData = {
   source_proposal_id?: string | null;
 };
 
+async function managerCanAccessProject(
+  projectId: string,
+  tenantId: string,
+  managerOfficeId: string
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, office_scope")
+    .eq("id", projectId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!project) return false;
+  return isOfficeInScope(project.office_scope, managerOfficeId);
+}
+
 export async function createProject(data: ProjectFormData) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
@@ -30,7 +47,16 @@ export async function createProject(data: ProjectFormData) {
   }
 
   const supabase = await createClient();
-  const officeScope = data.office_scope?.length ? data.office_scope : null;
+  const managerOfficeId = user.role === "manager" ? user.officeId : null;
+  if (user.role === "manager" && !managerOfficeId) {
+    return { error: "Manager account must be assigned to an office." };
+  }
+
+  const officeScopeInput = data.office_scope?.length ? data.office_scope : null;
+  const officeScope =
+    user.role === "manager"
+      ? enforceManagerOfficeIds(officeScopeInput, managerOfficeId)
+      : officeScopeInput;
 
   if (officeScope) {
     const { data: offices, error: officesError } = await supabase
@@ -85,8 +111,24 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
   }
 
   const supabase = await createClient();
+  const managerOfficeId = user.role === "manager" ? user.officeId : null;
+  if (user.role === "manager" && !managerOfficeId) {
+    return { error: "Manager account must be assigned to an office." };
+  }
+  if (user.role === "manager") {
+    const canAccess = await managerCanAccessProject(id, user.tenantId, managerOfficeId as string);
+    if (!canAccess) {
+      return { error: "You can only manage projects in your assigned office." };
+    }
+  }
   const officeScope =
-    "office_scope" in data ? (data.office_scope?.length ? data.office_scope : null) : undefined;
+    "office_scope" in data
+      ? user.role === "manager"
+        ? enforceManagerOfficeIds(data.office_scope?.length ? data.office_scope : null, managerOfficeId)
+        : data.office_scope?.length
+          ? data.office_scope
+          : null
+      : undefined;
 
   if (officeScope) {
     const { data: offices, error: officesError } = await supabase
@@ -141,6 +183,16 @@ export async function deleteProject(id: string) {
   }
 
   const supabase = await createClient();
+  const managerOfficeId = user.role === "manager" ? user.officeId : null;
+  if (user.role === "manager") {
+    if (!managerOfficeId) {
+      return { error: "Manager account must be assigned to an office." };
+    }
+    const canAccess = await managerCanAccessProject(id, user.tenantId, managerOfficeId);
+    if (!canAccess) {
+      return { error: "You can only delete projects in your assigned office." };
+    }
+  }
 
   const { error } = await supabase
     .from("projects")

@@ -1,5 +1,6 @@
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import StaffDashboard from "./StaffDashboard";
+import ManagerDashboard from "./ManagerDashboard";
 import { getDashboardWindowData } from "@/lib/dashboard/data";
 import DashboardOverviewClient from "@/components/dashboard/DashboardOverviewClient";
 import Link from "next/link";
@@ -59,9 +60,12 @@ export default async function DashboardPage() {
   if (user.role === "staff") {
     return <StaffDashboard />;
   }
+  if (user.role === "manager") {
+    return <ManagerDashboard />;
+  }
   const { start, end } = getPeriodDates();
   await getDashboardWindowData(user.tenantId, start, end, user.id);
-  const showCurrentProjects = user.role === "administrator" || user.role === "manager";
+  const showCurrentProjects = user.role === "administrator";
   const canViewFinancials = hasPermission(user.role, "financials:view") || showCurrentProjects;
 
   const supabase = await createClient();

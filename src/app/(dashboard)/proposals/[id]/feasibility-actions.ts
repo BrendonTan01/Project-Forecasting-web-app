@@ -2,8 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { filterEffectiveAssignmentsForWeek } from "@/lib/utils/assignmentEffective";
 import { addUtcDays, toDateString, toUtcDate, toWeekMonday, weekEndFromWeekStart } from "@/lib/utils/week";
+import { enforceManagerOfficeIds, isOfficeInScope } from "@/lib/office-scope";
 import {
   PROPOSAL_OPTIMIZATION_COMPARISON_MODES,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
@@ -1022,8 +1024,29 @@ export async function computeFeasibility(
 ): Promise<FeasibilityResult | FeasibilityError> {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
+  if (!hasPermission(user.role, "proposals:simulate")) {
+    return { error: "Forbidden" };
+  }
 
-  const officeIdsKey = officeIds && officeIds.length > 0 ? [...officeIds].sort().join(",") : "";
+  const supabase = await createClient();
+  const { data: proposal } = await supabase
+    .from("project_proposals")
+    .select("id, office_scope")
+    .eq("id", proposalId)
+    .eq("tenant_id", user.tenantId)
+    .maybeSingle();
+  if (!proposal) return { error: "Proposal not found" };
+
+  let effectiveOfficeIds = officeIds;
+  if (user.role === "manager") {
+    if (!user.officeId || !isOfficeInScope(proposal.office_scope, user.officeId)) {
+      return { error: "Forbidden" };
+    }
+    effectiveOfficeIds = enforceManagerOfficeIds(officeIds, user.officeId);
+  }
+
+  const officeIdsKey =
+    effectiveOfficeIds && effectiveOfficeIds.length > 0 ? [...effectiveOfficeIds].sort().join(",") : "";
   const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey, includeManagers);
   if ("error" in baseDataOrError) return baseDataOrError;
 
@@ -1083,9 +1106,28 @@ export async function computeSuggestedSplitForTeam(
 ): Promise<SuggestedTeamSplitResult> {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
+  if (!hasPermission(user.role, "proposals:simulate")) return { error: "Forbidden" };
   if (selectedStaffIds.length === 0) return { error: "Select at least one staff member" };
 
-  const officeIdsKey = officeIds && officeIds.length > 0 ? [...officeIds].sort().join(",") : "";
+  const supabase = await createClient();
+  const { data: proposal } = await supabase
+    .from("project_proposals")
+    .select("id, office_scope")
+    .eq("id", proposalId)
+    .eq("tenant_id", user.tenantId)
+    .maybeSingle();
+  if (!proposal) return { error: "Proposal not found" };
+
+  let effectiveOfficeIds = officeIds;
+  if (user.role === "manager") {
+    if (!user.officeId || !isOfficeInScope(proposal.office_scope, user.officeId)) {
+      return { error: "Forbidden" };
+    }
+    effectiveOfficeIds = enforceManagerOfficeIds(officeIds, user.officeId);
+  }
+
+  const officeIdsKey =
+    effectiveOfficeIds && effectiveOfficeIds.length > 0 ? [...effectiveOfficeIds].sort().join(",") : "";
   const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey, includeManagers);
   if ("error" in baseDataOrError) return baseDataOrError;
 

@@ -8,10 +8,12 @@ import RemoveAssignmentButton from "./RemoveAssignmentButton";
 import { filterEffectiveAssignmentsForWeek, getCurrentWeekMondayString } from "@/lib/utils/assignmentEffective";
 import { toWeekMonday, weekEndFromWeekStart } from "@/lib/utils/week";
 import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 type UserRecord = {
   name?: string | null;
   email?: string | null;
+  office_id?: string | null;
 };
 
 function normalizeUserRecord(raw: unknown): UserRecord | null {
@@ -71,17 +73,23 @@ export default async function AssignmentsPage({
   if (!hasPermission(user.role, "assignments:manage")) {
     redirect(`/projects/${id}`);
   }
+  if (user.role === "manager" && !user.officeId) {
+    redirect("/projects");
+  }
 
   const supabase = await createClient();
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, start_date")
+    .select("id, name, start_date, office_scope")
     .eq("id", id)
     .eq("tenant_id", user.tenantId)
     .single();
 
   if (!project) notFound();
+  if (user.role === "manager" && !isOfficeInScope(project.office_scope, user.officeId)) {
+    notFound();
+  }
 
   // Current assignments
   const { data: assignments } = await supabase
@@ -112,7 +120,7 @@ export default async function AssignmentsPage({
   // All tenant staff not yet assigned
   const { data: allStaff } = await supabase
     .from("staff_profiles")
-    .select("id, name, job_title, weekly_capacity_hours, users(name, email)")
+    .select("id, name, job_title, weekly_capacity_hours, users(name, email, office_id)")
     .eq("tenant_id", user.tenantId);
 
   const currentWeekStart = getCurrentWeekMondayString();
@@ -200,6 +208,11 @@ export default async function AssignmentsPage({
   }
 
   const availableStaff = (allStaff ?? [])
+    .filter((s) => {
+      if (user.role !== "manager") return true;
+      const u = normalizeUserRecord(s.users);
+      return u?.office_id === user.officeId;
+    })
     .filter((s) => !assignedStaffIds.has(s.id))
     .map((s) => {
       const userRecord = normalizeUserRecord(s.users);

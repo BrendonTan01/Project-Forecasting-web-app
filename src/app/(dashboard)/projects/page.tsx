@@ -14,6 +14,7 @@ import {
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
 import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
+import { isOfficeInScope } from "@/lib/office-scope";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
   active: { label: "Active", colour: "bg-emerald-50 text-emerald-700" },
@@ -125,6 +126,19 @@ export default async function ProjectsPage({
   if (!user) return null;
   const canManageProjects = hasPermission(user.role, "projects:manage");
   const canViewFinancials = hasPermission(user.role, "financials:view");
+  const managerOfficeId = user.role === "manager" ? user.officeId : null;
+  const managerMissingOffice = user.role === "manager" && !managerOfficeId;
+
+  if (managerMissingOffice) {
+    return (
+      <div className="app-card p-6">
+        <h1 className="app-page-title">Projects</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          Your manager account is not assigned to an office yet. Ask an administrator to set your office to access scoped projects.
+        </p>
+      </div>
+    );
+  }
 
   const { status } = await searchParams;
 
@@ -149,14 +163,17 @@ export default async function ProjectsPage({
     query = query.eq("status", status);
   }
 
-  const { data: projects } = await query;
+  const { data: rawProjects } = await query;
+  const projects = (rawProjects ?? []).filter((project) =>
+    user.role === "manager" ? isOfficeInScope(project.office_scope, managerOfficeId) : true
+  );
   const { data: offices } = await supabase
     .from("offices")
     .select("id, name")
     .eq("tenant_id", user.tenantId);
   const officeNameById = new Map((offices ?? []).map((office) => [office.id, office.name]));
 
-  const projectIds = projects?.map((p) => p.id) ?? [];
+  const projectIds = projects.map((p) => p.id);
   const { data: actualHoursData } = projectIds.length
     ? await supabase
         .from("time_entries")
