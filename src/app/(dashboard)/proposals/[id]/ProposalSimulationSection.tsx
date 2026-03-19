@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FeasibilityAnalysis } from "./FeasibilityAnalysis";
 import { ProposalImpactPanel, type SimulationResult } from "./ProposalImpactPanel";
 import { computeFeasibility, type FeasibilityResult } from "./feasibility-actions";
@@ -8,6 +8,7 @@ import {
   PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS,
   PROPOSAL_OPTIMIZATION_MODE_LABELS,
   PROPOSAL_OPTIMIZATION_MODES,
+  PROPOSAL_OPTIMIZATION_OFFICE_MODES,
   type ProposalOptimizationMode,
 } from "../optimization-modes";
 
@@ -31,12 +32,14 @@ function normalizeInputKey(input: {
   optimizationMode: ProposalOptimizationMode;
   allowOverallocation: boolean;
   maxOverallocationPercent: number;
+  includeManagers: boolean;
 }): string {
   return [
     normalizeScopeKey(input.scope),
     input.optimizationMode,
     input.allowOverallocation ? "1" : "0",
     String(input.maxOverallocationPercent),
+    input.includeManagers ? "1" : "0",
   ].join("|");
 }
 
@@ -63,6 +66,7 @@ export function ProposalSimulationSection({
   const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(!isProposalOfficeScoped);
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
+  const [includeManagers, setIncludeManagers] = useState(true);
   const [optimizationMode, setOptimizationMode] = useState<ProposalOptimizationMode>(initialOptimizationMode);
 
   const [simulationActive, setSimulationActive] = useState(false);
@@ -90,6 +94,26 @@ export function ProposalSimulationSection({
             : null
         : null;
 
+  // Number of distinct offices currently in scope — used to decide which objectives make sense.
+  const effectiveOfficeCount = effectiveOfficeScope
+    ? effectiveOfficeScope.length
+    : selectableOffices.length;
+
+  // Office-specific objectives are meaningless when only one office is in scope.
+  const visibleModes = PROPOSAL_OPTIMIZATION_MODES.filter((mode) => {
+    if (PROPOSAL_OPTIMIZATION_OFFICE_MODES.includes(mode) && effectiveOfficeCount <= 1) {
+      return false;
+    }
+    return true;
+  });
+
+  // If the selected mode is an office-specific one and scope has narrowed to 1 office, reset to default.
+  useEffect(() => {
+    if (PROPOSAL_OPTIMIZATION_OFFICE_MODES.includes(optimizationMode) && effectiveOfficeCount <= 1) {
+      setOptimizationMode("max_feasibility");
+    }
+  }, [optimizationMode, effectiveOfficeCount]);
+
   const scopeLabel =
     effectiveOfficeScope && effectiveOfficeScope.length > 0
       ? allOffices
@@ -103,6 +127,7 @@ export function ProposalSimulationSection({
     optimizationMode,
     allowOverallocation,
     maxOverallocationPercent,
+    includeManagers,
   });
 
   const simulationStale =
@@ -159,7 +184,8 @@ export function ProposalSimulationSection({
           allowOverallocation,
           maxOverallocationPercent,
           optimizationMode,
-          true
+          true,
+          includeManagers
         ),
       ]);
 
@@ -189,9 +215,9 @@ export function ProposalSimulationSection({
     setSimulationError(null);
   }
 
-  const optimizationModesTooltip = PROPOSAL_OPTIMIZATION_MODES.map(
-    (mode) => `${PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}: ${PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[mode]}`
-  ).join("\n");
+  const optimizationModesTooltip = visibleModes
+    .map((mode) => `${PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}: ${PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[mode]}`)
+    .join("\n");
 
   return (
     <div className="space-y-4">
@@ -295,6 +321,23 @@ export function ProposalSimulationSection({
         )}
 
         <div className="mt-3 flex items-center gap-2">
+          <span className="text-sm text-zinc-700">Include managers in pool</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={includeManagers}
+            onClick={() => setIncludeManagers((prev) => !prev)}
+            className="app-toggle focus-ring"
+            data-on={includeManagers}
+          >
+            <span className="app-toggle-thumb" />
+          </button>
+          <span className="text-xs text-zinc-500">
+            {includeManagers ? "Managers and staff included" : "Staff only"}
+          </span>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
           <label htmlFor="analysis-mode" className="text-sm text-zinc-700">
             Allocation objective
           </label>
@@ -311,7 +354,7 @@ export function ProposalSimulationSection({
             onChange={(e) => setOptimizationMode(e.target.value as ProposalOptimizationMode)}
             className="app-select w-auto px-2 py-1 text-sm text-zinc-800"
           >
-            {PROPOSAL_OPTIMIZATION_MODES.map((mode) => (
+            {visibleModes.map((mode) => (
               <option key={mode} value={mode}>
                 {PROPOSAL_OPTIMIZATION_MODE_LABELS[mode]}
               </option>
@@ -321,6 +364,11 @@ export function ProposalSimulationSection({
         <p className="mt-1 text-xs text-zinc-500">
           {PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS[optimizationMode]}
         </p>
+        {effectiveOfficeCount <= 1 && (
+          <p className="mt-1 text-xs text-zinc-400">
+            Office-specific objectives are hidden — only one office is in scope.
+          </p>
+        )}
       </div>
 
       <ProposalImpactPanel

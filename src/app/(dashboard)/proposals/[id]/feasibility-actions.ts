@@ -171,7 +171,8 @@ function parseOfficeIdsKey(officeIdsKey: string): string[] {
 async function getFeasibilityBaseData(
   tenantId: string,
   proposalId: string,
-  officeIdsKey: string
+  officeIdsKey: string,
+  includeManagers: boolean
 ): Promise<FeasibilityBaseData | FeasibilityError> {
   const supabase = await createClient();
   const officeIds = parseOfficeIdsKey(officeIdsKey);
@@ -256,11 +257,19 @@ async function getFeasibilityBaseData(
       };
     });
 
-    if (rawStaff.length === 0) {
-      return { error: "No staff found for the selected offices" };
+    // Always exclude administrators — they manage the system and are not capacity resources.
+    // Exclude managers when the caller opts out via the includeManagers toggle.
+    const roleFilteredStaff = rawStaff.filter((member) => {
+      if (member.role === "administrator") return false;
+      if (!includeManagers && member.role === "manager") return false;
+      return true;
+    });
+
+    if (roleFilteredStaff.length === 0) {
+      return { error: "No eligible staff found for the selected offices and role filters" };
     }
 
-    const rawStaffIds = rawStaff.map((member) => member.id);
+    const rawStaffIds = roleFilteredStaff.map((member) => member.id);
     const { data: staffSkillRows } =
       requiredSkillIds.size > 0
         ? await supabase
@@ -279,7 +288,7 @@ async function getFeasibilityBaseData(
       staffSkillIdsByStaff.get(row.staff_id)!.add(row.skill_id);
     }
 
-    const staff = rawStaff
+    const staff = roleFilteredStaff
       .map((member) => ({
         ...member,
         matchingSkillIds: Array.from(staffSkillIdsByStaff.get(member.id) ?? []),
@@ -408,38 +417,62 @@ function allocateSkillDemandForWeek(params: {
     return b.requiredHours - a.requiredHours;
   });
 
+  // skill_coverage_max uses a two-pass approach:
+  //   Pass 1 — allocate up to 50% of each skill's required hours, ensuring every skill
+  //            gets at least partial coverage before any skill is fully satisfied.
+  //   Pass 2 — allocate the remaining need per skill as normal.
+  // All other modes use a single pass (rarest-skill-first order).
+  const isSkillCoverageMax = optimizationMode === "skill_coverage_max";
+  const passes = isSkillCoverageMax ? [0.5, 1.0] : [1.0];
+  const skillAchievableById = new Map<string, number>(sortedSkills.map((s) => [s.id, 0]));
+
+  for (const passFraction of passes) {
+    for (const skill of sortedSkills) {
+      const eligiblePool: StaffCapacitySlice[] = [];
+      for (const member of staffPool) {
+        if (!matchingSkillIdsByStaff.get(member.id)?.has(skill.id)) continue;
+        const alreadyAssigned = assignedByStaff.get(member.id) ?? 0;
+        const remainingCap = Math.max(0, member.freeAtCap - alreadyAssigned);
+        if (remainingCap <= 0) continue;
+        const remainingAt100 = Math.max(0, member.freeAt100 - alreadyAssigned);
+        eligiblePool.push({
+          ...member,
+          freeAtCap: remainingCap,
+          freeAt100: remainingAt100,
+        });
+      }
+
+      // For skill_coverage_max pass 1: target 50% of required hours.
+      // For pass 2 (or single-pass modes): target whatever remains uncovered.
+      const alreadyAchieved = skillAchievableById.get(skill.id) ?? 0;
+      const passTarget = isSkillCoverageMax
+        ? Math.max(0, skill.requiredHours * passFraction - alreadyAchieved)
+        : skill.requiredHours;
+
+      if (passTarget <= 0) continue;
+
+      const effectiveMode = isSkillCoverageMax ? "max_feasibility" : optimizationMode;
+      const allocation = allocateForMode(
+        effectiveMode,
+        eligiblePool,
+        passTarget,
+        allowOverallocation
+      );
+
+      let passAchievable = 0;
+      for (const [staffId, hours] of Object.entries(allocation.assignedHoursByStaff)) {
+        if (hours <= 0) continue;
+        assignedByStaff.set(staffId, (assignedByStaff.get(staffId) ?? 0) + hours);
+        passAchievable += hours;
+      }
+      skillAchievableById.set(skill.id, alreadyAchieved + passAchievable);
+    }
+  }
+
   for (const skill of sortedSkills) {
-    const eligiblePool: StaffCapacitySlice[] = [];
-    for (const member of staffPool) {
-      if (!matchingSkillIdsByStaff.get(member.id)?.has(skill.id)) continue;
-      const alreadyAssigned = assignedByStaff.get(member.id) ?? 0;
-      const remainingCap = Math.max(0, member.freeAtCap - alreadyAssigned);
-      if (remainingCap <= 0) continue;
-      const remainingAt100 = Math.max(0, member.freeAt100 - alreadyAssigned);
-      eligiblePool.push({
-        ...member,
-        freeAtCap: remainingCap,
-        freeAt100: remainingAt100,
-      });
-    }
-
-    const allocation = allocateForMode(
-      optimizationMode,
-      eligiblePool,
-      skill.requiredHours,
-      allowOverallocation
-    );
-
-    let skillAchievable = 0;
-    for (const [staffId, hours] of Object.entries(allocation.assignedHoursByStaff)) {
-      if (hours <= 0) continue;
-      assignedByStaff.set(staffId, (assignedByStaff.get(staffId) ?? 0) + hours);
-      skillAchievable += hours;
-    }
-
     const current = skillCoverageById.get(skill.id);
     if (current) {
-      current.achievableHours = round1(skillAchievable);
+      current.achievableHours = round1(skillAchievableById.get(skill.id) ?? 0);
     }
   }
 
@@ -767,13 +800,14 @@ export async function computeFeasibility(
   allowOverallocation: boolean,
   maxOverallocationPercent = 120,
   optimizationModeInput?: ProposalOptimizationMode,
-  includeComparisons = false
+  includeComparisons = false,
+  includeManagers = true
 ): Promise<FeasibilityResult | FeasibilityError> {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };
 
   const officeIdsKey = officeIds && officeIds.length > 0 ? [...officeIds].sort().join(",") : "";
-  const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey);
+  const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey, includeManagers);
   if ("error" in baseDataOrError) return baseDataOrError;
 
   const baseData = baseDataOrError;

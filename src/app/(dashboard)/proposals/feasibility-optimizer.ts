@@ -33,12 +33,19 @@ function rankGreedyCandidates(
         if (aPreferred !== bPreferred) return bPreferred - aPreferred;
         return byBiggestRoom(a, b);
       });
+
     case "min_overallocation":
     case "worst_week_robust":
+      // Both sort by freeAt100 first; the difference is in capForMode (see allocateForMode)
       return [...pool].sort((a, b) => {
         if (a.freeAt100 !== b.freeAt100) return b.freeAt100 - a.freeAt100;
         return byBiggestRoom(a, b);
       });
+
+    // even_load and skill_coverage_max use their own allocation functions
+    // but for the greedy fallback path they sort by biggest room
+    case "even_load":
+    case "skill_coverage_max":
     case "min_staff_count":
     case "max_feasibility":
     default:
@@ -102,6 +109,53 @@ function allocateBalancedAcrossOffices(
   return assignedByStaff;
 }
 
+/**
+ * Distributes targetHours as evenly as possible across all eligible staff.
+ * Each staff member receives approximately fairShare hours (targetHours / eligibleCount),
+ * capped by their freeAtCap. Multiple passes handle any unmet need.
+ */
+function allocateEvenLoad(
+  pool: StaffCapacitySlice[],
+  targetHours: number
+): Record<string, number> {
+  const assignedByStaff: Record<string, number> = {};
+  if (targetHours <= 0 || pool.length === 0) return assignedByStaff;
+
+  const eligible = pool.filter((s) => s.freeAtCap > 0);
+  if (eligible.length === 0) return assignedByStaff;
+
+  for (const staff of eligible) {
+    assignedByStaff[staff.id] = 0;
+  }
+
+  let remaining = targetHours;
+  // Each pass re-computes the fair share among staff who still have room
+  while (remaining > 0.01) {
+    const withRoom = eligible.filter((s) => {
+      const already = assignedByStaff[s.id] ?? 0;
+      return s.freeAtCap - already > 0.01;
+    });
+    if (withRoom.length === 0) break;
+
+    const fairShare = remaining / withRoom.length;
+    let assigned = 0;
+    for (const staff of withRoom) {
+      const already = assignedByStaff[staff.id] ?? 0;
+      const room = staff.freeAtCap - already;
+      const take = Math.min(room, fairShare);
+      if (take > 0.001) {
+        assignedByStaff[staff.id] = already + take;
+        assigned += take;
+      }
+    }
+    // If no progress was made, break to avoid infinite loop
+    if (assigned < 0.001) break;
+    remaining -= assigned;
+  }
+
+  return assignedByStaff;
+}
+
 function selectPreferredOffice(staff: StaffCapacitySlice[]): string | null {
   const officeTotals = new Map<string, number>();
   for (const member of staff) {
@@ -130,22 +184,59 @@ export function allocateForMode(
 
   if (mode === "multi_office_balanced") {
     assignedByStaff = allocateBalancedAcrossOffices(pool, targetHours);
+  } else if (mode === "even_load") {
+    assignedByStaff = allocateEvenLoad(pool, targetHours);
   } else {
     const candidates = rankGreedyCandidates(mode, pool, preferredOfficeId);
     let remaining = targetHours;
+
+    // Minimum contribution threshold for min_staff_count:
+    // Skip staff who can only contribute a trivially small amount, concentrating
+    // the project on fewer meaningful contributors. Only enforced while remaining
+    // need is itself larger than the threshold (so the last few hours always get filled).
+    const minContributionThreshold =
+      mode === "min_staff_count" ? Math.max(1, Math.min(targetHours * 0.15, 8)) : 0;
+
     for (const candidate of candidates) {
       if (remaining <= 0) break;
-      const capForMode =
-        mode === "min_overallocation" || mode === "worst_week_robust"
-          ? candidate.freeAt100 + (allowOverallocation ? Math.max(0, candidate.freeAtCap - candidate.freeAt100) * 0.5 : 0)
-          : candidate.freeAtCap;
+
+      // For min_staff_count: skip low-contribution staff unless remaining need
+      // is itself small enough that we'd accept any contribution.
+      if (
+        mode === "min_staff_count" &&
+        remaining > minContributionThreshold &&
+        candidate.freeAtCap < minContributionThreshold
+      ) {
+        // Candidates are sorted DESC by freeAtCap, so all remaining are also below threshold.
+        break;
+      }
+
+      let capForMode: number;
+      if (mode === "worst_week_robust") {
+        // Strict hard cap: never exceed 100% allocation for any staff member,
+        // regardless of the allow-overallocation toggle.
+        capForMode = candidate.freeAt100;
+      } else if (mode === "min_overallocation") {
+        // Prefer freeAt100, but allow up to 50% of the overallocation room as fallback.
+        capForMode =
+          candidate.freeAt100 +
+          (allowOverallocation ? Math.max(0, candidate.freeAtCap - candidate.freeAt100) * 0.5 : 0);
+      } else {
+        capForMode = candidate.freeAtCap;
+      }
+
       const take = Math.min(capForMode, remaining);
       if (take > 0) {
         assignedByStaff[candidate.id] = (assignedByStaff[candidate.id] ?? 0) + take;
         remaining -= take;
       }
     }
-    if (remaining > 0 && (mode === "min_overallocation" || mode === "worst_week_robust")) {
+
+    // Fallback pass for min_overallocation only: use full freeAtCap greedily if
+    // still under-covered after the conservative first pass.
+    // worst_week_robust intentionally has NO fallback — it accepts lower feasibility
+    // to guarantee no staff member is ever pushed past 100%.
+    if (remaining > 0 && mode === "min_overallocation") {
       const fallback = rankGreedyCandidates("max_feasibility", pool, preferredOfficeId);
       for (const candidate of fallback) {
         if (remaining <= 0) break;
