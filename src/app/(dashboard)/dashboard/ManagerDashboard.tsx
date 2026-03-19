@@ -8,6 +8,7 @@ import {
 import { addUtcDays, toDateString, toUtcDate, toWeekMonday } from "@/lib/utils/week";
 import { isOfficeInScope } from "@/lib/office-scope";
 import { getStaffDisplayName } from "@/lib/utils/staffDisplay";
+import { hasPermission } from "@/lib/permissions";
 
 type WeeklyHoursByStaff = Map<string, number>;
 type WeeklyHoursByProject = Map<string, WeeklyHoursByStaff>;
@@ -18,6 +19,7 @@ type ProjectRow = {
   client_name: string | null;
   estimated_hours: number | null;
   status: string;
+  start_date: string | null;
   office_scope: unknown;
 };
 
@@ -98,6 +100,11 @@ function signalBadgeClasses(tone: SignalTone): string {
   return `inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium ${toneClasses[tone]}`;
 }
 
+function safePercent(value: number): number {
+  if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
 function SkillSignalIcon() {
   return (
     <svg
@@ -166,9 +173,10 @@ export default async function ManagerDashboard() {
   }
 
   const supabase = await createClient();
+  const canViewFinancials = hasPermission(user.role, "financials:view");
   const { data: rawProjects } = await supabase
     .from("projects")
-    .select("id, name, client_name, estimated_hours, status, office_scope")
+    .select("id, name, client_name, estimated_hours, status, start_date, office_scope")
     .eq("tenant_id", user.tenantId)
     .eq("status", "active")
     .order("name");
@@ -230,6 +238,10 @@ export default async function ManagerDashboard() {
     acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours ?? 0);
     return acc;
   }, {});
+  const actualHoursByProject = (timeEntries ?? []).reduce<Record<string, number>>((acc, row) => {
+    acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours ?? 0);
+    return acc;
+  }, {});
   const currentWeekHoursByProjectStaff = (timeEntries ?? []).reduce<Record<string, number>>((acc, row) => {
     if (toWeekMonday(row.date) !== currentWeekStart) return acc;
     const key = `${row.project_id}:${row.staff_id}`;
@@ -259,6 +271,15 @@ export default async function ManagerDashboard() {
     )
   );
   const weekEndSunday = toDateString(addUtcDays(toUtcDate(currentWeekStart), 6));
+  const todayDate = toDateString(new Date());
+  const allFinancialStaffIds = Array.from(
+    new Set(
+      [
+        ...(timeEntries ?? []).map((row) => row.staff_id).filter(Boolean),
+        ...effectiveAssignments.map((row) => row.staff_id).filter(Boolean),
+      ]
+    )
+  );
   const [{ data: staffRows }, { data: staffSkillRows }, { data: leaveRows }] = allAssignedStaffIds.length
     ? await Promise.all([
         supabase
@@ -291,6 +312,31 @@ export default async function ManagerDashboard() {
         { data: [] as { staff_id: string; skill_id: string }[] },
         { data: [] as LeaveRow[] },
       ];
+  const { data: staffRates } =
+    canViewFinancials && allFinancialStaffIds.length > 0
+      ? await supabase
+          .from("staff_profiles")
+          .select("id, cost_rate")
+          .eq("tenant_id", user.tenantId)
+          .in("id", allFinancialStaffIds)
+      : { data: [] as { id: string; cost_rate: number | null }[] };
+  const staffCostRateById = new Map((staffRates ?? []).map((row) => [row.id, row.cost_rate]));
+  const financialByProject = canViewFinancials
+    ? (timeEntries ?? []).reduce<Record<string, { actualCost: number; actualHours: number }>>(
+        (acc, row) => {
+          const entry = acc[row.project_id] ?? { actualCost: 0, actualHours: 0 };
+          const hours = Number(row.hours ?? 0);
+          const costRate = staffCostRateById.get(row.staff_id);
+          entry.actualHours += hours;
+          if (costRate !== null && costRate !== undefined) {
+            entry.actualCost += hours * Number(costRate);
+          }
+          acc[row.project_id] = entry;
+          return acc;
+        },
+        {}
+      )
+    : {};
   const staffNameById = new Map<string, string>();
   for (const staff of staffRows ?? []) {
     staffNameById.set(staff.id, getStaffDisplayName(staff.name, staff.users));
@@ -359,6 +405,8 @@ export default async function ManagerDashboard() {
               <tr className="border-b border-zinc-200 bg-zinc-50">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Client</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Progress</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Status</th>
                 <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Assigned staff</th>
                 <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">This week logged</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Staffing risks</th>
@@ -395,6 +443,34 @@ export default async function ManagerDashboard() {
                   const leaveDays = leaveDaysByStaff.get(assignment.staff_id) ?? 0;
                   return leaveDays > 0 ? count + 1 : count;
                 }, 0);
+                const assignedCount = assignedStaffCountByProject[project.id] ?? 0;
+                const projectStarted =
+                  project.start_date !== null && project.start_date <= todayDate;
+                const startedUnstaffed = projectStarted && assignedCount === 0;
+                const actualHours = actualHoursByProject[project.id] ?? 0;
+                const estimatedHours = Number(project.estimated_hours ?? 0);
+                const deliveryProgress =
+                  estimatedHours > 0 ? (actualHours / estimatedHours) * 100 : null;
+                const financialData = financialByProject[project.id] ?? {
+                  actualCost: 0,
+                  actualHours: 0,
+                };
+                const assignedStaffIds = projectAssignments.map((assignment) => assignment.staff_id);
+                const assignedCostRates = assignedStaffIds
+                  .map((id) => staffCostRateById.get(id))
+                  .filter((rate): rate is number => rate !== null && rate !== undefined);
+                const avgAssignedCostRate =
+                  assignedCostRates.length > 0
+                    ? assignedCostRates.reduce((sum, rate) => sum + Number(rate), 0) / assignedCostRates.length
+                    : null;
+                const estimatedCostBudget =
+                  estimatedHours > 0 && avgAssignedCostRate !== null
+                    ? estimatedHours * avgAssignedCostRate
+                    : null;
+                const financialProgress =
+                  canViewFinancials && estimatedCostBudget && estimatedCostBudget > 0
+                    ? (financialData.actualCost / estimatedCostBudget) * 100
+                    : null;
                 const outliers = computeProjectOutliers(
                   weeklyHoursIndex.get(project.id) ?? new Map<string, WeeklyHoursByStaff>(),
                   currentWeekStart
@@ -411,18 +487,69 @@ export default async function ManagerDashboard() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-800">
+                      <div className="max-w-72 space-y-2">
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-xs">
+                            <span className="font-medium text-zinc-600">Delivery</span>
+                            <span className="flex items-center gap-1 tabular-nums text-zinc-700">
+                              <span
+                                className={deliveryProgress !== null && deliveryProgress > 100 ? "font-semibold text-red-700" : ""}
+                              >
+                                {deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}
+                              </span>
+                              {deliveryProgress !== null && deliveryProgress > 100 && (
+                                <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                  &gt;100%
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
+                            <div
+                              className={`h-full rounded-full ${deliveryProgress !== null && deliveryProgress > 100 ? "bg-red-600" : "bg-blue-600"}`}
+                              style={{ width: `${safePercent(deliveryProgress ?? 0)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-xs">
+                            <span className="font-medium text-zinc-600">Financial</span>
+                            <span className="flex items-center gap-1 tabular-nums text-zinc-700">
+                              <span
+                                className={financialProgress !== null && financialProgress > 100 ? "font-semibold text-red-700" : ""}
+                              >
+                                {financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}
+                              </span>
+                              {financialProgress !== null && financialProgress > 100 && (
+                                <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                  &gt;100%
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
+                            <div
+                              className={`h-full rounded-full ${financialProgress !== null && financialProgress > 100 ? "bg-red-600" : "bg-emerald-600"}`}
+                              style={{ width: `${safePercent(financialProgress ?? 0)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-700 capitalize">{project.status}</td>
                     <td className="px-4 py-3 text-right text-sm text-zinc-800">
-                      {(assignedStaffCountByProject[project.id] ?? 0) > 0 ? (
-                        <details className="group inline-block text-left">
+                      {assignedCount > 0 ? (
+                        <details className="group relative inline-block text-left">
                           <summary className="cursor-pointer list-none text-right font-medium text-zinc-800 hover:text-zinc-900">
                             <span className="text-sm">
-                              {assignedStaffCountByProject[project.id] ?? 0} assigned
+                              {assignedCount} assigned
                             </span>
                             <span className="ml-1 text-xs text-zinc-500 transition-transform group-open:rotate-180 inline-block">
                               v
                             </span>
                           </summary>
-                          <div className="mt-2 w-[26rem] max-w-[calc(100vw-4rem)] rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+                          <div className="absolute right-0 top-[calc(100%+0.45rem)] z-20 w-[26rem] max-w-[calc(100vw-4rem)] rounded-md border border-zinc-200 bg-white p-3 shadow-lg">
                             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
                               Assigned staff this week
                             </p>
@@ -492,6 +619,14 @@ export default async function ManagerDashboard() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
+                        {startedUnstaffed && (
+                          <span
+                            className={signalBadgeClasses("danger")}
+                            title="Project has started but has no assigned staff this week."
+                          >
+                            <span>Unstaffed started project</span>
+                          </span>
+                        )}
                         <span
                           className={signalBadgeClasses(skillTone)}
                           title={
