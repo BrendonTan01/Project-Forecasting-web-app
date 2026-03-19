@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { FeasibilityResult, WeekFeasibility } from "./feasibility-actions";
+import {
+  computeSuggestedSplitForTeam,
+  type FeasibilityResult,
+  type WeekFeasibility,
+} from "./feasibility-actions";
 import type { SimulationResult } from "./ProposalImpactPanel";
 import { saveProposedTeam } from "../actions";
+import type { ProposalOptimizationMode } from "../optimization-modes";
 
 type SavedTeamMember = { staff_id: string; split_percent: number };
 
@@ -14,6 +19,11 @@ type Props = {
   simulationActive?: boolean;
   simulationData?: SimulationResult | null;
   savedTeam?: SavedTeamMember[] | null;
+  officeScope?: string[] | null;
+  allowOverallocation?: boolean;
+  maxOverallocationPercent?: number;
+  optimizationMode?: ProposalOptimizationMode;
+  includeManagers?: boolean;
 };
 
 function formatDate(iso: string): string {
@@ -304,6 +314,11 @@ export function FeasibilityAnalysis({
   simulationActive = false,
   simulationData = null,
   savedTeam = null,
+  officeScope = null,
+  allowOverallocation = false,
+  maxOverallocationPercent = 120,
+  optimizationMode,
+  includeManagers = true,
 }: Props) {
   const hasResult = result && !("error" in result);
   const feasResult = hasResult ? (result as FeasibilityResult) : null;
@@ -331,6 +346,9 @@ export function FeasibilityAnalysis({
   const [teamSaveError, setTeamSaveError] = useState<string | null>(null);
   const [teamIsDirty, setTeamIsDirty] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<"idle" | "restored">("idle");
+  const [rebalanceOptionsOpen, setRebalanceOptionsOpen] = useState(false);
+  const [suggestedRebalanceStatus, setSuggestedRebalanceStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [suggestedRebalanceError, setSuggestedRebalanceError] = useState<string | null>(null);
 
   async function handleSaveTeam() {
     setTeamSaveStatus("saving");
@@ -446,6 +464,48 @@ export function FeasibilityAnalysis({
     setTeamIsDirty(true);
     setRestoreStatus("restored");
     setTimeout(() => setRestoreStatus("idle"), 3000);
+  }
+
+  function handleRebalanceEqually() {
+    setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)));
+    setTeamIsDirty(true);
+    setRebalanceOptionsOpen(false);
+  }
+
+  async function handleRebalanceSuggested() {
+    const ids = selectedStaff.map((staff) => staff.id).sort();
+    if (ids.length === 0) return;
+
+    setSuggestedRebalanceStatus("running");
+    setSuggestedRebalanceError(null);
+
+    const splitResult = await computeSuggestedSplitForTeam(
+      proposalId,
+      ids,
+      officeScope,
+      allowOverallocation,
+      maxOverallocationPercent,
+      optimizationMode ?? feasResult.optimizationMode,
+      includeManagers
+    );
+
+    if ("error" in splitResult) {
+      setSuggestedRebalanceStatus("error");
+      setSuggestedRebalanceError(splitResult.error);
+      return;
+    }
+
+    setSplitPercentByStaff((prev) => {
+      const next = { ...prev };
+      for (const id of ids) {
+        next[id] = splitResult.splitByStaffId[id] ?? 0;
+      }
+      return next;
+    });
+    setTeamIsDirty(true);
+    setSuggestedRebalanceStatus("done");
+    setTimeout(() => setSuggestedRebalanceStatus("idle"), 3000);
+    setRebalanceOptionsOpen(false);
   }
 
   function getCandidateImpact(candidateId: string): {
@@ -852,6 +912,9 @@ export function FeasibilityAnalysis({
                     {restoreStatus === "restored" && (
                       <span className="text-xs text-emerald-600">Suggested plan restored</span>
                     )}
+                    {suggestedRebalanceStatus === "done" && (
+                      <span className="text-xs text-emerald-600">Simulation rebalance applied</span>
+                    )}
                     <button
                       type="button"
                       onClick={handleRestoreSuggestedPlan}
@@ -862,16 +925,39 @@ export function FeasibilityAnalysis({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)));
-                        setTeamIsDirty(true);
-                      }}
+                      onClick={() => setRebalanceOptionsOpen((prev) => !prev)}
+                      className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs"
+                    >
+                      Rebalance split
+                    </button>
+                  </div>
+                </div>
+                {rebalanceOptionsOpen && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={handleRebalanceEqually}
                       className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs"
                     >
                       Rebalance equally
                     </button>
+                    <button
+                      type="button"
+                      onClick={handleRebalanceSuggested}
+                      disabled={suggestedRebalanceStatus === "running"}
+                      className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {suggestedRebalanceStatus === "running"
+                        ? "Rebalancing from simulation..."
+                        : "Rebalance from simulation suggestion"}
+                    </button>
                   </div>
-                </div>
+                )}
+                {suggestedRebalanceError && (
+                  <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {suggestedRebalanceError}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-zinc-500">
                   Capacity check uses each staff member&apos;s available hours in this proposal window without overallocation.
                 </p>

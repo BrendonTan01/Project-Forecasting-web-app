@@ -405,6 +405,11 @@ export function ProposalSimulationSection({
           simulationActive={simulationActive}
           simulationData={impactData}
           savedTeam={savedTeam ?? null}
+          officeScope={effectiveOfficeScope}
+          allowOverallocation={allowOverallocation}
+          maxOverallocationPercent={maxOverallocationPercent}
+          optimizationMode={optimizationMode}
+          includeManagers={includeManagers}
         />
       </div>
     </div>

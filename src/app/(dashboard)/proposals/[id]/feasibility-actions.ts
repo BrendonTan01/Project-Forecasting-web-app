@@ -95,6 +95,18 @@ export type FeasibilityError = {
   error: string;
 };
 
+export type SuggestedTeamSplitResult =
+  | {
+      splitByStaffId: Record<string, number>;
+      optimizationMode: ProposalOptimizationMode;
+      totalRequired: number;
+      totalAchievable: number;
+      error?: never;
+    }
+  | {
+      error: string;
+    };
+
 function toISODate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
@@ -1057,5 +1069,68 @@ export async function computeFeasibility(
     ...primaryCore,
     officeNames: baseData.officeNames,
     comparisons,
+  };
+}
+
+export async function computeSuggestedSplitForTeam(
+  proposalId: string,
+  selectedStaffIds: string[],
+  officeIds: string[] | null,
+  allowOverallocation: boolean,
+  maxOverallocationPercent = 120,
+  optimizationModeInput?: ProposalOptimizationMode,
+  includeManagers = true
+): Promise<SuggestedTeamSplitResult> {
+  const user = await getCurrentUserWithTenant();
+  if (!user) return { error: "Unauthorized" };
+  if (selectedStaffIds.length === 0) return { error: "Select at least one staff member" };
+
+  const officeIdsKey = officeIds && officeIds.length > 0 ? [...officeIds].sort().join(",") : "";
+  const baseDataOrError = await getFeasibilityBaseData(user.tenantId, proposalId, officeIdsKey, includeManagers);
+  if ("error" in baseDataOrError) return baseDataOrError;
+
+  const selectedSet = new Set(selectedStaffIds);
+  const filteredStaff = baseDataOrError.staff.filter((staff) => selectedSet.has(staff.id));
+  if (filteredStaff.length === 0) {
+    return { error: "No selected staff are available in the current simulation scope" };
+  }
+
+  const optimizationMode = normalizeProposalOptimizationMode(
+    optimizationModeInput ?? baseDataOrError.proposal.optimization_mode
+  );
+  const scopedBaseData: FeasibilityBaseData = {
+    ...baseDataOrError,
+    staff: filteredStaff,
+    assignments: baseDataOrError.assignments.filter((assignment) =>
+      selectedSet.has(assignment.staff_id)
+    ),
+    availability: baseDataOrError.availability.filter((row) => selectedSet.has(row.staff_id)),
+    leaves: baseDataOrError.leaves.filter((row) => selectedSet.has(row.staff_id)),
+    officeNames: Array.from(new Set(filteredStaff.map((staff) => staff.office).filter(Boolean))).sort(),
+  };
+
+  const computed = computeFeasibilityCore(
+    scopedBaseData,
+    optimizationMode,
+    allowOverallocation,
+    maxOverallocationPercent
+  );
+  if ("error" in computed) {
+    return { error: computed.error ?? "Unable to compute suggested split for selected team" };
+  }
+
+  const splitByStaffId: Record<string, number> = {};
+  for (const id of selectedSet) {
+    splitByStaffId[id] = 0;
+  }
+  for (const member of computed.proposedStaffingPlan) {
+    splitByStaffId[member.staff_id] = member.split_percent;
+  }
+
+  return {
+    splitByStaffId,
+    optimizationMode,
+    totalRequired: computed.totalRequired,
+    totalAchievable: computed.totalAchievable,
   };
 }
