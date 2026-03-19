@@ -156,6 +156,7 @@ export type ConvertProposalOverrides = {
   estimated_hours?: number;
   office_scope?: string[] | null;
   notes?: string;
+  skills?: Array<{ id: string; name: string; required_hours_per_week?: number }>;
 };
 
 export async function convertProposalToProject(
@@ -216,11 +217,16 @@ export async function convertProposalToProject(
   if (projectError || !project) return { error: projectError?.message ?? "Failed to create project" };
 
   const skills: Array<{ id: string; name: string; required_hours_per_week?: number }> =
-    Array.isArray(proposal.skills) ? proposal.skills : [];
+    overrides.skills ?? (Array.isArray(proposal.skills) ? proposal.skills : []);
 
   if (skills.length > 0) {
     const skillRows = skills
-      .filter((s) => s && typeof s.id === "string")
+      .filter(
+        (s) =>
+          s &&
+          typeof s.id === "string" &&
+          (s.required_hours_per_week === undefined || s.required_hours_per_week >= 0)
+      )
       .map((s) => ({
         project_id: project.id,
         skill_id: s.id,

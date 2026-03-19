@@ -38,6 +38,9 @@ export default async function EditProposalPage({
   ]);
 
   if (!proposal) notFound();
+  if (proposal.status === "converted") {
+    redirect(`/proposals/${id}`);
+  }
 
   return (
     <div className="space-y-6">

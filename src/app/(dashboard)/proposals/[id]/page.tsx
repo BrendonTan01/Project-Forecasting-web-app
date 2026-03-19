@@ -124,12 +124,14 @@ export default async function ProposalDetailPage({
                   Convert to Project
                 </Link>
               )}
-              <Link
-                href={`/proposals/${id}/edit`}
-                className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
-              >
-                Edit
-              </Link>
+              {proposal.status !== "converted" && (
+                <Link
+                  href={`/proposals/${id}/edit`}
+                  className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
+                >
+                  Edit
+                </Link>
+              )}
               <DeleteProposalButton proposalId={id} proposalName={proposal.name} />
             </>
           )}

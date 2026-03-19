@@ -8,6 +8,12 @@ import { Button, Card, Input } from "@/components/ui/primitives";
 
 type Skill = { id: string; name: string; required_hours_per_week?: number };
 
+function parseOptionalNumber(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const parsed = Number.parseFloat(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 type ConvertProposalFormProps = {
   proposalId: string;
   proposalName: string;
@@ -41,6 +47,16 @@ export function ConvertProposalForm({
   const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(
     initialOfficeScope.length > 0
   );
+  const [skillHoursById, setSkillHoursById] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      defaults.skills.map((skill) => [
+        skill.id,
+        skill.required_hours_per_week !== undefined && skill.required_hours_per_week !== null
+          ? `${skill.required_hours_per_week}`
+          : "",
+      ])
+    )
+  );
 
   function toggleOffice(id: string) {
     setSelectedOffices((prev) => {
@@ -72,6 +88,23 @@ export function ConvertProposalForm({
     }
 
     const estimatedHoursRaw = formData.get("estimated_hours") as string;
+    const editedSkills = defaults.skills.map((skill) => {
+      const parsedHours = parseOptionalNumber(skillHoursById[skill.id] ?? "");
+      return parsedHours === undefined
+        ? { id: skill.id, name: skill.name }
+        : { id: skill.id, name: skill.name, required_hours_per_week: parsedHours };
+    });
+
+    const hasNegativeSkillHours = editedSkills.some(
+      (skill) =>
+        skill.required_hours_per_week !== undefined && skill.required_hours_per_week < 0
+    );
+    if (hasNegativeSkillHours) {
+      setError("Skill required hours per week cannot be negative.");
+      setSubmitting(false);
+      return;
+    }
+
     const result = await convertProposalToProject(proposalId, {
       name,
       client_name: (formData.get("client_name") as string)?.trim() || undefined,
@@ -80,6 +113,7 @@ export function ConvertProposalForm({
       estimated_hours: estimatedHoursRaw ? parseFloat(estimatedHoursRaw) : undefined,
       office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
       notes: (formData.get("notes") as string)?.trim() || undefined,
+      skills: editedSkills,
     });
 
     if (result.error) {
@@ -244,17 +278,38 @@ export function ConvertProposalForm({
             <p className="mb-2 text-sm font-medium text-zinc-700">
               Skills carried over ({defaults.skills.length})
             </p>
-            <div className="flex flex-wrap gap-2">
+            <p className="mb-3 text-xs text-zinc-500">
+              Review and adjust required hours/week for each skill before creating the project.
+            </p>
+            <div className="space-y-2">
               {defaults.skills.map((skill) => (
-                <span
+                <div
                   key={skill.id}
-                  className="rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs font-medium text-zinc-700"
+                  className="grid grid-cols-12 items-center gap-2 rounded border border-zinc-300 bg-white px-3 py-2"
                 >
-                  {skill.name}
-                  {skill.required_hours_per_week !== undefined
-                    ? ` · ${skill.required_hours_per_week}h/wk`
-                    : ""}
-                </span>
+                  <span className="col-span-7 text-sm font-medium text-zinc-800">{skill.name}</span>
+                  <label
+                    htmlFor={`skill-hours-${skill.id}`}
+                    className="col-span-3 text-right text-xs text-zinc-500"
+                  >
+                    Hrs/week
+                  </label>
+                  <Input
+                    id={`skill-hours-${skill.id}`}
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={skillHoursById[skill.id] ?? ""}
+                    onChange={(e) =>
+                      setSkillHoursById((prev) => ({
+                        ...prev,
+                        [skill.id]: e.target.value,
+                      }))
+                    }
+                    className="col-span-2 app-input px-2 py-1 text-sm"
+                    placeholder="0"
+                  />
+                </div>
               ))}
             </div>
           </div>
