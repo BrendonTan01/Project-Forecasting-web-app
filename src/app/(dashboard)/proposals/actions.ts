@@ -267,6 +267,58 @@ export async function convertProposalToProject(
   return { success: true, id: project.id };
 }
 
+export async function updateProposalStatus(
+  id: string,
+  newStatus: "draft" | "submitted" | "won" | "lost"
+) {
+  const user = await getCurrentUserWithTenant();
+  if (!user) return { error: "Unauthorized" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to edit proposals" };
+  }
+
+  const supabase = await createClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("project_proposals")
+    .select("status, proposed_start_date, proposed_end_date")
+    .eq("id", id)
+    .eq("tenant_id", user.tenantId)
+    .single();
+
+  if (existingError || !existing) return { error: "Proposal not found" };
+
+  if (existing.status === "converted") {
+    return { error: "Converted proposals cannot have their status changed" };
+  }
+
+  if (existing.status === "draft" && newStatus !== "draft") {
+    if (!existing.proposed_start_date || !existing.proposed_end_date) {
+      return { error: "Set both timeline dates before changing status from draft" };
+    }
+  }
+
+  const { error } = await supabase
+    .from("project_proposals")
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("tenant_id", user.tenantId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/proposals");
+  revalidatePath(`/proposals/${id}`);
+  revalidatePath("/dashboard");
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.updated",
+    entityType: "proposal",
+    entityId: id,
+    newValue: { status: newStatus },
+  });
+  return { success: true };
+}
+
 export async function deleteProposal(id: string) {
   const user = await getCurrentUserWithTenant();
   if (!user) return { error: "Unauthorized" };

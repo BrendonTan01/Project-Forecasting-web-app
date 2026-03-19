@@ -5,6 +5,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { DeleteProposalButton } from "./DeleteProposalButton";
 import { ProposalSimulationSection } from "./ProposalSimulationSection";
+import { ProposalStatusChanger } from "./ProposalStatusChanger";
 import { normalizeProposalOptimizationMode } from "../optimization-modes";
 
 const statusConfig: Record<string, { label: string; colour: string }> = {
@@ -111,9 +112,17 @@ export default async function ProposalDetailPage({
           <p className="text-sm text-zinc-600">{proposal.client_name ?? "No client set"}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${badge.colour}`}>
-            {badge.label}
-          </span>
+          {canManageProposals && proposal.status !== "converted" ? (
+            <ProposalStatusChanger
+              proposalId={id}
+              currentStatus={proposal.status as "draft" | "submitted" | "won" | "lost"}
+              hasTimeline={!!(proposal.proposed_start_date && proposal.proposed_end_date)}
+            />
+          ) : (
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${badge.colour}`}>
+              {badge.label}
+            </span>
+          )}
           {canManageProposals && (
             <>
               {proposal.status === "won" && (
