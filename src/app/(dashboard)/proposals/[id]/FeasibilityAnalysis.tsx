@@ -391,6 +391,8 @@ export function FeasibilityAnalysis({
       </div>
     );
   }
+  const effectiveOptimizationMode: ProposalOptimizationMode =
+    optimizationMode ?? feasResult.optimizationMode;
 
   const candidateById = new Map(
     feasResult.staffCapacityCandidates.map((candidate) => [candidate.id, candidate] as const)
@@ -485,13 +487,13 @@ export function FeasibilityAnalysis({
       officeScope,
       allowOverallocation,
       maxOverallocationPercent,
-      optimizationMode ?? feasResult.optimizationMode,
+      effectiveOptimizationMode,
       includeManagers
     );
 
     if ("error" in splitResult) {
       setSuggestedRebalanceStatus("error");
-      setSuggestedRebalanceError(splitResult.error);
+      setSuggestedRebalanceError(splitResult.error ?? "Unable to rebalance from simulation suggestion");
       return;
     }
 
