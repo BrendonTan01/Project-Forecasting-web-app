@@ -48,11 +48,17 @@ export default async function ProposalsPage({
   }
 
   const { data: proposals } = await query;
+  const proposalList = proposals ?? [];
+  const countsByStatus = proposalList.reduce<Record<string, number>>((acc, proposal) => {
+    acc[proposal.status] = (acc[proposal.status] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
+          <p className="app-section-caption">Pipeline planning</p>
           <h1 className="app-page-title">Project Proposals</h1>
           <p className="app-page-subtitle">
             Future opportunities — assess staff availability before bidding.
@@ -61,17 +67,32 @@ export default async function ProposalsPage({
         {canManageProposals && (
           <Link
             href="/proposals/new"
-            className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"
+            className="app-btn app-btn-primary focus-ring w-full px-4 py-2 text-sm sm:w-auto"
           >
             Add proposal
           </Link>
         )}
       </div>
 
-      <div className="mb-4 flex gap-2">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="app-metric-card">
+          <p className="app-metric-label">Total proposals</p>
+          <p className="app-metric-value mt-1">{proposalList.length}</p>
+        </div>
+        {Object.entries(proposalStatusConfig).map(([key, config]) => (
+          <div key={key} className="app-metric-card">
+            <p className="app-metric-label">{config.label}</p>
+            <p className="app-metric-value mt-1">{countsByStatus[key] ?? 0}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="app-toolbar flex flex-nowrap gap-2 overflow-x-auto p-2 sm:flex-wrap sm:overflow-visible">
         <Link
           href="/proposals"
-          className="app-btn app-btn-secondary focus-ring rounded-full px-3 py-1 text-xs"
+          className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
+            !status ? "app-btn-primary" : "app-btn-secondary"
+          }`}
         >
           All
         </Link>
@@ -79,19 +100,21 @@ export default async function ProposalsPage({
           <Link
             key={key}
             href={`/proposals?status=${key}`}
-            className="app-btn app-btn-secondary focus-ring rounded-full px-3 py-1 text-xs"
+            className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
+              status === key ? "app-btn-primary" : "app-btn-secondary"
+            }`}
           >
-            {config.label}
+            {config.label} ({countsByStatus[key] ?? 0})
           </Link>
         ))}
       </div>
       <p className="mb-4 text-sm text-zinc-600">
-        Showing {proposals?.length ?? 0} proposal{(proposals?.length ?? 0) === 1 ? "" : "s"}
+        Showing {proposalList.length} proposal{proposalList.length === 1 ? "" : "s"}
         {status ? ` (${proposalStatusConfig[status]?.label ?? status})` : ""}
       </p>
 
-      <div className="app-card overflow-hidden">
-        <table className="app-table min-w-full">
+      <div className="app-table-wrap">
+        <table className="app-table app-table-comfortable min-w-full">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
@@ -115,7 +138,7 @@ export default async function ProposalsPage({
             </tr>
           </thead>
           <tbody>
-            {proposals?.map((proposal) => {
+            {proposalList.map((proposal) => {
               const badge = proposalStatusConfig[proposal.status] ?? {
                 label: proposal.status,
                 colour: "bg-zinc-100 text-zinc-500",
@@ -156,7 +179,7 @@ export default async function ProposalsPage({
         </table>
       </div>
 
-      {(!proposals || proposals.length === 0) && (
+      {proposalList.length === 0 && (
         <p className="app-empty-state mt-4 p-8 text-center">
           No proposals found
           {status ? ` with status "${proposalStatusConfig[status]?.label ?? status}"` : ""}.

@@ -46,12 +46,6 @@ test("min_overallocation reduces overallocated hours vs max feasibility", () => 
   assert.equal(optimized.overallocatedHours, 15);
 });
 
-test("worst_week_robust follows conservative overalloc profile", () => {
-  const robust = allocateForMode("worst_week_robust", basePool, 105, true);
-  assert.equal(robust.achievableHours, 105);
-  assert.equal(robust.overallocatedHours, 15);
-});
-
 test("every optimization mode is executable on fixture", () => {
   const modes: ProposalOptimizationMode[] = [
     "max_feasibility",
@@ -59,7 +53,6 @@ test("every optimization mode is executable on fixture", () => {
     "single_office_preferred",
     "multi_office_balanced",
     "min_overallocation",
-    "worst_week_robust",
   ];
 
   for (const mode of modes) {

@@ -4,7 +4,6 @@ export const PROPOSAL_OPTIMIZATION_MODES = [
   "single_office_preferred",
   "multi_office_balanced",
   "min_overallocation",
-  "worst_week_robust",
   "even_load",
   "skill_coverage_max",
 ] as const;
@@ -19,7 +18,6 @@ export const PROPOSAL_OPTIMIZATION_MODE_LABELS: Record<ProposalOptimizationMode,
   single_office_preferred: "Single office preferred",
   multi_office_balanced: "Multi-office balanced",
   min_overallocation: "Minimum overallocation",
-  worst_week_robust: "Worst-week robust",
   even_load: "Even load distribution",
   skill_coverage_max: "Skill coverage maximization",
 };
@@ -32,8 +30,6 @@ export const PROPOSAL_OPTIMIZATION_MODE_DESCRIPTIONS: Record<ProposalOptimizatio
   multi_office_balanced: "Spreads allocation across offices in proportion to capacity.",
   min_overallocation:
     "Prioritizes staff with headroom below 100% to reduce overallocation, using a limited overallocation buffer as fallback.",
-  worst_week_robust:
-    "Hard cap at 100% allocation per staff — never overallocates anyone, accepting lower feasibility to preserve headroom.",
   even_load:
     "Distributes hours as evenly as possible across all in-scope staff rather than concentrating on the most available.",
   skill_coverage_max:

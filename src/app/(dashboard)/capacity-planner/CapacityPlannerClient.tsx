@@ -216,25 +216,26 @@ export default function CapacityPlannerClient({
   // ─── Legend ──────────────────────────────────────────────────────
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col gap-4 xl:flex-row">
       {/* Main grid */}
       <div className="min-w-0 flex-1">
         {/* Legend + controls */}
-        <div className="mb-3 flex flex-wrap items-center gap-4 text-xs">
-          <span className="flex items-center gap-1">
+        <div className="app-toolbar mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto px-3 py-2 text-xs sm:flex-wrap sm:gap-4 sm:overflow-visible">
+          <span className="app-section-caption !text-[11px]">Capacity signal legend</span>
+          <span className="flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-1">
             <span className="inline-block h-3 w-3 rounded bg-green-100 border border-green-300" />
             AVAILABLE (&lt;80%)
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1">
             <span className="inline-block h-3 w-3 rounded bg-amber-100 border border-amber-300" />
             FULL (80–100%)
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-1">
             <span className="inline-block h-3 w-3 rounded bg-red-100 border border-red-300" />
             OVERBOOKED (&gt;100%)
           </span>
           {canEdit && (
-            <span className="text-zinc-400">
+            <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-zinc-500">
               Drag an assignment to reassign staff or week.
             </span>
           )}
@@ -250,17 +251,17 @@ export default function CapacityPlannerClient({
         )}
 
         {/* Scrollable grid */}
-        <div className="overflow-x-auto rounded border border-zinc-200">
+        <div className="app-table-wrap">
           <table className="min-w-max border-collapse text-xs">
             <thead>
               <tr className="bg-zinc-50">
-                <th className="sticky left-0 z-10 border-b border-r border-zinc-200 bg-zinc-50 px-3 py-2 text-left font-semibold text-zinc-700 min-w-[160px]">
+                <th className="sticky left-0 z-20 border-b border-r border-zinc-200 bg-zinc-100 px-3 py-2 text-left font-semibold text-zinc-700 min-w-[180px]">
                   Staff member
                 </th>
                 {data.weeks.map((w) => (
                   <th
                     key={w}
-                    className="border-b border-r border-zinc-200 px-2 py-2 text-center font-semibold text-zinc-600 min-w-[140px]"
+                    className="border-b border-r border-zinc-200 px-2 py-2 text-center font-semibold text-zinc-600 min-w-[150px]"
                   >
                     <div>{formatWeekLabel(w)}</div>
                     <div className="text-zinc-400 font-normal">Wk of {w}</div>
@@ -315,7 +316,7 @@ export default function CapacityPlannerClient({
 
       {pendingMove && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded border border-zinc-200 bg-white p-4 shadow-lg">
+          <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-4 shadow-[var(--shadow-pop)]">
             {(() => {
               const fromStaffName =
                 data.staff.find((s) => s.id === pendingMove.drag.fromStaffId)?.name ??
@@ -347,13 +348,13 @@ export default function CapacityPlannerClient({
 
             <div className="mt-4 space-y-2">
               <button
-                className="w-full rounded border border-zinc-300 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                className="app-btn app-btn-secondary focus-ring w-full justify-start px-3 py-2 text-left text-sm transition-colors"
                 onClick={() => executeMove(pendingMove, "single")}
               >
                 Move only this week
               </button>
               <button
-                className="w-full rounded border border-zinc-300 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                className="app-btn app-btn-secondary focus-ring w-full justify-start px-3 py-2 text-left text-sm transition-colors"
                 onClick={() => executeMove(pendingMove, "future")}
               >
                 Move this and all future weeks
@@ -362,7 +363,7 @@ export default function CapacityPlannerClient({
 
             <div className="mt-4 flex justify-end">
               <button
-                className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+                className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
                 onClick={() => {
                   setPendingMove(null);
                   dragRef.current = null;
@@ -415,7 +416,7 @@ function StaffRow({
   return (
     <tr className="border-b border-zinc-100">
       {/* Sticky staff name column */}
-      <td className="sticky left-0 z-10 border-r border-zinc-200 bg-white px-3 py-2">
+      <td className="sticky left-0 z-10 border-r border-zinc-200 bg-white px-3 py-2 shadow-[6px_0_8px_-9px_rgba(15,23,42,0.35)]">
         <button
           onClick={onSelectStaff}
           className={`w-full text-left ${
@@ -439,7 +440,7 @@ function StaffRow({
           <td
             key={weekStart}
             className={`border-r border-zinc-100 p-1 align-top transition-colors ${
-              isDragTarget ? "ring-2 ring-inset ring-blue-400 bg-blue-50" : ""
+              isDragTarget ? "ring-2 ring-inset ring-blue-500 bg-blue-50 app-grid-highlight" : ""
             }`}
             onDragOver={canEdit ? (e) => onDragOver(e, staff.id, weekStart) : undefined}
             onDragLeave={canEdit ? onDragLeave : undefined}
@@ -447,11 +448,11 @@ function StaffRow({
           >
             {cell && (
               <div
-                className={`min-h-[60px] rounded border p-1.5 ${cellBg(cell.status)}`}
+                className={`min-h-[64px] rounded-md border p-1.5 ${cellBg(cell.status)}`}
               >
                 {/* Assignments */}
                 {cell.assignments.length === 0 ? (
-                  <div className="text-zinc-300 text-center py-1">—</div>
+                  <div className="text-zinc-300 text-center py-1.5">—</div>
                 ) : (
                   <div className="space-y-1">
                     {cell.assignments.map((a) => (
@@ -464,7 +465,7 @@ function StaffRow({
                             : undefined
                         }
                         onDragEnd={canEdit ? onDragEnd : undefined}
-                        className={`rounded border bg-white px-1.5 py-1 text-xs shadow-sm ${
+                        className={`rounded-md border bg-white px-1.5 py-1 text-xs shadow-sm ${
                           canEdit
                             ? "cursor-grab active:cursor-grabbing border-zinc-200 hover:border-zinc-400"
                             : "border-zinc-100"
@@ -486,8 +487,25 @@ function StaffRow({
 
                 {/* Capacity summary */}
                 <div className="mt-1 border-t border-zinc-200 pt-1">
-                  <div className="text-zinc-500">
+                  <div className="text-zinc-500 font-medium">
                     {cell.assigned_hours.toFixed(1)}/{cell.capacity_hours}h
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/80">
+                    <div
+                      className={`h-full ${
+                        cell.status === "overbooked"
+                          ? "bg-red-500"
+                          : cell.status === "full"
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                      }`}
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, (cell.assigned_hours / Math.max(1, cell.capacity_hours)) * 100)
+                        )}%`,
+                      }}
+                    />
                   </div>
                   <StatusBadge
                     status={cell.status}

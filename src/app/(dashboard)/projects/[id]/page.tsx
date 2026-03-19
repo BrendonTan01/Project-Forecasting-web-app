@@ -293,18 +293,22 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
           <Link href="/projects" className="app-link text-sm text-zinc-700">
             ← Projects
           </Link>
+          <p className="app-section-caption mt-3">Project workspace</p>
           <h1 className="app-page-title mt-2">{project.name}</h1>
+          <p className="app-page-subtitle mt-1">
+            Manage delivery posture, financial trajectory, and staffing coverage for this engagement.
+          </p>
         </div>
         {canManageProjects && (
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <Link
               href={`/projects/${id}/edit`}
-              className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
+              className="app-btn app-btn-secondary focus-ring w-full px-4 py-2 text-sm sm:w-auto"
             >
               Edit
             </Link>
@@ -313,44 +317,44 @@ export default async function ProjectDetailPage({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Client</p>
-          <p className="font-semibold text-zinc-900">{project.client_name ?? "-"}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="app-metric-card">
+          <p className="app-metric-label">Client</p>
+          <p className="app-metric-value mt-1 text-[1.28rem]">{project.client_name ?? "-"}</p>
         </div>
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Estimated hours</p>
-          <p className="font-semibold text-zinc-900">{estimated > 0 ? `${estimated}h` : "-"}</p>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Estimated hours</p>
+          <p className="app-metric-value mt-1">{estimated > 0 ? `${estimated}h` : "-"}</p>
         </div>
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Actual hours</p>
-          <p className="font-semibold text-zinc-900">{actualHours}h</p>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Actual hours</p>
+          <p className="app-metric-value mt-1">{actualHours}h</p>
         </div>
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Health</p>
-          <p className={`font-medium ${getProjectHealthColour(health)}`} title={healthReason}>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Health</p>
+          <p className={`mt-1 text-lg font-semibold ${getProjectHealthColour(health)}`} title={healthReason}>
             {getProjectHealthLabel(health)}
           </p>
-          <p className="mt-1 text-xs text-zinc-600">{healthReason}</p>
+          <p className="app-metric-footnote mt-1">{healthReason}</p>
         </div>
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Start date</p>
-          <p className="font-semibold text-zinc-900">{formatProjectDate(project.start_date)}</p>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Start date</p>
+          <p className="app-metric-value mt-1 text-[1.28rem]">{formatProjectDate(project.start_date)}</p>
         </div>
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">End date</p>
-          <p className="font-semibold text-zinc-900">{formatProjectDate(project.end_date)}</p>
+        <div className="app-metric-card">
+          <p className="app-metric-label">End date</p>
+          <p className="app-metric-value mt-1 text-[1.28rem]">{formatProjectDate(project.end_date)}</p>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Burn rate</p>
-          <p className="font-semibold text-zinc-900">{burnRate.toFixed(1)}h/week</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="app-metric-card">
+          <p className="app-metric-label">Burn rate</p>
+          <p className="app-metric-value mt-1">{burnRate.toFixed(1)}h/week</p>
         </div>
-        <div className="app-card p-4">
-          <p className="text-sm font-medium text-zinc-500">Billable ratio</p>
-          <p className="font-semibold text-zinc-900">
+        <div className="app-metric-card">
+          <p className="app-metric-label">Billable ratio</p>
+          <p className="app-metric-value mt-1">
             {actualHours > 0 ? `${((billableHours / actualHours) * 100).toFixed(0)}%` : "-"}
           </p>
         </div>
@@ -412,7 +416,8 @@ export default async function ProjectDetailPage({
         </div>
       )}
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-panel">
+        <div className="app-panel-body">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold text-zinc-900">Skill requirements</h2>
         </div>
@@ -424,9 +429,11 @@ export default async function ProjectDetailPage({
           peopleUnitHoursPerWeek={projectPeopleHoursPerWeek}
           peopleUnitSource={projectOfficeScope.length > 0 ? "project_offices" : "tenant_default"}
         />
+        </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+      <div className="app-panel">
+        <div className="app-panel-body">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold text-zinc-900">Assigned staff</h2>
           {canManageAssignments && (
@@ -439,7 +446,8 @@ export default async function ProjectDetailPage({
           )}
         </div>
         {effectiveAssignments.length > 0 ? (
-          <table className="min-w-full">
+          <div className="app-table-wrap">
+          <table className="app-table app-table-dense min-w-full">
             <thead>
               <tr className="border-b border-zinc-200 text-left text-sm font-semibold text-zinc-800">
                 <th className="pb-2">Staff</th>
@@ -470,9 +478,11 @@ export default async function ProjectDetailPage({
               })}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-sm text-zinc-600">No staff assigned</p>
         )}
+        </div>
       </div>
     </div>
   );

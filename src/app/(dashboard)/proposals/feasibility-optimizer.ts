@@ -35,8 +35,7 @@ function rankGreedyCandidates(
       });
 
     case "min_overallocation":
-    case "worst_week_robust":
-      // Both sort by freeAt100 first; the difference is in capForMode (see allocateForMode)
+      // Prioritize freeAt100 first to reduce overallocated hours.
       return [...pool].sort((a, b) => {
         if (a.freeAt100 !== b.freeAt100) return b.freeAt100 - a.freeAt100;
         return byBiggestRoom(a, b);
@@ -212,11 +211,7 @@ export function allocateForMode(
       }
 
       let capForMode: number;
-      if (mode === "worst_week_robust") {
-        // Strict hard cap: never exceed 100% allocation for any staff member,
-        // regardless of the allow-overallocation toggle.
-        capForMode = candidate.freeAt100;
-      } else if (mode === "min_overallocation") {
+      if (mode === "min_overallocation") {
         // Prefer freeAt100, but allow up to 50% of the overallocation room as fallback.
         capForMode =
           candidate.freeAt100 +
@@ -234,8 +229,6 @@ export function allocateForMode(
 
     // Fallback pass for min_overallocation only: use full freeAtCap greedily if
     // still under-covered after the conservative first pass.
-    // worst_week_robust intentionally has NO fallback — it accepts lower feasibility
-    // to guarantee no staff member is ever pushed past 100%.
     if (remaining > 0 && mode === "min_overallocation") {
       const fallback = rankGreedyCandidates("max_feasibility", pool, preferredOfficeId);
       for (const candidate of fallback) {

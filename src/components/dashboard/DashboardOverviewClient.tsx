@@ -15,20 +15,20 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-6">
       {/* KPI cards skeleton */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="app-card h-24 animate-pulse bg-zinc-50" />
+          <div key={i} className="app-metric-card h-36 animate-pulse bg-zinc-50" />
         ))}
       </div>
 
       {/* Two-column layout skeleton */}
-      <div className="flex gap-6">
+      <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex-1 min-w-0 space-y-6">
-          <div className="app-card h-72 animate-pulse bg-zinc-50" />
-          <div className="app-card h-48 animate-pulse bg-zinc-50" />
+          <div className="app-panel h-72 animate-pulse bg-zinc-50" />
+          <div className="app-panel h-48 animate-pulse bg-zinc-50" />
         </div>
-        <div className="w-80 shrink-0">
-          <div className="app-card h-full min-h-96 animate-pulse bg-zinc-50" />
+        <div className="w-full lg:w-80 lg:shrink-0">
+          <div className="app-panel h-full min-h-96 animate-pulse bg-zinc-50" />
         </div>
       </div>
     </div>
@@ -76,15 +76,21 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Row 1: KPI Cards */}
+      <section className="space-y-2">
+        <p className="app-section-caption">Executive snapshot</p>
+        <h2 className="app-section-heading">Key operating signals</h2>
+        <p className="app-page-subtitle">
+          Highlights for leadership decisions on demand, utilization, and hiring over the current planning horizon.
+        </p>
+      </section>
       <DashboardKpiCards
         weeks={data.weeks}
         hiringRecommendations={data.hiring_recommendations}
       />
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="app-toolbar flex flex-wrap items-center justify-end gap-2 px-3 py-2">
         <label htmlFor="forecast-horizon" className="text-xs font-medium text-zinc-600">
-          Horizon
+          Forecast horizon
         </label>
         <select
           id="forecast-horizon"
@@ -103,18 +109,26 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
 
       <section>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
-          <div className="app-card min-w-0 flex-1 p-4">
-            <h3 className="mb-1 text-sm font-semibold text-zinc-700">
-              Utilization Forecast
-            </h3>
-            <p className="mb-4 text-xs text-zinc-500">
-              Projected team utilization over the next {horizonWeeks} weeks across three demand scenarios
-            </p>
-            <UtilizationForecastChart
-              weeks={data.weeks}
-              proposals={data.proposals}
-              selectedProposalIds={selectedProposalIds}
-            />
+          <div className="app-panel min-w-0 flex-1">
+            <div className="app-panel-header">
+              <div>
+                <p className="app-section-caption">Signal</p>
+                <h3 className="app-section-heading">Utilization Forecast</h3>
+              </div>
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 sm:self-center">
+                Decision aid: workload balancing
+              </div>
+            </div>
+            <div className="app-panel-body">
+              <p className="mb-4 text-xs text-zinc-500">
+                Projected team utilization over the next {horizonWeeks} weeks across three demand scenarios
+              </p>
+              <UtilizationForecastChart
+                weeks={data.weeks}
+                proposals={data.proposals}
+                selectedProposalIds={selectedProposalIds}
+              />
+            </div>
           </div>
 
           <div className="w-full lg:w-80 lg:shrink-0 lg:self-stretch">
@@ -138,14 +152,22 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
 
       <section>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
-          <div className="app-card min-w-0 flex-1 p-4">
-            <h3 className="mb-1 text-sm font-semibold text-zinc-700">
-              Capacity Heatmap
-            </h3>
-            <p className="mb-4 text-xs text-zinc-500">
-              Office utilization by week based on committed work only — green: healthy, amber: approaching capacity, red: overloaded
-            </p>
-            <CapacityHeatmap weeks={horizonWeeks} />
+          <div className="app-panel min-w-0 flex-1">
+            <div className="app-panel-header">
+              <div>
+                <p className="app-section-caption">Risk map</p>
+                <h3 className="app-section-heading">Capacity Heatmap</h3>
+              </div>
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 sm:self-center">
+                Decision aid: overload prevention
+              </div>
+            </div>
+            <div className="app-panel-body">
+              <p className="mb-4 text-xs text-zinc-500">
+                Office utilization by week based on committed work only — green: healthy, amber: approaching capacity, red: overloaded
+              </p>
+              <CapacityHeatmap weeks={horizonWeeks} />
+            </div>
           </div>
 
           <div className="w-full lg:w-80 lg:shrink-0 lg:self-stretch">

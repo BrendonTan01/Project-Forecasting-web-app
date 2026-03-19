@@ -795,7 +795,7 @@ VALUES
     NULL,
     NULL,
     35,
-    'worst_week_robust',
+    'min_overallocation',
     'draft',
     'No dates and no hours — triggers feasibility error: must have start and end date.'
   ),

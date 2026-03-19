@@ -6,9 +6,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/permissions";
 import {
-  buildRecentWeeklyHoursByProject,
-} from "@/lib/utils/projectHealth";
-import {
   filterEffectiveAssignmentsForWeek,
   getCurrentWeekMondayString,
 } from "@/lib/utils/assignmentEffective";
@@ -56,11 +53,7 @@ function SkillSignalIcon() {
   );
 }
 
-export default async function DashboardPage({
-  searchParams: _searchParams,
-}: {
-  searchParams: Promise<{ health?: string; sort?: string }>;
-}) {
+export default async function DashboardPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
   if (user.role === "staff") {
@@ -102,15 +95,6 @@ export default async function DashboardPage({
     acc[row.project_id] = (acc[row.project_id] ?? 0) + Number(row.hours);
     return acc;
   }, {});
-  const recentWeeklyHoursByProject = buildRecentWeeklyHoursByProject(
-    (activeTimeEntries ?? []).map((row) => ({
-      project_id: row.project_id,
-      date: row.date,
-      hours: row.hours,
-    })),
-    4
-  );
-
   const { data: assignmentsData } = activeProjectIds.length
     ? await supabase
         .from("project_assignments")
@@ -215,11 +199,19 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="app-page-title">Executive Dashboard</h1>
+      <section className="app-panel">
+        <div className="app-panel-body">
+          <p className="app-section-caption">Executive command center</p>
+          <h1 className="app-page-title mt-1">Delivery and Capacity Overview</h1>
+          <p className="app-page-subtitle mt-2">
+            Use this page to decide where to rebalance staffing, which bids to prioritize, and where financial or delivery risk is trending.
+          </p>
+        </div>
+      </section>
 
       <section className="space-y-3">
         <div>
-          <h2 className="font-semibold text-zinc-900">At-a-glance overview</h2>
+          <h2 className="app-section-heading">At-a-glance overview</h2>
           <p className="text-sm text-zinc-600">
             Visual summary for executives with key forecast, utilization, and capacity signals.
           </p>
@@ -240,8 +232,8 @@ export default async function DashboardPage({
               View all projects
             </Link>
           </div>
-          <div className="app-card overflow-x-auto">
-            <table className="app-table min-w-full">
+          <div className="app-table-wrap">
+            <table className="app-table app-table-comfortable min-w-full">
               <thead>
                 <tr className="border-b border-zinc-200 bg-zinc-50">
                   <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>

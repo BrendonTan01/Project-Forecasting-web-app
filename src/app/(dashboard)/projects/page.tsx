@@ -393,20 +393,23 @@ export default async function ProjectsPage({
     : 0;
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="app-page-title">Projects</h1>
+    <div className="space-y-5">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-center">
+        <div>
+          <p className="app-section-caption">Delivery portfolio</p>
+          <h1 className="app-page-title">Projects</h1>
+        </div>
         {canManageProjects && (
           <Link
             href="/projects/new"
-            className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"
+            className="app-btn app-btn-primary focus-ring w-full px-4 py-2 text-sm sm:w-auto"
           >
             Add project
           </Link>
         )}
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 space-y-2">
         <ProjectStatusFilter />
         <p className="mt-2 text-sm text-zinc-600">
           Showing {projects?.length ?? 0} project{(projects?.length ?? 0) === 1 ? "" : "s"}
@@ -414,25 +417,40 @@ export default async function ProjectsPage({
         </p>
       </div>
 
-      {canViewFinancials && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <div className="app-card p-3">
-            <p className="text-xs font-medium text-zinc-500">Projects over budget</p>
-            <p className="mt-1 text-xl font-semibold text-zinc-900">{overBudgetProjects}</p>
-          </div>
-          <div className="app-card p-3">
-            <p className="text-xs font-medium text-zinc-500">Projected overrun</p>
-            <p className="mt-1 text-xl font-semibold text-red-700">{formatCurrency(totalProjectedOverrun)}</p>
-          </div>
-          <div className="app-card p-3">
-            <p className="text-xs font-medium text-zinc-500">Tracked projects</p>
-            <p className="mt-1 text-xl font-semibold text-zinc-900">{projects?.length ?? 0}</p>
-          </div>
+      <div className={`grid gap-3 ${canViewFinancials ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2"}`}>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Tracked projects</p>
+          <p className="app-metric-value mt-1">{projects?.length ?? 0}</p>
         </div>
-      )}
+        <div className="app-metric-card">
+          <p className="app-metric-label">Active projects</p>
+          <p className="app-metric-value mt-1">
+            {(projects ?? []).filter((project) => project.status === "active").length}
+          </p>
+        </div>
+        {canViewFinancials && (
+          <div className="app-metric-card">
+            <p className="app-metric-label">Projects over budget</p>
+            <p className="app-metric-value mt-1 text-red-700">{overBudgetProjects}</p>
+          </div>
+        )}
+        {canViewFinancials && (
+          <div className="app-metric-card">
+            <p className="app-metric-label">Projected overrun</p>
+            <p className="app-metric-value mt-1 text-red-700">{formatCurrency(totalProjectedOverrun)}</p>
+          </div>
+        )}
+      </div>
 
-      <div className="app-card overflow-x-auto">
-        <table className="app-table min-w-full">
+      <div className="app-toolbar flex flex-nowrap items-center gap-2 overflow-x-auto px-3 py-2 text-xs text-zinc-600 sm:flex-wrap sm:overflow-visible">
+        <span className="font-medium text-zinc-700">Portfolio workflow:</span>
+        <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1">Prioritize risk signals</span>
+        <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1">Rebalance staffing</span>
+        <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1">Track budget trajectory</span>
+      </div>
+
+      <div className="app-table-wrap">
+        <table className="app-table app-table-comfortable min-w-full">
           <thead>
             <tr className="border-b border-zinc-200">
               <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">

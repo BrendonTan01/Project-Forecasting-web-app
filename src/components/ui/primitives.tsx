@@ -7,11 +7,12 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 type ButtonVariant = "primary" | "secondary" | "danger";
-type ButtonSize = "sm" | "md";
+type ButtonSize = "sm" | "md" | "lg";
 
 const buttonSizeClass: Record<ButtonSize, string> = {
   sm: "px-3 py-1.5 text-sm",
   md: "px-4 py-2 text-sm",
+  lg: "px-4 py-2.5 text-sm",
 };
 
 const buttonVariantClass: Record<ButtonVariant, string> = {
@@ -73,4 +74,20 @@ export function Badge({
   children: ReactNode;
 }) {
   return <span className={cx("app-badge", badgeVariantClass[variant], className)}>{children}</span>;
+}
+
+export function Panel({ className, ...props }: ComponentPropsWithoutRef<"section">) {
+  return <section className={cx("app-panel", className)} {...props} />;
+}
+
+export function PanelHeader({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+  return <div className={cx("app-panel-header", className)} {...props} />;
+}
+
+export function PanelBody({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+  return <div className={cx("app-panel-body", className)} {...props} />;
+}
+
+export function MetricCard({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+  return <div className={cx("app-metric-card", className)} {...props} />;
 }

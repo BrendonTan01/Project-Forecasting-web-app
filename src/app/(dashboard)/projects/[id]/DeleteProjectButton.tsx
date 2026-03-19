@@ -28,21 +28,21 @@ export function DeleteProjectButton({ projectId, projectName }: DeleteProjectBut
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-zinc-600">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <span className="w-full text-sm text-zinc-600 sm:w-auto">
           Delete &quot;{projectName}&quot;?
         </span>
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="app-btn app-btn-danger focus-ring px-3 py-1.5 text-sm"
+          className="app-btn app-btn-danger focus-ring w-full px-3 py-1.5 text-sm sm:w-auto"
         >
           {deleting ? "Deleting…" : "Yes, delete"}
         </button>
         <button
           onClick={() => setConfirming(false)}
           disabled={deleting}
-          className="app-btn app-btn-secondary focus-ring px-3 py-1.5 text-sm"
+          className="app-btn app-btn-secondary focus-ring w-full px-3 py-1.5 text-sm sm:w-auto"
         >
           Cancel
         </button>
