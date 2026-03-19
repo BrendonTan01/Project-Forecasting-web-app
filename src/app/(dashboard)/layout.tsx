@@ -25,7 +25,6 @@ export default async function DashboardLayout({
 
   const navItems: NavItem[] = [
     { href: "/dashboard", label: "Executive", group: "overview", canAccess: () => true },
-    { href: "/page-index", label: "Page Index", group: "overview", canAccess: () => true },
     {
       href: "/projects",
       label: "Projects",
@@ -122,10 +121,6 @@ export default async function DashboardLayout({
           </nav>
           <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
             <span>Navigate by workflow to reduce context switching.</span>
-            <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5">
-              <span className="app-kbd">Tab</span>
-              <span>for keyboard focus</span>
-            </span>
           </div>
         </div>
       </header>

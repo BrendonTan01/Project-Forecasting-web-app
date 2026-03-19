@@ -78,16 +78,6 @@ html {
   border-color: var(--border);
 }
 
-:where(a, button, input, select, textarea):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.focus-ring:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -444,21 +434,6 @@ html {
   border: 1px solid;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
-}
-
-.app-kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  border-radius: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, white);
-  background: color-mix(in srgb, var(--surface-subtle) 55%, white);
-  color: #334155;
-  padding: 0.1rem 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.2;
 }
 
 .app-grid-highlight {
