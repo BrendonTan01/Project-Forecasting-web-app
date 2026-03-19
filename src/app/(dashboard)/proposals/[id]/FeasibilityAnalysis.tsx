@@ -417,6 +417,7 @@ export function FeasibilityAnalysis({
     label: "Helps" | "Mixed" | "Detracts";
     reasons: string[];
   } {
+    if (!feasResult) return { score: 0, label: "Mixed", reasons: [] };
     const candidate = candidateById.get(candidateId);
     if (!candidate) return { score: 0, label: "Mixed", reasons: [] };
 

@@ -506,7 +506,7 @@ function allocateSkillDemandForWeek(params: {
     allocatedStaffIds,
     overallocatedStaffIds,
     overallocatedHours: round1(overallocatedHours),
-    assignedHoursByStaff,
+    assignedHoursByStaff: assignedByStaff,
     skillCoverageById,
   };
 }
