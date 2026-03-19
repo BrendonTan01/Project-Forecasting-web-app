@@ -673,17 +673,17 @@ export function FeasibilityAnalysis({
               <>
                 <div
                   className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-red-400"
-                  style={{ bottom: `${simulationWithRates.simulated_utilization * 220}px` }}
+                  style={{ bottom: `${Math.min(simulationWithRates.simulated_utilization, 1) * 220}px` }}
                 >
-                  <span className="absolute right-0 -translate-y-full rounded-sm bg-red-400 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  <span className={`absolute right-0 rounded-sm bg-red-400 px-1.5 py-0.5 text-[10px] font-medium text-white ${simulationWithRates.simulated_utilization > 1 ? "translate-y-0" : "-translate-y-full"}`}>
                     Simulated {(simulationWithRates.simulated_utilization * 100).toFixed(0)}%
                   </span>
                 </div>
                 <div
                   className="pointer-events-none absolute left-0 right-0 border-t-2 border-dashed border-zinc-400"
-                  style={{ bottom: `${simulationWithRates.current_utilization * 220}px` }}
+                  style={{ bottom: `${Math.min(simulationWithRates.current_utilization, 1) * 220}px` }}
                 >
-                  <span className="absolute left-0 -translate-y-full rounded-sm bg-zinc-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  <span className={`absolute left-0 rounded-sm bg-zinc-500 px-1.5 py-0.5 text-[10px] font-medium text-white ${simulationWithRates.current_utilization > 1 ? "translate-y-0" : "-translate-y-full"}`}>
                     Current {(simulationWithRates.current_utilization * 100).toFixed(0)}%
                   </span>
                 </div>
