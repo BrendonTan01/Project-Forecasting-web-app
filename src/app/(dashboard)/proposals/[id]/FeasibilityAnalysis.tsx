@@ -55,6 +55,15 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+// Thresholds to decide whether scenario comparison cards are meaningful.
+// Tune these values to make comparisons more or less sensitive.
+const SCENARIO_DIFF_THRESHOLDS = {
+  feasibilityPercent: 1, // percentage points
+  achievableHours: 5, // hours
+  overallocatedHours: 5, // hours
+  staffUsedCount: 2, // people
+} as const;
+
 function buildEqualSplit(ids: string[]): Record<string, number> {
   if (ids.length === 0) return {};
   const base = round1(100 / ids.length);
@@ -310,6 +319,20 @@ export function FeasibilityAnalysis({
     0
   );
   const splitIsValid = Math.abs(splitTotal - 100) < 0.1;
+  const scenarioComparisons = feasResult.comparisons ?? [];
+  const meaningfulComparisons = scenarioComparisons.filter((comparison) => {
+    const feasibilityDelta = Math.abs(comparison.feasibilityPercent - feasResult.feasibilityPercent);
+    const achievableDelta = Math.abs(comparison.totalAchievable - feasResult.totalAchievable);
+    const overallocDelta = Math.abs(comparison.overallocatedHours - feasResult.totalOverallocatedHours);
+    const staffUsedDelta = Math.abs(comparison.staffUsedCount - feasResult.staffUsedCount);
+
+    return (
+      feasibilityDelta >= SCENARIO_DIFF_THRESHOLDS.feasibilityPercent ||
+      achievableDelta >= SCENARIO_DIFF_THRESHOLDS.achievableHours ||
+      overallocDelta >= SCENARIO_DIFF_THRESHOLDS.overallocatedHours ||
+      staffUsedDelta >= SCENARIO_DIFF_THRESHOLDS.staffUsedCount
+    );
+  });
 
   function toggleProposedStaff(id: string) {
     const next = new Set(selectedProposedStaffIds);
@@ -657,25 +680,31 @@ export function FeasibilityAnalysis({
         )}
       </div>
 
-      {feasResult.comparisons && feasResult.comparisons.length > 0 && (
+      {scenarioComparisons.length > 0 && (
         <div className="app-card p-4">
           <h3 className="mb-3 text-sm font-semibold text-zinc-900">Scenario comparison</h3>
-          <div className="grid gap-3 md:grid-cols-3">
-            {feasResult.comparisons.map((comparison) => (
-              <div key={comparison.mode} className="rounded-md border border-zinc-200 p-3 hover:bg-zinc-50">
-                <p className="text-xs font-medium text-zinc-500">{comparison.label}</p>
-                <p className="mt-1 text-lg font-semibold text-zinc-900">
-                  {comparison.feasibilityPercent.toFixed(1)}%
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {comparison.totalAchievable}h / {comparison.totalRequired}h
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Staff used: {comparison.staffUsedCount} · Overallocated: {comparison.overallocatedHours}h
-                </p>
-              </div>
-            ))}
-          </div>
+          {meaningfulComparisons.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {meaningfulComparisons.map((comparison) => (
+                <div key={comparison.mode} className="rounded-md border border-zinc-200 p-3 hover:bg-zinc-50">
+                  <p className="text-xs font-medium text-zinc-500">{comparison.label}</p>
+                  <p className="mt-1 text-lg font-semibold text-zinc-900">
+                    {comparison.feasibilityPercent.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {comparison.totalAchievable}h / {comparison.totalRequired}h
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Staff used: {comparison.staffUsedCount} · Overallocated: {comparison.overallocatedHours}h
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+              Alternative objectives produced equivalent outcomes in this scenario, so comparison cards are hidden.
+            </p>
+          )}
         </div>
       )}
 
