@@ -22,7 +22,7 @@ export type ProposalFormData = {
   skills?: Array<{ id: string; name: string; required_hours_per_week?: number }>;
   office_scope?: string[] | null;
   optimization_mode?: ProposalOptimizationMode;
-  status: "draft" | "submitted" | "won" | "lost";
+  status: "draft" | "submitted" | "won" | "lost" | "converted";
   notes?: string;
 };
 
@@ -146,6 +146,119 @@ export async function updateProposal(id: string, data: Partial<ProposalFormData>
     newValue: updateData,
   });
   return { success: true };
+}
+
+export type ConvertProposalOverrides = {
+  name: string;
+  client_name?: string;
+  start_date?: string;
+  end_date?: string;
+  estimated_hours?: number;
+  office_scope?: string[] | null;
+  notes?: string;
+};
+
+export async function convertProposalToProject(
+  proposalId: string,
+  overrides: ConvertProposalOverrides
+) {
+  const user = await getCurrentUserWithTenant();
+  if (!user) return { error: "Unauthorized" };
+  if (!hasPermission(user.role, "proposals:manage")) {
+    return { error: "You do not have permission to convert proposals" };
+  }
+
+  const supabase = await createClient();
+
+  const { data: proposal, error: proposalError } = await supabase
+    .from("project_proposals")
+    .select("id, name, status, skills, tenant_id")
+    .eq("id", proposalId)
+    .eq("tenant_id", user.tenantId)
+    .single();
+
+  if (proposalError || !proposal) return { error: "Proposal not found" };
+  if (proposal.status !== "won") {
+    return { error: "Only proposals with status 'Won' can be converted to a project" };
+  }
+
+  const officeScope = overrides.office_scope?.length ? overrides.office_scope : null;
+
+  if (officeScope) {
+    const { data: offices, error: officesError } = await supabase
+      .from("offices")
+      .select("id")
+      .eq("tenant_id", user.tenantId)
+      .in("id", officeScope);
+    if (officesError) return { error: officesError.message };
+    if ((offices ?? []).length !== officeScope.length) {
+      return { error: "One or more selected offices are invalid." };
+    }
+  }
+
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .insert({
+      tenant_id: user.tenantId,
+      name: overrides.name.trim(),
+      client_name: overrides.client_name?.trim() || null,
+      estimated_hours: overrides.estimated_hours ?? null,
+      start_date: overrides.start_date || null,
+      end_date: overrides.end_date || null,
+      status: "active",
+      office_scope: officeScope,
+      notes: overrides.notes?.trim() || null,
+      source_proposal_id: proposalId,
+    })
+    .select("id")
+    .single();
+
+  if (projectError || !project) return { error: projectError?.message ?? "Failed to create project" };
+
+  const skills: Array<{ id: string; name: string; required_hours_per_week?: number }> =
+    Array.isArray(proposal.skills) ? proposal.skills : [];
+
+  if (skills.length > 0) {
+    const skillRows = skills
+      .filter((s) => s && typeof s.id === "string")
+      .map((s) => ({
+        project_id: project.id,
+        skill_id: s.id,
+        required_hours_per_week: s.required_hours_per_week ?? 0,
+        tenant_id: user.tenantId,
+      }));
+
+    if (skillRows.length > 0) {
+      const { error: skillsError } = await supabase
+        .from("project_skill_requirements")
+        .insert(skillRows);
+      if (skillsError) return { error: skillsError.message };
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from("project_proposals")
+    .update({ status: "converted", updated_at: new Date().toISOString() })
+    .eq("id", proposalId)
+    .eq("tenant_id", user.tenantId);
+
+  if (updateError) return { error: updateError.message };
+
+  revalidatePath("/proposals");
+  revalidatePath(`/proposals/${proposalId}`);
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
+
+  await writeAuditLog({
+    tenantId: user.tenantId,
+    userId: user.id,
+    action: "proposal.converted",
+    entityType: "proposal",
+    entityId: proposalId,
+    newValue: { converted_to_project_id: project.id, project_name: overrides.name },
+  });
+
+  return { success: true, id: project.id };
 }
 
 export async function deleteProposal(id: string) {

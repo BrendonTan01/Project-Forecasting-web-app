@@ -701,26 +701,40 @@ export function ProposalForm({ offices, skills, proposal }: ProposalFormProps) {
           <label htmlFor="status" className="mb-1 block text-sm font-medium text-zinc-700">
             Status
           </label>
-          <Select
-            id="status"
-            name="status"
-            defaultValue={proposal?.status ?? "draft"}
-          >
-            <option value="draft">Draft</option>
-            <option value="submitted" disabled={!timelineComplete}>
-              Submitted
-            </option>
-            <option value="won" disabled={!timelineComplete}>
-              Won
-            </option>
-            <option value="lost" disabled={!timelineComplete}>
-              Lost
-            </option>
-          </Select>
-          {!timelineComplete && (
-            <p className="mt-1 text-xs text-amber-600">
-              Set both timeline dates before moving status out of draft.
-            </p>
+          {proposal?.status === "converted" ? (
+            <>
+              <input type="hidden" name="status" value="converted" />
+              <div className="flex h-10 items-center rounded-md border border-violet-200 bg-violet-50 px-3 text-sm font-medium text-violet-700">
+                Converted (read-only)
+              </div>
+              <p className="mt-1 text-xs text-violet-600">
+                This proposal has been converted to a project and its status cannot be changed.
+              </p>
+            </>
+          ) : (
+            <>
+              <Select
+                id="status"
+                name="status"
+                defaultValue={proposal?.status ?? "draft"}
+              >
+                <option value="draft">Draft</option>
+                <option value="submitted" disabled={!timelineComplete}>
+                  Submitted
+                </option>
+                <option value="won" disabled={!timelineComplete}>
+                  Won
+                </option>
+                <option value="lost" disabled={!timelineComplete}>
+                  Lost
+                </option>
+              </Select>
+              {!timelineComplete && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Set both timeline dates before moving status out of draft.
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

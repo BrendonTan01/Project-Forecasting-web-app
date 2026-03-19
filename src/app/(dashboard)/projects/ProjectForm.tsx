@@ -17,6 +17,7 @@ type ProjectFormProps = {
     end_date?: string | null;
     status: string;
     office_scope?: string[] | null;
+    notes?: string | null;
   };
 };
 
@@ -61,6 +62,7 @@ export function ProjectForm({ offices, project }: ProjectFormProps) {
       end_date: (formData.get("end_date") as string) || undefined,
       status: (formData.get("status") as string) || "active",
       office_scope: limitToSelectedOffices ? Array.from(selectedOffices) : null,
+      notes: (formData.get("notes") as string)?.trim() || undefined,
     };
 
     if (!data.name) {
@@ -243,6 +245,20 @@ export function ProjectForm({ offices, project }: ProjectFormProps) {
             defaultValue={project?.end_date ?? ""}
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="notes" className="mb-1 block text-sm font-medium text-zinc-700">
+          Notes
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          rows={3}
+          defaultValue={project?.notes ?? ""}
+          placeholder="Any additional context or notes…"
+          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+        />
       </div>
 
       <div className="flex gap-3 pt-2">

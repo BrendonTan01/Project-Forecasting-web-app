@@ -12,6 +12,7 @@ const statusConfig: Record<string, { label: string; colour: string }> = {
   submitted: { label: "Submitted", colour: "bg-blue-50 text-blue-700" },
   won: { label: "Won", colour: "bg-emerald-50 text-emerald-700" },
   lost: { label: "Lost", colour: "bg-red-50 text-red-700" },
+  converted: { label: "Converted", colour: "bg-violet-50 text-violet-700" },
 };
 
 function fmtHours(value: number | null): string {
@@ -54,6 +55,18 @@ export default async function ProposalDetailPage({
   ]);
 
   if (!proposal) notFound();
+
+  // If this proposal has been converted, look up the linked project.
+  let linkedProjectId: string | null = null;
+  if (proposal.status === "converted") {
+    const { data: linkedProject } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("source_proposal_id", id)
+      .eq("tenant_id", user.tenantId)
+      .maybeSingle();
+    linkedProjectId = linkedProject?.id ?? null;
+  }
 
   const badge = statusConfig[proposal.status] ?? {
     label: proposal.status,
@@ -103,6 +116,14 @@ export default async function ProposalDetailPage({
           </span>
           {canManageProposals && (
             <>
+              {proposal.status === "won" && (
+                <Link
+                  href={`/proposals/${id}/convert`}
+                  className="app-btn app-btn-primary focus-ring px-4 py-2 text-sm"
+                >
+                  Convert to Project
+                </Link>
+              )}
               <Link
                 href={`/proposals/${id}/edit`}
                 className="app-btn app-btn-secondary focus-ring px-4 py-2 text-sm"
@@ -114,6 +135,23 @@ export default async function ProposalDetailPage({
           )}
         </div>
       </div>
+
+      {/* Converted callout */}
+      {proposal.status === "converted" && (
+        <div className="flex items-center justify-between rounded-md border border-violet-200 bg-violet-50 px-4 py-3">
+          <p className="text-sm text-violet-800">
+            This proposal has been converted to an active project.
+          </p>
+          {linkedProjectId && (
+            <Link
+              href={`/projects/${linkedProjectId}`}
+              className="ml-4 shrink-0 text-sm font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900"
+            >
+              View project →
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

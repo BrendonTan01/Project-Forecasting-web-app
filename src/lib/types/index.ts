@@ -53,10 +53,12 @@ export interface Project {
   end_date: string | null;
   status: string;
   office_scope?: string[] | null;
+  notes?: string | null;
+  source_proposal_id?: string | null;
   created_at?: string;
 }
 
-export type ProposalStatus = "draft" | "submitted" | "won" | "lost";
+export type ProposalStatus = "draft" | "submitted" | "won" | "lost" | "converted";
 
 export interface ProjectProposal {
   id: string;
@@ -68,7 +70,9 @@ export interface ProjectProposal {
   estimated_hours: number | null;
   estimated_hours_per_week: number | null;
   win_probability: number;
+  skills?: Array<{ id: string; name: string; required_hours_per_week?: number }> | null;
   office_scope: string[] | null;
+  optimization_mode?: string | null;
   status: ProposalStatus;
   notes: string | null;
   created_at?: string;

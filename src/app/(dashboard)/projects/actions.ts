@@ -18,6 +18,8 @@ export type ProjectFormData = {
   end_date?: string;
   status: string;
   office_scope?: string[] | null;
+  notes?: string;
+  source_proposal_id?: string | null;
 };
 
 export async function createProject(data: ProjectFormData) {
@@ -53,6 +55,8 @@ export async function createProject(data: ProjectFormData) {
       end_date: data.end_date || null,
       status: data.status || "active",
       office_scope: officeScope,
+      notes: data.notes?.trim() || null,
+      source_proposal_id: data.source_proposal_id ?? null,
     })
     .select("id")
     .single();
@@ -104,6 +108,7 @@ export async function updateProject(id: string, data: Partial<ProjectFormData>) 
   if (data.end_date !== undefined) updateData.end_date = data.end_date || null;
   if (data.status !== undefined) updateData.status = data.status;
   if (officeScope !== undefined) updateData.office_scope = officeScope;
+  if (data.notes !== undefined) updateData.notes = data.notes?.trim() || null;
 
   const { error } = await supabase
     .from("projects")

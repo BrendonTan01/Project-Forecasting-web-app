@@ -8,6 +8,7 @@ const proposalStatusConfig: Record<string, { label: string; colour: string }> = 
   submitted: { label: "Submitted", colour: "bg-blue-50 text-blue-700" },
   won: { label: "Won", colour: "bg-emerald-50 text-emerald-700" },
   lost: { label: "Lost", colour: "bg-red-50 text-red-700" },
+  converted: { label: "Converted", colour: "bg-violet-50 text-violet-700" },
 };
 
 function fmtHours(h: number | null): string {
