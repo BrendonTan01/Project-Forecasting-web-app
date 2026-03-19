@@ -47,9 +47,20 @@ export function ProposalSimulationSection({
   initialOptimizationMode,
   initialResult,
 }: Props) {
-  const initialSelectedOffices = initialOfficeScope ?? [];
-  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(() => new Set(initialSelectedOffices));
-  const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(initialSelectedOffices.length > 0);
+  const proposalScopedOfficeIds = (initialOfficeScope ?? []).filter((id) =>
+    allOffices.some((office) => office.id === id)
+  );
+  const isProposalOfficeScoped = proposalScopedOfficeIds.length > 0;
+  const selectableOffices = isProposalOfficeScoped
+    ? allOffices.filter((office) => proposalScopedOfficeIds.includes(office.id))
+    : allOffices;
+  const [selectedOffices, setSelectedOffices] = useState<Set<string>>(() => {
+    if (isProposalOfficeScoped) {
+      return new Set(proposalScopedOfficeIds.length > 0 ? [proposalScopedOfficeIds[0]] : []);
+    }
+    return new Set(initialOfficeScope ?? []);
+  });
+  const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(!isProposalOfficeScoped);
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
   const [optimizationMode, setOptimizationMode] = useState<ProposalOptimizationMode>(initialOptimizationMode);
@@ -63,13 +74,21 @@ export function ProposalSimulationSection({
   const [lastRunInputKey, setLastRunInputKey] = useState<string | null>(null);
 
   const effectiveOfficeScope =
-    limitToSelectedOffices
-      ? selectedOffices.size > 0
-        ? Array.from(selectedOffices)
-        : allOffices.length > 0
-          ? [allOffices[0].id]
-          : null
-      : null;
+    isProposalOfficeScoped
+      ? limitToSelectedOffices
+        ? selectedOffices.size > 0
+          ? Array.from(selectedOffices)
+          : selectableOffices.length > 0
+            ? [selectableOffices[0].id]
+            : null
+        : proposalScopedOfficeIds
+      : limitToSelectedOffices
+        ? selectedOffices.size > 0
+          ? Array.from(selectedOffices)
+          : selectableOffices.length > 0
+            ? [selectableOffices[0].id]
+            : null
+        : null;
 
   const scopeLabel =
     effectiveOfficeScope && effectiveOfficeScope.length > 0
@@ -90,6 +109,10 @@ export function ProposalSimulationSection({
     simulationActive && lastRunInputKey !== null && lastRunInputKey !== currentInputKey;
 
   function toggleOffice(id: string) {
+    if (isProposalOfficeScoped) {
+      setSelectedOffices(new Set([id]));
+      return;
+    }
     const next = new Set(selectedOffices);
     if (next.has(id)) {
       if (next.size === 1) return;
@@ -102,8 +125,12 @@ export function ProposalSimulationSection({
 
   function handleOfficeScopeToggle(nextValue: boolean) {
     setLimitToSelectedOffices(nextValue);
-    if (nextValue && selectedOffices.size === 0 && allOffices.length > 0) {
-      setSelectedOffices(new Set([allOffices[0].id]));
+    if (nextValue && selectedOffices.size === 0 && selectableOffices.length > 0) {
+      setSelectedOffices(new Set([selectableOffices[0].id]));
+      return;
+    }
+    if (nextValue && isProposalOfficeScoped && selectedOffices.size > 1) {
+      setSelectedOffices(new Set([Array.from(selectedOffices)[0]]));
     }
   }
 
@@ -177,10 +204,15 @@ export function ProposalSimulationSection({
           <p className="mt-1 text-xs text-zinc-500">
             Office scope affects both analyses. Allocation objective and overallocation settings affect staffing feasibility.
           </p>
+          {isProposalOfficeScoped && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Office choices are limited by this proposal&apos;s office scope.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          {allOffices.length > 1 && (
+          {selectableOffices.length > 1 && (
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium text-zinc-700">Office scope:</span>
               <button
@@ -194,11 +226,17 @@ export function ProposalSimulationSection({
                 <span className="app-toggle-thumb" />
               </button>
               <span className="text-xs text-zinc-500">
-                {limitToSelectedOffices ? "Selected offices only" : "All offices"}
+                {limitToSelectedOffices
+                  ? isProposalOfficeScoped
+                    ? "Single scoped office"
+                    : "Selected offices only"
+                  : isProposalOfficeScoped
+                    ? "All scoped offices"
+                    : "All offices"}
               </span>
               {limitToSelectedOffices && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {allOffices.map((office) => {
+                  {selectableOffices.map((office) => {
                     const active = selectedOffices.has(office.id);
                     return (
                       <button
