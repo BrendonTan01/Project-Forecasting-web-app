@@ -67,7 +67,8 @@ export function ProposalSimulationSection({
     }
     return new Set(initialOfficeScope ?? []);
   });
-  const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(!isProposalOfficeScoped);
+  // Start unscoped by default; users can opt into selected-office simulation.
+  const [limitToSelectedOffices, setLimitToSelectedOffices] = useState(false);
   const [allowOverallocation, setAllowOverallocation] = useState(false);
   const [maxOverallocationPercent, setMaxOverallocationPercent] = useState(120);
   const [includeManagers, setIncludeManagers] = useState(true);
