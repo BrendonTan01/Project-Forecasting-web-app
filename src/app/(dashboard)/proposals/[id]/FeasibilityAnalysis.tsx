@@ -152,6 +152,30 @@ function buildInitialPlanState(
   return { selectedIds: new Set(), splitByStaff: {} };
 }
 
+function buildSuggestedPlanState(
+  feasResult: FeasibilityResult | null
+): { selectedIds: Set<string>; splitByStaff: Record<string, number> } {
+  if (!feasResult || feasResult.proposedStaffingPlan.length === 0) {
+    return { selectedIds: new Set(), splitByStaff: {} };
+  }
+
+  const validIds = new Set(feasResult.staffCapacityCandidates.map((candidate) => candidate.id));
+  const suggestedIds = feasResult.proposedStaffingPlan
+    .map((member) => member.staff_id)
+    .filter((id) => validIds.has(id));
+  if (suggestedIds.length === 0) {
+    return { selectedIds: new Set(), splitByStaff: {} };
+  }
+
+  const suggestedSplit: Record<string, number> = {};
+  for (const member of feasResult.proposedStaffingPlan) {
+    if (validIds.has(member.staff_id)) {
+      suggestedSplit[member.staff_id] = member.split_percent;
+    }
+  }
+  return { selectedIds: new Set(suggestedIds), splitByStaff: suggestedSplit };
+}
+
 function OverallBadge({ percent }: { percent: number }) {
   const ratio = percent / 100;
   const bg = feasibilityBgColor(ratio);
@@ -306,6 +330,7 @@ export function FeasibilityAnalysis({
   const [teamSaveStatus, setTeamSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [teamSaveError, setTeamSaveError] = useState<string | null>(null);
   const [teamIsDirty, setTeamIsDirty] = useState(false);
+  const [restoreStatus, setRestoreStatus] = useState<"idle" | "restored">("idle");
 
   async function handleSaveTeam() {
     setTeamSaveStatus("saving");
@@ -369,6 +394,7 @@ export function FeasibilityAnalysis({
   const splitIsValid = Math.abs(splitTotal - 100) < 0.1;
   const scenarioComparisons = feasResult.comparisons ?? [];
   const officeHotspots = feasResult.officeCapacityHotspots ?? [];
+  const hasSuggestedPlan = feasResult.proposedStaffingPlan.length > 0;
   const meaningfulComparisons = scenarioComparisons.filter((comparison) => {
     const feasibilityDelta = Math.abs(comparison.feasibilityPercent - feasResult.feasibilityPercent);
     const achievableDelta = Math.abs(comparison.totalAchievable - feasResult.totalAchievable);
@@ -411,6 +437,15 @@ export function FeasibilityAnalysis({
       [id]: round1(clamped),
     }));
     setTeamIsDirty(true);
+  }
+
+  function handleRestoreSuggestedPlan() {
+    const suggested = buildSuggestedPlanState(feasResult);
+    setSelectedProposedStaffIds(suggested.selectedIds);
+    setSplitPercentByStaff(suggested.splitByStaff);
+    setTeamIsDirty(true);
+    setRestoreStatus("restored");
+    setTimeout(() => setRestoreStatus("idle"), 3000);
   }
 
   function getCandidateImpact(candidateId: string): {
@@ -813,16 +848,29 @@ export function FeasibilityAnalysis({
                   <p>
                     Split total: <span className={splitIsValid ? "text-emerald-700" : "text-red-700"}>{round1(splitTotal)}%</span>
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)));
-                      setTeamIsDirty(true);
-                    }}
-                    className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs"
-                  >
-                    Rebalance equally
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {restoreStatus === "restored" && (
+                      <span className="text-xs text-emerald-600">Suggested plan restored</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleRestoreSuggestedPlan}
+                      disabled={!hasSuggestedPlan}
+                      className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Restore suggested plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSplitPercentByStaff(buildEqualSplit(selectedStaff.map((staff) => staff.id)));
+                        setTeamIsDirty(true);
+                      }}
+                      className="app-btn app-btn-secondary focus-ring px-3 py-1 text-xs"
+                    >
+                      Rebalance equally
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-zinc-500">
                   Capacity check uses each staff member&apos;s available hours in this proposal window without overallocation.
