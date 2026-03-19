@@ -80,6 +80,13 @@ export type FeasibilityResult = {
     matchingSkillNames: string[];
   }>;
   officeNames: string[];
+  officeCapacityHotspots: Array<{
+    officeId: string | null;
+    officeName: string;
+    avgUtilization: number;
+    peakUtilization: number;
+    firstOverloadWeek: number | null;
+  }>;
   comparisons?: FeasibilityComparison[];
   error?: never;
 };
@@ -136,6 +143,23 @@ function leaveHoursInWeek(
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+type OfficePressureStats = {
+  officeId: string | null;
+  officeName: string;
+  avgUtilization: number;
+  peakUtilization: number;
+  firstOverloadWeek: number | null;
+  pressureFactor: number;
+};
+
+function computeOfficePressureFactor(avgUtilization: number, peakUtilization: number): number {
+  if (peakUtilization > 0.98) return 0.35;
+  if (peakUtilization > 0.95) return 0.5;
+  if (peakUtilization > 0.9) return 0.65;
+  if (avgUtilization > 0.85) return 0.8;
+  return 1;
 }
 
 type FeasibilityBaseData = {
@@ -511,6 +535,105 @@ function allocateSkillDemandForWeek(params: {
   };
 }
 
+function computeOfficePressureStats(params: {
+  baseData: FeasibilityBaseData;
+  propStart: Date;
+  propEnd: Date;
+  availabilityByStaffWeek: Map<string, Map<string, number>>;
+}): OfficePressureStats[] {
+  const { baseData, propStart, propEnd, availabilityByStaffWeek } = params;
+  const firstMonday = toUtcDate(toWeekMonday(baseData.proposal.proposed_start_date));
+  const weekCursor = new Date(firstMonday);
+  const statsByOfficeKey = new Map<
+    string,
+    {
+      officeId: string | null;
+      officeName: string;
+      weekCount: number;
+      sumUtilization: number;
+      peakUtilization: number;
+      firstOverloadWeek: number | null;
+    }
+  >();
+  let weekIndex = 0;
+
+  while (weekCursor <= propEnd) {
+    weekIndex += 1;
+    const weekStart = new Date(weekCursor);
+    const weekStartStr = toDateString(weekStart);
+    const weekEnd = toUtcDate(weekEndFromWeekStart(weekStartStr));
+    const effectiveAssignmentsForWeek = filterEffectiveAssignmentsForWeek(
+      baseData.assignments,
+      weekStartStr
+    );
+    const committedByStaff = new Map<string, number>();
+    for (const assignment of effectiveAssignmentsForWeek) {
+      committedByStaff.set(
+        assignment.staff_id,
+        (committedByStaff.get(assignment.staff_id) ?? 0) + assignment.weekly_hours_allocated
+      );
+    }
+
+    const clampStart = weekStart < propStart ? propStart : weekStart;
+    const clampEnd = weekEnd > propEnd ? propEnd : weekEnd;
+    const workDays = workingDaysInRange(clampStart, clampEnd);
+    const weekFraction = workDays / 5;
+
+    const capacityByOffice = new Map<string, number>();
+    const committedByOffice = new Map<string, number>();
+    for (const sp of baseData.staff) {
+      const weeklyCapacity =
+        availabilityByStaffWeek.get(sp.id)?.get(weekStartStr) ?? sp.weeklyCapacityHours;
+      const dailyCapacity = weeklyCapacity / 5;
+      const effectiveCapacity = weeklyCapacity * weekFraction;
+      const allocatedHours = committedByStaff.get(sp.id) ?? 0;
+      const leaveHrs = leaveHoursInWeek(baseData.leaves, sp.id, weekStart, weekEnd, dailyCapacity);
+      const committedHours = allocatedHours + leaveHrs;
+      const officeKey = sp.officeId ?? "unassigned";
+      capacityByOffice.set(officeKey, (capacityByOffice.get(officeKey) ?? 0) + effectiveCapacity);
+      committedByOffice.set(officeKey, (committedByOffice.get(officeKey) ?? 0) + committedHours);
+      if (!statsByOfficeKey.has(officeKey)) {
+        statsByOfficeKey.set(officeKey, {
+          officeId: sp.officeId,
+          officeName: sp.office,
+          weekCount: 0,
+          sumUtilization: 0,
+          peakUtilization: 0,
+          firstOverloadWeek: null,
+        });
+      }
+    }
+
+    for (const [officeKey, capacity] of capacityByOffice.entries()) {
+      if (capacity <= 0) continue;
+      const util = (committedByOffice.get(officeKey) ?? 0) / capacity;
+      const officeStats = statsByOfficeKey.get(officeKey);
+      if (!officeStats) continue;
+      officeStats.weekCount += 1;
+      officeStats.sumUtilization += util;
+      officeStats.peakUtilization = Math.max(officeStats.peakUtilization, util);
+      if (util > 0.9 && officeStats.firstOverloadWeek === null) {
+        officeStats.firstOverloadWeek = weekIndex;
+      }
+    }
+
+    weekCursor.setTime(addUtcDays(weekCursor, 7).getTime());
+  }
+
+  return Array.from(statsByOfficeKey.values()).map((office) => {
+    const avgUtilization = office.weekCount > 0 ? office.sumUtilization / office.weekCount : 0;
+    const peakUtilization = office.peakUtilization;
+    return {
+      officeId: office.officeId,
+      officeName: office.officeName,
+      avgUtilization: Math.round(avgUtilization * 1000) / 1000,
+      peakUtilization: Math.round(peakUtilization * 1000) / 1000,
+      firstOverloadWeek: office.firstOverloadWeek,
+      pressureFactor: computeOfficePressureFactor(avgUtilization, peakUtilization),
+    };
+  });
+}
+
 function computeFeasibilityCore(
   baseData: FeasibilityBaseData,
   optimizationMode: ProposalOptimizationMode,
@@ -583,6 +706,17 @@ function computeFeasibilityCore(
   for (const staff of baseData.staff) {
     freeAt100ByStaff.set(staff.id, 0);
   }
+  const officePressureStats = computeOfficePressureStats({
+    baseData,
+    propStart,
+    propEnd,
+    availabilityByStaffWeek,
+  });
+  const officePressureByOfficeId = new Map(
+    officePressureStats.map((office) => [office.officeId, office.pressureFactor] as const)
+  );
+  const distinctOfficeCount = new Set(baseData.staff.map((staff) => staff.officeId ?? "unassigned")).size;
+  const applyOfficePressurePenalty = distinctOfficeCount > 1;
 
   while (weekCursor <= propEnd) {
     const weekStart = new Date(weekCursor);
@@ -638,10 +772,15 @@ function computeFeasibilityCore(
       // Subtract leave
       const leaveHrs = leaveHoursInWeek(baseData.leaves, sp.id, weekStart, weekEnd, dailyCapacity);
       const committedHours = allocatedHours + leaveHrs;
-      const freeAt100 = Math.max(0, effectiveCapacity - committedHours);
+      const freeAt100Raw = Math.max(0, effectiveCapacity - committedHours);
       const maxAllowedHours = effectiveCapacity * (allowOverallocation ? safeOverallocationPct / 100 : 1);
-      const freeAtCap = Math.max(0, maxAllowedHours - committedHours);
-      freeAt100ByStaff.set(sp.id, (freeAt100ByStaff.get(sp.id) ?? 0) + freeAt100);
+      const freeAtCapRaw = Math.max(0, maxAllowedHours - committedHours);
+      const pressureFactor = applyOfficePressurePenalty
+        ? (officePressureByOfficeId.get(sp.officeId) ?? 1)
+        : 1;
+      const freeAt100 = round1(freeAt100Raw * pressureFactor);
+      const freeAtCap = round1(freeAtCapRaw * pressureFactor);
+      freeAt100ByStaff.set(sp.id, (freeAt100ByStaff.get(sp.id) ?? 0) + freeAt100Raw);
 
       const staffLabel = sp.name;
       staffLabelsById.set(sp.id, staffLabel);
@@ -800,6 +939,16 @@ function computeFeasibilityCore(
     })
     .filter((entry) => entry.requiredHours > 0 || entry.achievableHours > 0)
     .sort((a, b) => a.skillName.localeCompare(b.skillName));
+  const officeCapacityHotspots = officePressureStats
+    .filter((office) => office.peakUtilization > 0.9)
+    .map((office) => ({
+      officeId: office.officeId,
+      officeName: office.officeName,
+      avgUtilization: office.avgUtilization,
+      peakUtilization: office.peakUtilization,
+      firstOverloadWeek: office.firstOverloadWeek,
+    }))
+    .sort((a, b) => b.peakUtilization - a.peakUtilization);
 
   return {
     requiredSkills: baseData.proposal.skills,
@@ -846,6 +995,7 @@ function computeFeasibilityCore(
           .sort((a, b) => a.localeCompare(b)),
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
+    officeCapacityHotspots,
   };
 }
 

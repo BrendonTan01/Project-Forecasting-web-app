@@ -368,6 +368,7 @@ export function FeasibilityAnalysis({
   );
   const splitIsValid = Math.abs(splitTotal - 100) < 0.1;
   const scenarioComparisons = feasResult.comparisons ?? [];
+  const officeHotspots = feasResult.officeCapacityHotspots ?? [];
   const meaningfulComparisons = scenarioComparisons.filter((comparison) => {
     const feasibilityDelta = Math.abs(comparison.feasibilityPercent - feasResult.feasibilityPercent);
     const achievableDelta = Math.abs(comparison.totalAchievable - feasResult.totalAchievable);
@@ -559,6 +560,14 @@ export function FeasibilityAnalysis({
         <p className="mt-1 text-xs text-zinc-500">
           Uses {feasResult.staffUsedCount} staff and {feasResult.totalOverallocatedHours}h of overallocated time.
         </p>
+        {officeHotspots.length > 0 && (
+          <p className="mt-1 text-xs text-amber-700">
+            Office hotspot guard active: recommendations de-prioritise staff from high-utilisation offices where possible ({officeHotspots
+              .slice(0, 3)
+              .map((office) => office.officeName)
+              .join(", ")}).
+          </p>
+        )}
         {feasResult.hasSkillDemandModel && (
           <p className="mt-1 text-xs text-zinc-500">
             Skill-demand model active: feasibility is computed against required hours/week per proposal skill.

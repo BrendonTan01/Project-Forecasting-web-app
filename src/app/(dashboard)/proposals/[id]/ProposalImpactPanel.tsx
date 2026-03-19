@@ -8,6 +8,16 @@ export type SimulationResult = {
   overload_week?: number | null;
   current_capacity_risk?: boolean;
   current_overload_week?: number | null;
+  office_capacity_risk?: boolean;
+  current_office_capacity_risk?: boolean;
+  high_risk_offices?: Array<{
+    office_id: string | null;
+    office_name: string;
+    current_peak_utilization: number;
+    simulated_peak_utilization: number;
+    current_overload_week: number | null;
+    simulated_overload_week: number | null;
+  }>;
   expected_revenue?: number | null;
   expected_cost?: number | null;
   expected_margin?: number | null;
@@ -41,6 +51,11 @@ function fmtCurrency(value: number | null | undefined): string {
   }).format(value);
 }
 
+function fmtWeek(week: number | null | undefined): string {
+  if (week === null || week === undefined) return "None";
+  return `Week ${week}`;
+}
+
 export function ProposalImpactPanel({
   officeScopeLabel,
   simulationStale,
@@ -58,8 +73,13 @@ export function ProposalImpactPanel({
       : null;
   const baselineRisk = simulationData?.current_capacity_risk ?? false;
   const simulatedRisk = simulationData?.capacity_risk ?? false;
+  const baselineOfficeRisk = simulationData?.current_office_capacity_risk ?? false;
+  const simulatedOfficeRisk = simulationData?.office_capacity_risk ?? false;
   const proposalIntroducesRisk = !baselineRisk && simulatedRisk;
   const riskUnchanged = baselineRisk === simulatedRisk;
+  const officeHotspots =
+    simulationData?.high_risk_offices?.slice(0, 3).map((office) => office.office_name) ?? [];
+  const highRiskOfficeRows = simulationData?.high_risk_offices ?? [];
 
   return (
     <div className="app-card p-4">
@@ -182,6 +202,11 @@ export function ProposalImpactPanel({
                         ? "Team stays within safe range"
                         : "Risk improves vs current baseline"}
                 </p>
+                {(baselineOfficeRisk || simulatedOfficeRisk) && (
+                  <p className="mt-1.5 text-xs text-zinc-500">
+                    Office hotspots detected: {officeHotspots.length > 0 ? officeHotspots.join(", ") : "one or more scoped offices"}.
+                  </p>
+                )}
               </div>
             )}
 
@@ -205,6 +230,47 @@ export function ProposalImpactPanel({
               </div>
             )}
           </div>
+
+          {highRiskOfficeRows.length > 0 && (
+            <div className="rounded-md border border-zinc-200 p-3">
+              <h3 className="text-sm font-semibold text-zinc-800">Office risk breakdown</h3>
+              <p className="mt-1 text-xs text-zinc-500">
+                Offices that exceed 90% utilization at least once in the simulation window.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="app-table min-w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-200 bg-zinc-50">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-700">Office</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Current peak</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Simulated peak</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Current overload</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-zinc-700">Simulated overload</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {highRiskOfficeRows.map((office) => (
+                      <tr key={`${office.office_id ?? "unassigned"}:${office.office_name}`} className="border-b border-zinc-100 last:border-0">
+                        <td className="px-3 py-2 text-sm text-zinc-800">{office.office_name}</td>
+                        <td className="px-3 py-2 text-right text-sm text-zinc-800">
+                          {fmtPct(office.current_peak_utilization)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm font-medium text-zinc-900">
+                          {fmtPct(office.simulated_peak_utilization)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm text-zinc-700">
+                          {fmtWeek(office.current_overload_week)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm text-zinc-700">
+                          {fmtWeek(office.simulated_overload_week)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-md border border-zinc-200 p-3">
             <h3 className="text-sm font-semibold text-zinc-800">Financial Impact</h3>

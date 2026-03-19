@@ -22,6 +22,16 @@ export type SimulationResult = {
   overload_week: number | null;
   current_capacity_risk: boolean;
   current_overload_week: number | null;
+  office_capacity_risk: boolean;
+  current_office_capacity_risk: boolean;
+  high_risk_offices: Array<{
+    office_id: string | null;
+    office_name: string;
+    current_peak_utilization: number;
+    simulated_peak_utilization: number;
+    current_overload_week: number | null;
+    simulated_overload_week: number | null;
+  }>;
   expected_revenue: number | null;
   expected_cost: number | null;
   expected_margin: number | null;
@@ -77,9 +87,11 @@ type StaffProfileRow = {
   users:
     | {
         office_id?: string | null;
+        offices?: { name?: string } | { name?: string }[] | null;
       }
     | {
         office_id?: string | null;
+        offices?: { name?: string } | { name?: string }[] | null;
       }[]
     | null;
 };
@@ -170,7 +182,7 @@ export async function simulateProposalImpact(
 
   let staffQuery = admin
     .from("staff_profiles")
-    .select("id, weekly_capacity_hours, billable_rate, cost_rate, users!inner(office_id)")
+    .select("id, weekly_capacity_hours, billable_rate, cost_rate, users!inner(office_id, offices(name))")
     .eq("tenant_id", tenantId);
 
   if (officeIds && officeIds.length > 0) {
@@ -178,12 +190,21 @@ export async function simulateProposalImpact(
   }
 
   const [{ data: staffProfiles }] = await Promise.all([staffQuery]);
-  const staff = ((staffProfiles ?? []) as StaffProfileRow[]).map((row) => ({
-    id: row.id,
-    weekly_capacity_hours: Number(row.weekly_capacity_hours),
-    billable_rate: row.billable_rate,
-    cost_rate: row.cost_rate,
-  }));
+  const staff = ((staffProfiles ?? []) as StaffProfileRow[]).map((row) => {
+    const userRecord = Array.isArray(row.users) ? row.users[0] : row.users;
+    const officeRecord = Array.isArray(userRecord?.offices) ? userRecord?.offices[0] : userRecord?.offices;
+    return {
+      id: row.id,
+      weekly_capacity_hours: Number(row.weekly_capacity_hours),
+      billable_rate: row.billable_rate,
+      cost_rate: row.cost_rate,
+      office_id: userRecord?.office_id ?? null,
+      office_name: officeRecord?.name ?? "Unassigned office",
+    };
+  });
+  const officeKeyByStaffId = new Map(
+    staff.map((member) => [member.id, member.office_id ?? "unassigned"] as const)
+  );
 
   const staffIds = staff.map((member) => member.id);
   if (staffIds.length === 0) {
@@ -195,6 +216,9 @@ export async function simulateProposalImpact(
       overload_week: null,
       current_capacity_risk: false,
       current_overload_week: null,
+      office_capacity_risk: false,
+      current_office_capacity_risk: false,
+      high_risk_offices: [],
       expected_revenue: null,
       expected_cost: null,
       expected_margin: null,
@@ -258,6 +282,17 @@ export async function simulateProposalImpact(
   let overloadWeek: number | null = null;
   let currentCapacityRisk = false;
   let capacityRisk = false;
+  const officeRiskStats = new Map<
+    string,
+    {
+      office_id: string | null;
+      office_name: string;
+      current_peak_utilization: number;
+      simulated_peak_utilization: number;
+      current_overload_week: number | null;
+      simulated_overload_week: number | null;
+    }
+  >();
 
   for (let i = 0; i < totalWeeks; i++) {
     const weekStart = addUtcDays(startMonday, i * 7);
@@ -266,6 +301,7 @@ export async function simulateProposalImpact(
     const weekEnd = toUtcDate(weekEndStr);
 
     let totalCapacity = 0;
+    const officeCapacity = new Map<string, number>();
     for (const member of staff) {
       const override = availMap.get(member.id)?.get(weekStartStr);
       const weeklyCapacity = override !== undefined ? override : member.weekly_capacity_hours;
@@ -276,13 +312,32 @@ export async function simulateProposalImpact(
         weekEnd,
         weeklyCapacity / 5
       );
-      totalCapacity += Math.max(0, weeklyCapacity - leaveHours);
+      const memberCapacity = Math.max(0, weeklyCapacity - leaveHours);
+      totalCapacity += memberCapacity;
+      const officeKey = member.office_id ?? "unassigned";
+      officeCapacity.set(officeKey, (officeCapacity.get(officeKey) ?? 0) + memberCapacity);
+      if (!officeRiskStats.has(officeKey)) {
+        officeRiskStats.set(officeKey, {
+          office_id: member.office_id,
+          office_name: member.office_name,
+          current_peak_utilization: 0,
+          simulated_peak_utilization: 0,
+          current_overload_week: null,
+          simulated_overload_week: null,
+        });
+      }
     }
 
-    const totalProjectHours = filterEffectiveAssignmentsForWeek(activeAssignments, weekStartStr).reduce(
-      (sum, assignment) => sum + assignment.weekly_hours_allocated,
-      0
-    );
+    const assignmentsForWeek = filterEffectiveAssignmentsForWeek(activeAssignments, weekStartStr);
+    const totalProjectHours = assignmentsForWeek.reduce((sum, assignment) => sum + assignment.weekly_hours_allocated, 0);
+    const officeProjectHours = new Map<string, number>();
+    for (const assignment of assignmentsForWeek) {
+      const officeKey = officeKeyByStaffId.get(assignment.staff_id) ?? "unassigned";
+      officeProjectHours.set(
+        officeKey,
+        (officeProjectHours.get(officeKey) ?? 0) + assignment.weekly_hours_allocated
+      );
+    }
 
     const proposalHours = getProposalHoursForWeek(proposal, weekStartStr, weekEndStr);
     const simulatedProjectHours = totalProjectHours + proposalHours;
@@ -307,7 +362,49 @@ export async function simulateProposalImpact(
         overloadWeek = i + 1;
       }
     }
+
+    // Track office hotspots so "all offices" still surfaces risky pockets.
+    for (const [officeKey, cap] of officeCapacity.entries()) {
+      if (cap <= 0) continue;
+      const currentOfficeHours = officeProjectHours.get(officeKey) ?? 0;
+      const proposalShare = totalCapacity > 0 ? proposalHours * (cap / totalCapacity) : 0;
+      const simulatedOfficeHours = currentOfficeHours + proposalShare;
+      const currentOfficeRate = currentOfficeHours / cap;
+      const simulatedOfficeRate = simulatedOfficeHours / cap;
+      const stats = officeRiskStats.get(officeKey);
+      if (!stats) continue;
+      stats.current_peak_utilization = Math.max(stats.current_peak_utilization, currentOfficeRate);
+      stats.simulated_peak_utilization = Math.max(stats.simulated_peak_utilization, simulatedOfficeRate);
+      if (currentOfficeRate > CAPACITY_RISK_THRESHOLD && stats.current_overload_week === null) {
+        stats.current_overload_week = i + 1;
+      }
+      if (simulatedOfficeRate > CAPACITY_RISK_THRESHOLD && stats.simulated_overload_week === null) {
+        stats.simulated_overload_week = i + 1;
+      }
+    }
   }
+
+  const highRiskOffices = Array.from(officeRiskStats.values())
+    .filter(
+      (office) =>
+        office.current_peak_utilization > CAPACITY_RISK_THRESHOLD ||
+        office.simulated_peak_utilization > CAPACITY_RISK_THRESHOLD
+    )
+    .sort((a, b) => b.simulated_peak_utilization - a.simulated_peak_utilization);
+  const currentOfficeCapacityRisk = highRiskOffices.some(
+    (office) => office.current_peak_utilization > CAPACITY_RISK_THRESHOLD
+  );
+  const officeCapacityRisk = highRiskOffices.some(
+    (office) => office.simulated_peak_utilization > CAPACITY_RISK_THRESHOLD
+  );
+  const firstOfficeOverloadWeek = highRiskOffices
+    .map((office) => office.simulated_overload_week)
+    .filter((week): week is number => week !== null)
+    .sort((a, b) => a - b)[0] ?? null;
+  const firstCurrentOfficeOverloadWeek = highRiskOffices
+    .map((office) => office.current_overload_week)
+    .filter((week): week is number => week !== null)
+    .sort((a, b) => a - b)[0] ?? null;
 
   const avgCurrentUtilization =
     Math.round((totalCurrentUtilization / totalWeeks) * 1000) / 1000;
@@ -356,10 +453,23 @@ export async function simulateProposalImpact(
     proposal_id: proposalId,
     current_utilization: avgCurrentUtilization,
     simulated_utilization: avgSimulatedUtilization,
-    capacity_risk: capacityRisk,
-    overload_week: overloadWeek,
-    current_capacity_risk: currentCapacityRisk,
-    current_overload_week: currentOverloadWeek,
+    capacity_risk: capacityRisk || officeCapacityRisk,
+    overload_week:
+      overloadWeek !== null && firstOfficeOverloadWeek !== null
+        ? Math.min(overloadWeek, firstOfficeOverloadWeek)
+        : overloadWeek ?? firstOfficeOverloadWeek,
+    current_capacity_risk: currentCapacityRisk || currentOfficeCapacityRisk,
+    current_overload_week:
+      currentOverloadWeek !== null && firstCurrentOfficeOverloadWeek !== null
+        ? Math.min(currentOverloadWeek, firstCurrentOfficeOverloadWeek)
+        : currentOverloadWeek ?? firstCurrentOfficeOverloadWeek,
+    office_capacity_risk: officeCapacityRisk,
+    current_office_capacity_risk: currentOfficeCapacityRisk,
+    high_risk_offices: highRiskOffices.map((office) => ({
+      ...office,
+      current_peak_utilization: Math.round(office.current_peak_utilization * 1000) / 1000,
+      simulated_peak_utilization: Math.round(office.simulated_peak_utilization * 1000) / 1000,
+    })),
     expected_revenue: expectedRevenue,
     expected_cost: expectedCost,
     expected_margin: expectedMargin,
