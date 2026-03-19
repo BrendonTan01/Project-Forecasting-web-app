@@ -24,7 +24,7 @@ type ProposalFormProps = {
     win_probability?: number | null;
     skills?: ProposalSkill[] | null;
     office_scope?: string[] | null;
-    status: "draft" | "submitted" | "won" | "lost";
+    status: "draft" | "submitted" | "won" | "lost" | "converted";
     notes?: string | null;
   };
 };

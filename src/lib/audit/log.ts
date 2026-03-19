@@ -7,6 +7,7 @@ export type AuditAction =
   | "proposal.created"
   | "proposal.updated"
   | "proposal.deleted"
+  | "proposal.converted"
   | "assignment.upserted"
   | "assignment.removed"
   | "leave_request.created"
