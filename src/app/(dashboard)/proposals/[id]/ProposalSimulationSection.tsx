@@ -80,6 +80,7 @@ export function ProposalSimulationSection({
   const [feasibilityResult, setFeasibilityResult] = useState<FeasibilityResult | { error: string } | null>(initialResult);
   const [feasibilityLoading, setFeasibilityLoading] = useState(false);
   const [lastRunInputKey, setLastRunInputKey] = useState<string | null>(null);
+  const [simulationRunVersion, setSimulationRunVersion] = useState(0);
 
   const effectiveOfficeScope =
     isProposalOfficeScoped
@@ -203,6 +204,7 @@ export function ProposalSimulationSection({
       setFeasibilityResult(feasibility);
       setSimulationActive(true);
       setLastRunInputKey(currentInputKey);
+      setSimulationRunVersion((prev) => prev + 1);
     } catch (err: unknown) {
       setSimulationError(err instanceof Error ? err.message : "Failed to run simulation");
     } finally {
@@ -395,6 +397,7 @@ export function ProposalSimulationSection({
           </p>
         </div>
         <FeasibilityAnalysis
+          key={`${proposalId}:${simulationRunVersion}:${lastRunInputKey ?? "initial"}`}
           proposalId={proposalId}
           result={feasibilityResult}
           isPending={feasibilityLoading}

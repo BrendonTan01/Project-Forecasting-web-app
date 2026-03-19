@@ -248,7 +248,7 @@ export async function convertProposalToProject(
     }
   }
 
-  // Create project assignments from the proposed team if provided
+  // Create project assignments from the saved staffing plan if provided.
   if (overrides.team_assignments && overrides.team_assignments.length > 0) {
     const validAssignments = overrides.team_assignments.filter(
       (a) =>

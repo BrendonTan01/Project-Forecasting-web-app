@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import type { FeasibilityResult, WeekFeasibility } from "./feasibility-actions";
 import type { SimulationResult } from "./ProposalImpactPanel";
 import { saveProposedTeam } from "../actions";
@@ -64,6 +63,23 @@ const SCENARIO_DIFF_THRESHOLDS = {
   staffUsedCount: 2, // people
 } as const;
 
+const IMPACT_WEIGHTS = {
+  skillCount: 20,
+  skillHoursPerWeek: 0.8,
+  noNewSkillPenalty: 10,
+  spareCapacityPerHour: 0.45,
+  spareCapacityCap: 20,
+  overallocPerHour: 1.6,
+  overallocCap: 45,
+  objectiveAlignment: 8,
+  objectiveMisalignment: 8,
+  officeFitBonusStrong: 12,
+  officeMismatchPenaltyStrong: 12,
+  officeFitBonusSoft: 3,
+  officeMismatchPenaltySoft: 2,
+  alreadySelected: 4,
+} as const;
+
 function buildEqualSplit(ids: string[]): Record<string, number> {
   if (ids.length === 0) return {};
   const base = round1(100 / ids.length);
@@ -73,6 +89,67 @@ function buildEqualSplit(ids: string[]): Record<string, number> {
   const remainder = round1(100 - total);
   split[ids[ids.length - 1]] = round1(split[ids[ids.length - 1]] + remainder);
   return split;
+}
+
+function buildNormalizedSplitFromWeights(
+  ids: string[],
+  weightsById: Record<string, number>
+): Record<string, number> {
+  if (ids.length === 0) return {};
+  const weights = ids.map((id) => Math.max(0, weightsById[id] ?? 0));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  if (totalWeight <= 0) return buildEqualSplit(ids);
+
+  const split: Record<string, number> = {};
+  for (const id of ids) {
+    split[id] = round1(((weightsById[id] ?? 0) / totalWeight) * 100);
+  }
+  const total = Object.values(split).reduce((sum, value) => sum + value, 0);
+  const remainder = round1(100 - total);
+  split[ids[ids.length - 1]] = round1(split[ids[ids.length - 1]] + remainder);
+  return split;
+}
+
+function buildInitialPlanState(
+  feasResult: FeasibilityResult | null,
+  savedTeam: SavedTeamMember[] | null
+): { selectedIds: Set<string>; splitByStaff: Record<string, number> } {
+  if (!feasResult) {
+    return { selectedIds: new Set(), splitByStaff: {} };
+  }
+
+  const validIds = new Set(feasResult.staffCapacityCandidates.map((candidate) => candidate.id));
+  if (savedTeam && savedTeam.length > 0) {
+    const savedIds = savedTeam
+      .filter((member) => validIds.has(member.staff_id))
+      .map((member) => member.staff_id);
+    if (savedIds.length > 0) {
+      const savedSplit: Record<string, number> = {};
+      for (const member of savedTeam) {
+        if (validIds.has(member.staff_id)) {
+          savedSplit[member.staff_id] = member.split_percent;
+        }
+      }
+      return { selectedIds: new Set(savedIds), splitByStaff: savedSplit };
+    }
+  }
+
+  if (feasResult.proposedStaffingPlan.length > 0) {
+    const planIds = feasResult.proposedStaffingPlan
+      .map((member) => member.staff_id)
+      .filter((id) => validIds.has(id));
+    if (planIds.length > 0) {
+      const planSplit: Record<string, number> = {};
+      for (const member of feasResult.proposedStaffingPlan) {
+        if (validIds.has(member.staff_id)) {
+          planSplit[member.staff_id] = member.split_percent;
+        }
+      }
+      return { selectedIds: new Set(planIds), splitByStaff: planSplit };
+    }
+  }
+
+  return { selectedIds: new Set(), splitByStaff: {} };
 }
 
 function OverallBadge({ percent }: { percent: number }) {
@@ -219,45 +296,16 @@ export function FeasibilityAnalysis({
   const baselineCapacityRisk = simulationWithRates?.current_capacity_risk ?? false;
   const proposalIntroducesRisk = !baselineCapacityRisk && simulationCapacityRisk;
   const riskUnchanged = baselineCapacityRisk === simulationCapacityRisk;
-  const [selectedProposedStaffIds, setSelectedProposedStaffIds] = useState<Set<string>>(new Set());
-  const [splitPercentByStaff, setSplitPercentByStaff] = useState<Record<string, number>>({});
+  const initialPlanState = buildInitialPlanState(feasResult, savedTeam);
+  const [selectedProposedStaffIds, setSelectedProposedStaffIds] = useState<Set<string>>(
+    () => initialPlanState.selectedIds
+  );
+  const [splitPercentByStaff, setSplitPercentByStaff] = useState<Record<string, number>>(
+    () => initialPlanState.splitByStaff
+  );
   const [teamSaveStatus, setTeamSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [teamSaveError, setTeamSaveError] = useState<string | null>(null);
   const [teamIsDirty, setTeamIsDirty] = useState(false);
-
-  useEffect(() => {
-    if (!feasResult) {
-      setSelectedProposedStaffIds(new Set());
-      setSplitPercentByStaff({});
-      return;
-    }
-    const validIds = new Set(feasResult.staffCapacityCandidates.map((candidate) => candidate.id));
-
-    // Pre-populate from savedTeam when simulation result first arrives
-    if (savedTeam && savedTeam.length > 0) {
-      const savedIds = savedTeam
-        .filter((m) => validIds.has(m.staff_id))
-        .map((m) => m.staff_id);
-      if (savedIds.length > 0) {
-        const savedSplit: Record<string, number> = {};
-        for (const m of savedTeam) {
-          if (validIds.has(m.staff_id)) savedSplit[m.staff_id] = m.split_percent;
-        }
-        setSelectedProposedStaffIds(new Set(savedIds));
-        setSplitPercentByStaff(savedSplit);
-        setTeamIsDirty(false);
-        return;
-      }
-    }
-
-    setSelectedProposedStaffIds((prev) => {
-      const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
-      if (next.size === prev.size) return prev;
-      setSplitPercentByStaff(buildEqualSplit(Array.from(next)));
-      return next;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feasResult]);
 
   async function handleSaveTeam() {
     setTeamSaveStatus("saving");
@@ -342,8 +390,14 @@ export function FeasibilityAnalysis({
       next.add(id);
     }
     const ids = Array.from(next).sort();
+    const weightsById: Record<string, number> = {};
+    for (const candidateId of ids) {
+      const existing = splitPercentByStaff[candidateId];
+      const suggested = candidateById.get(candidateId)?.recommendedSplitPercent ?? 0;
+      weightsById[candidateId] = existing && existing > 0 ? existing : suggested;
+    }
     setSelectedProposedStaffIds(next);
-    setSplitPercentByStaff(buildEqualSplit(ids));
+    setSplitPercentByStaff(buildNormalizedSplitFromWeights(ids, weightsById));
     setTeamIsDirty(true);
   }
 
@@ -356,6 +410,115 @@ export function FeasibilityAnalysis({
       [id]: round1(clamped),
     }));
     setTeamIsDirty(true);
+  }
+
+  function getCandidateImpact(candidateId: string): {
+    score: number;
+    label: "Helps" | "Mixed" | "Detracts";
+    reasons: string[];
+  } {
+    const candidate = candidateById.get(candidateId);
+    if (!candidate) return { score: 0, label: "Mixed", reasons: [] };
+
+    const alreadySelected = selectedProposedStaffIds.has(candidateId);
+    const selectedWithoutCandidate = selectedStaff.filter((member) => member.id !== candidateId);
+    const selectedOfficeCounts = new Map<string, number>();
+    for (const member of selectedWithoutCandidate) {
+      selectedOfficeCounts.set(member.office, (selectedOfficeCounts.get(member.office) ?? 0) + 1);
+    }
+    let dominantSelectedOffice: string | null = null;
+    let dominantSelectedOfficeCount = 0;
+    for (const [office, count] of selectedOfficeCounts.entries()) {
+      if (count > dominantSelectedOfficeCount) {
+        dominantSelectedOffice = office;
+        dominantSelectedOfficeCount = count;
+      }
+    }
+    const coveredBySelection = new Set(
+      selectedWithoutCandidate.flatMap((member) => member.matchingSkillIds ?? [])
+    );
+    const uncoveredRequiredSkills = requiredSkills.filter((skill) => !coveredBySelection.has(skill.id));
+    const newlyCoveredSkills = uncoveredRequiredSkills.filter((skill) =>
+      (candidate.matchingSkillIds ?? []).includes(skill.id)
+    );
+    const newlyCoveredSkillHoursPerWeek = newlyCoveredSkills.reduce(
+      (sum, skill) => sum + (skill.requiredHoursPerWeek ?? 0),
+      0
+    );
+
+    const projectedAssignedHours = candidate.projectedAssignedHours > 0
+      ? candidate.projectedAssignedHours
+      : round1((feasResult.totalRequired * Math.max(candidate.recommendedSplitPercent, 10)) / 100);
+    const overallocHours = Math.max(0, projectedAssignedHours - candidate.availableHoursWithoutOverallocation);
+    const spareHours = Math.max(0, candidate.availableHoursWithoutOverallocation - projectedAssignedHours);
+    let score = 0;
+    const reasons: string[] = [];
+
+    if (newlyCoveredSkills.length > 0) {
+      const skillScore =
+        newlyCoveredSkills.length * IMPACT_WEIGHTS.skillCount +
+        newlyCoveredSkillHoursPerWeek * IMPACT_WEIGHTS.skillHoursPerWeek;
+      score += skillScore;
+      reasons.push(`Covers ${newlyCoveredSkills.length} currently missing skill${newlyCoveredSkills.length > 1 ? "s" : ""}`);
+    } else if (requiredSkills.length > 0) {
+      score -= IMPACT_WEIGHTS.noNewSkillPenalty;
+      reasons.push("Adds little new skill coverage for current roster");
+    }
+
+    if (spareHours > 0) {
+      const capacityScore = Math.min(
+        IMPACT_WEIGHTS.spareCapacityCap,
+        spareHours * IMPACT_WEIGHTS.spareCapacityPerHour
+      );
+      score += capacityScore;
+      reasons.push(`Has ${round1(spareHours)}h headroom at suggested load`);
+    }
+
+    if (overallocHours > 0) {
+      const penalty = Math.min(
+        IMPACT_WEIGHTS.overallocCap,
+        overallocHours * IMPACT_WEIGHTS.overallocPerHour
+      );
+      score -= penalty;
+      reasons.push(`Would likely overallocate by ${round1(overallocHours)}h`);
+    }
+
+    if (candidate.recommendedSplitPercent > 0) {
+      score += IMPACT_WEIGHTS.objectiveAlignment;
+      reasons.push(`Included by simulation objective (${candidate.recommendedSplitPercent}%)`);
+    } else if (feasResult.optimizationMode === "min_staff_count" && !alreadySelected) {
+      score -= IMPACT_WEIGHTS.objectiveMisalignment;
+      reasons.push("May conflict with current objective to minimize staff count");
+    }
+
+    if (dominantSelectedOffice && selectedWithoutCandidate.length > 0) {
+      if (feasResult.optimizationMode === "single_office_preferred") {
+        if (candidate.office === dominantSelectedOffice) {
+          score += IMPACT_WEIGHTS.officeFitBonusStrong;
+          reasons.push(`Office fit: strongly aligns with single-office objective (${dominantSelectedOffice})`);
+        } else {
+          score -= IMPACT_WEIGHTS.officeMismatchPenaltyStrong;
+          reasons.push(`Office fit: conflicts with single-office objective (${dominantSelectedOffice})`);
+        }
+      } else if (feasResult.optimizationMode !== "multi_office_balanced") {
+        if (candidate.office === dominantSelectedOffice) {
+          score += IMPACT_WEIGHTS.officeFitBonusSoft;
+          reasons.push(`Office fit: aligns with current roster concentration (${dominantSelectedOffice})`);
+        } else {
+          score -= IMPACT_WEIGHTS.officeMismatchPenaltySoft;
+          reasons.push(`Office fit: broadens office mix from current roster (${dominantSelectedOffice})`);
+        }
+      }
+    }
+
+    if (alreadySelected) {
+      score += IMPACT_WEIGHTS.alreadySelected;
+    }
+
+    const roundedScore = Math.round(score);
+    const label =
+      roundedScore >= 18 ? "Helps" : roundedScore <= -12 ? "Detracts" : "Mixed";
+    return { score: roundedScore, label, reasons };
   }
 
   return (
@@ -438,41 +601,6 @@ export function FeasibilityAnalysis({
       )}
 
       <div className="app-card p-4">
-        <h3 className="text-sm font-semibold text-zinc-900">
-          Recommended staff ({feasResult.recommendedStaff.length})
-        </h3>
-        <p className="mt-1 text-xs text-zinc-500">
-          Suggested from the selected allocation objective: {feasResult.optimizationLabel}
-          {requiredSkills.length > 0
-            ? ". Staff shown here match at least one required proposal skill."
-            : "."}
-        </p>
-        {feasResult.recommendedStaff.length > 0 ? (
-          <ul className="mt-3 divide-y divide-zinc-100">
-            {feasResult.recommendedStaff.map((staff) => (
-              <li key={staff.id} className="py-2">
-                <Link href={`/staff/${staff.id}`} className="group block">
-                  <p className="app-link text-sm font-medium text-zinc-900">{staff.name}</p>
-                  <p className="text-xs text-zinc-600">
-                    {staff.role} · {staff.office}
-                  </p>
-                  {requiredSkills.length > 0 && (
-                    <p className="text-xs text-zinc-500">
-                      Skills: {staff.matchingSkillNames.length > 0 ? staff.matchingSkillNames.join(", ") : "None"}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-3 text-sm text-zinc-600">
-            No staff recommendations yet for the current timeframe and filters.
-          </p>
-        )}
-      </div>
-
-      <div className="app-card p-4">
         <div className="mb-1 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-zinc-900">Proposed staffing plan</h3>
@@ -481,8 +609,11 @@ export function FeasibilityAnalysis({
                 ? "Select staff to draft a delivery team. Candidates are filtered to staff who match at least one required skill."
                 : "Select staff to draft a delivery team. Split defaults to equal shares and can be adjusted manually."}
             </p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              Initial splits are generated by simulation settings ({feasResult.optimizationLabel}) and can be edited before saving.
+            </p>
             <p className="mt-0.5 text-xs text-zinc-400">
-              Use &quot;Save team&quot; to persist the team to the proposal — it will be preserved across simulation runs and carried over when converting to a project.
+              Use &quot;Save staffing plan&quot; to persist this roster to the proposal — it will be preserved across simulation runs and carried over when converting to a project.
             </p>
           </div>
           {selectedProposedStaffIds.size > 0 && (
@@ -499,7 +630,7 @@ export function FeasibilityAnalysis({
                 disabled={teamSaveStatus === "saving"}
                 className="app-btn app-btn-primary focus-ring px-3 py-1.5 text-xs"
               >
-                {teamSaveStatus === "saving" ? "Saving…" : "Save team"}
+                {teamSaveStatus === "saving" ? "Saving…" : "Save staffing plan"}
               </button>
             </div>
           )}
@@ -543,6 +674,13 @@ export function FeasibilityAnalysis({
             <div className="mt-3 flex flex-wrap gap-2">
               {feasResult.staffCapacityCandidates.map((candidate) => {
                 const active = selectedProposedStaffIds.has(candidate.id);
+                const impact = getCandidateImpact(candidate.id);
+                const impactColor =
+                  impact.label === "Helps"
+                    ? "text-emerald-700"
+                    : impact.label === "Detracts"
+                      ? "text-red-700"
+                      : "text-amber-700";
                 return (
                   <button
                     key={candidate.id}
@@ -557,9 +695,12 @@ export function FeasibilityAnalysis({
                       requiredSkills.length > 0 && candidate.matchingSkillNames.length > 0
                         ? ` · Skills: ${candidate.matchingSkillNames.join(", ")}`
                         : ""
-                    }`}
+                    }${impact.reasons.length > 0 ? ` · ${impact.reasons.join(" · ")}` : ""}`}
                   >
                     {candidate.name}
+                    <span className={`ml-2 inline-flex rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold ${impactColor}`}>
+                      {impact.label} {impact.score >= 0 ? `+${impact.score}` : impact.score}
+                    </span>
                   </button>
                 );
               })}
@@ -586,6 +727,7 @@ export function FeasibilityAnalysis({
                       const assignedHours = round1((feasResult.totalRequired * splitPct) / 100);
                       const spareHours = round1(candidate.availableHoursWithoutOverallocation - assignedHours);
                       const canCover = spareHours >= 0;
+                      const impact = getCandidateImpact(candidate.id);
                       return (
                         <tr key={candidate.id} className="border-b border-zinc-100 last:border-0">
                           <td className="px-3 py-2 text-sm text-zinc-800">
@@ -618,6 +760,11 @@ export function FeasibilityAnalysis({
                             <span className={canCover ? "text-emerald-700" : "text-red-700"}>
                               {canCover ? `Can cover (+${spareHours}h)` : `Over by ${Math.abs(spareHours)}h`}
                             </span>
+                            {impact.reasons.length > 0 && (
+                              <p className="mt-0.5 text-xs text-zinc-500">
+                                {impact.reasons.slice(0, 2).join(" · ")}
+                              </p>
+                            )}
                           </td>
                         </tr>
                       );

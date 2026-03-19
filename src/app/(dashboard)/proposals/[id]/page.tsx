@@ -6,7 +6,6 @@ import { hasPermission } from "@/lib/permissions";
 import { DeleteProposalButton } from "./DeleteProposalButton";
 import { ProposalSimulationSection } from "./ProposalSimulationSection";
 import { ProposalStatusChanger } from "./ProposalStatusChanger";
-import { ProposedTeamCard } from "./ProposedTeamCard";
 import { normalizeProposalOptimizationMode } from "../optimization-modes";
 import type { ProposedTeamMember } from "@/lib/types";
 
@@ -43,7 +42,7 @@ export default async function ProposalDetailPage({
 
   const supabase = await createClient();
 
-  const [{ data: proposal }, { data: offices }, { data: staffRows }] = await Promise.all([
+  const [{ data: proposal }, { data: offices }] = await Promise.all([
     supabase
       .from("project_proposals")
       .select("id, name, client_name, proposed_start_date, proposed_end_date, estimated_hours, estimated_hours_per_week, win_probability, skills, office_scope, optimization_mode, proposed_team, status, notes")
@@ -55,11 +54,6 @@ export default async function ProposalDetailPage({
       .select("id, name")
       .eq("tenant_id", user.tenantId)
       .order("name"),
-    supabase
-      .from("staff_profiles")
-      .select("id, weekly_capacity_hours, users!inner(name, email, role, offices(name))")
-      .eq("tenant_id", user.tenantId)
-      .neq("users.role", "administrator"),
   ]);
 
   if (!proposal) notFound();
@@ -115,19 +109,6 @@ export default async function ProposalDetailPage({
         return [{ staff_id: m.staff_id, split_percent: m.split_percent }];
       })
     : [];
-
-  const allStaff = (staffRows ?? []).map((row) => {
-    const userRecord = Array.isArray(row.users) ? row.users[0] : row.users;
-    const officeRecord = Array.isArray((userRecord as { offices?: unknown })?.offices)
-      ? ((userRecord as { offices: unknown[] }).offices)[0]
-      : (userRecord as { offices?: unknown })?.offices;
-    return {
-      id: row.id,
-      name: (userRecord as { name?: string | null })?.name?.trim() || (userRecord as { email?: string })?.email || "Unknown",
-      role: (userRecord as { role?: string })?.role ?? "staff",
-      office: (officeRecord as { name?: string })?.name ?? "No office",
-    };
-  }).filter((s) => s.role !== "administrator").sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
@@ -256,14 +237,6 @@ export default async function ProposalDetailPage({
           </div>
         </div>
       )}
-
-      {/* Proposed Team */}
-      <ProposedTeamCard
-        proposalId={id}
-        initialTeam={proposedTeam}
-        allStaff={allStaff}
-        canManage={canManageProposals && proposal.status !== "converted"}
-      />
 
       {/* Proposal impact + feasibility analysis */}
       <ProposalSimulationSection

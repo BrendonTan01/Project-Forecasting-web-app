@@ -368,7 +368,7 @@ export function ConvertProposalForm({
         {proposedTeam.length > 0 && (
           <div className="rounded-md border border-blue-200 bg-blue-50 p-4">
             <p className="mb-1 text-sm font-medium text-blue-900">
-              Proposed team ({proposedTeam.length} member{proposedTeam.length !== 1 ? "s" : ""})
+              Saved staffing plan ({proposedTeam.length} member{proposedTeam.length !== 1 ? "s" : ""})
             </p>
             <p className="mb-3 text-xs text-blue-700">
               These staff members will be assigned to the project on creation. Review and adjust allocation percentages as needed.

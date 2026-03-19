@@ -63,12 +63,19 @@ export type FeasibilityResult = {
     matchingSkillIds: string[];
     matchingSkillNames: string[];
   }>;
+  proposedStaffingPlan: Array<{
+    staff_id: string;
+    split_percent: number;
+    assigned_hours: number;
+  }>;
   staffCapacityCandidates: Array<{
     id: string;
     name: string;
     role: string;
     office: string;
     availableHoursWithoutOverallocation: number;
+    recommendedSplitPercent: number;
+    projectedAssignedHours: number;
     matchingSkillIds: string[];
     matchingSkillNames: string[];
   }>;
@@ -390,6 +397,7 @@ function allocateSkillDemandForWeek(params: {
   allocatedStaffIds: Set<string>;
   overallocatedStaffIds: Set<string>;
   overallocatedHours: number;
+  assignedHoursByStaff: Map<string, number>;
   skillCoverageById: Map<string, { requiredHours: number; achievableHours: number }>;
 } {
   const {
@@ -498,6 +506,7 @@ function allocateSkillDemandForWeek(params: {
     allocatedStaffIds,
     overallocatedStaffIds,
     overallocatedHours: round1(overallocatedHours),
+    assignedHoursByStaff,
     skillCoverageById,
   };
 }
@@ -546,6 +555,7 @@ function computeFeasibilityCore(
 
   const weeks: WeekFeasibility[] = [];
   const staffUsedById = new Set<string>();
+  const assignedHoursByStaff = new Map<string, number>();
   const freeAt100ByStaff = new Map<string, number>();
   const matchingSkillIdsByStaff = new Map(
     baseData.staff.map((staff) => [staff.id, new Set(staff.matchingSkillIds)] as const)
@@ -654,6 +664,7 @@ function computeFeasibilityCore(
     let allocatedStaffIds = new Set<string>();
     let overallocatedStaffIds = new Set<string>();
     let overallocatedHours = 0;
+    let weeklyAssignedHoursByStaff = new Map<string, number>();
 
     if (hasSkillDemandModel && skillRequiredForWeek.length > 0) {
       const skillAllocation = allocateSkillDemandForWeek({
@@ -667,6 +678,7 @@ function computeFeasibilityCore(
       allocatedStaffIds = skillAllocation.allocatedStaffIds;
       overallocatedStaffIds = skillAllocation.overallocatedStaffIds;
       overallocatedHours = skillAllocation.overallocatedHours;
+      weeklyAssignedHoursByStaff = skillAllocation.assignedHoursByStaff;
       for (const [skillId, coverage] of skillAllocation.skillCoverageById.entries()) {
         const totals = skillTotals.get(skillId);
         if (!totals) continue;
@@ -684,6 +696,7 @@ function computeFeasibilityCore(
       allocatedStaffIds = new Set(allocation.allocatedStaffIds);
       overallocatedStaffIds = new Set(allocation.overallocatedStaffIds);
       overallocatedHours = allocation.overallocatedHours;
+      weeklyAssignedHoursByStaff = new Map(Object.entries(allocation.assignedHoursByStaff));
     }
 
     const overallocatedStaffNames = new Set<string>(
@@ -691,6 +704,13 @@ function computeFeasibilityCore(
     );
     for (const staffId of allocatedStaffIds) {
       staffUsedById.add(staffId);
+    }
+    for (const [staffId, assignedHours] of weeklyAssignedHoursByStaff.entries()) {
+      if (assignedHours <= 0) continue;
+      assignedHoursByStaff.set(
+        staffId,
+        round1((assignedHoursByStaff.get(staffId) ?? 0) + assignedHours)
+      );
     }
     const allocatedStaffCount = allocatedStaffIds.size;
     rawTotalAchievable += achievableHours;
@@ -732,6 +752,38 @@ function computeFeasibilityCore(
   const totalOverallocatedHours = rawTotalOverallocatedHours;
   const requiredSkillNameById = new Map(
     baseData.proposal.skills.map((skill) => [skill.id, skill.name] as const)
+  );
+  const totalAssignedAcrossPlan = round1(
+    Array.from(assignedHoursByStaff.values()).reduce((sum, value) => sum + value, 0)
+  );
+  const proposedStaffingPlan = Array.from(assignedHoursByStaff.entries())
+    .filter(([, assignedHours]) => assignedHours > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([staffId, assignedHours], index, all) => {
+      const splitPercent =
+        totalAssignedAcrossPlan > 0 ? round1((assignedHours / totalAssignedAcrossPlan) * 100) : 0;
+      const isLast = index === all.length - 1;
+      if (!isLast) {
+        return {
+          staff_id: staffId,
+          split_percent: splitPercent,
+          assigned_hours: round1(assignedHours),
+        };
+      }
+      const runningSplit = all
+        .slice(0, -1)
+        .reduce((sum, [, h]) => sum + (totalAssignedAcrossPlan > 0 ? round1((h / totalAssignedAcrossPlan) * 100) : 0), 0);
+      return {
+        staff_id: staffId,
+        split_percent: round1(Math.max(0, 100 - runningSplit)),
+        assigned_hours: round1(assignedHours),
+      };
+    });
+  const recommendedSplitByStaff = new Map(
+    proposedStaffingPlan.map((member) => [member.staff_id, member.split_percent] as const)
+  );
+  const projectedHoursByStaff = new Map(
+    proposedStaffingPlan.map((member) => [member.staff_id, member.assigned_hours] as const)
   );
   const skillCoverage = baseData.proposal.skills
     .map((skill) => {
@@ -777,6 +829,7 @@ function computeFeasibilityCore(
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name)),
+    proposedStaffingPlan,
     staffCapacityCandidates: baseData.staff
       .map((staff) => ({
         id: staff.id,
@@ -784,6 +837,8 @@ function computeFeasibilityCore(
         role: staff.role,
         office: staff.office,
         availableHoursWithoutOverallocation: round1(freeAt100ByStaff.get(staff.id) ?? 0),
+        recommendedSplitPercent: recommendedSplitByStaff.get(staff.id) ?? 0,
+        projectedAssignedHours: projectedHoursByStaff.get(staff.id) ?? 0,
         matchingSkillIds: staff.matchingSkillIds,
         matchingSkillNames: staff.matchingSkillIds
           .map((skillId) => requiredSkillNameById.get(skillId))
