@@ -829,3 +829,138 @@ export async function computeSkillShortages(
 
   return result;
 }
+
+export interface SkillBalanceWeek {
+  week_start: string;
+  demand_hours: number;
+  capacity_hours: number;
+  balance_hours: number;
+}
+
+export interface SkillBalanceByWeek {
+  skill: string;
+  weeks: SkillBalanceWeek[];
+}
+
+export async function computeSkillBalanceByWeek(
+  tenantId: string,
+  weeks: number = DEFAULT_WEEKS
+): Promise<SkillBalanceByWeek[]> {
+  const clampedWeeks = Math.min(Math.max(1, weeks), MAX_WEEKS);
+  const admin = createAdminClient();
+
+  const weekMonday = startOfCurrentWeekUtc();
+  const forecastEnd = addUtcDays(weekMonday, clampedWeeks * 7 - 1);
+  const weekMondayStr = toDateString(weekMonday);
+  const forecastEndStr = toDateString(forecastEnd);
+
+  const [
+    { data: skillRows },
+    { data: requirementRows },
+    { data: staffSkillRows },
+    { data: availabilityRows },
+  ] = await Promise.all([
+    admin
+      .from("skills")
+      .select("id, name")
+      .eq("tenant_id", tenantId),
+    admin
+      .from("project_skill_requirements")
+      .select("project_id, skill_id, required_hours_per_week, projects(status, start_date, end_date)")
+      .eq("tenant_id", tenantId),
+    admin
+      .from("staff_skills")
+      .select("staff_id, skill_id, staff_profiles(id, weekly_capacity_hours)")
+      .eq("tenant_id", tenantId),
+    admin
+      .from("staff_availability")
+      .select("staff_id, week_start, available_hours")
+      .eq("tenant_id", tenantId)
+      .gte("week_start", weekMondayStr)
+      .lte("week_start", forecastEndStr),
+  ]);
+
+  const skills = (skillRows ?? []) as SkillRow[];
+  if (skills.length === 0) {
+    return [];
+  }
+
+  const rawRequirements = (requirementRows ?? []) as RawProjectSkillRequirementRow[];
+  const requirements: ProjectSkillRequirementRow[] = rawRequirements.map((row) => ({
+    project_id: row.project_id,
+    skill_id: row.skill_id,
+    required_hours_per_week: Number(row.required_hours_per_week ?? 0),
+    projects: normalizeProjectRelation(row.projects),
+  }));
+
+  const rawStaffSkills = (staffSkillRows ?? []) as RawStaffSkillRow[];
+  const staffSkills: StaffSkillRow[] = rawStaffSkills.map((row) => {
+    const staffProfile = normalizeStaffProfileRelation(row.staff_profiles);
+    return {
+      staff_id: row.staff_id,
+      skill_id: row.skill_id,
+      staff_profiles: staffProfile
+        ? {
+            id: staffProfile.id,
+            weekly_capacity_hours: Number(staffProfile.weekly_capacity_hours ?? 0),
+          }
+        : null,
+    };
+  });
+  const availability = (availabilityRows ?? []) as AvailabilityRow[];
+
+  const availMap = new Map<string, Map<string, number>>();
+  for (const row of availability) {
+    if (!availMap.has(row.staff_id)) {
+      availMap.set(row.staff_id, new Map());
+    }
+    availMap.get(row.staff_id)!.set(row.week_start, row.available_hours);
+  }
+
+  const activeRequirements = requirements.filter((r) => r.projects?.status === "active");
+
+  const skillToStaff = new Map<string, { staffId: string; weeklyCapacityHours: number }[]>();
+  for (const row of staffSkills) {
+    const profile = row.staff_profiles;
+    if (!profile) continue;
+    if (!skillToStaff.has(row.skill_id)) {
+      skillToStaff.set(row.skill_id, []);
+    }
+    skillToStaff.get(row.skill_id)!.push({
+      staffId: profile.id,
+      weeklyCapacityHours: Number(profile.weekly_capacity_hours ?? 0),
+    });
+  }
+
+  const skillMatrix = buildSkillWeeklyDemandCapacityMatrix(
+    skills,
+    activeRequirements,
+    skillToStaff,
+    availMap,
+    weekMonday,
+    clampedWeeks
+  );
+
+  const response: SkillBalanceByWeek[] = [];
+  for (const skill of skills) {
+    const weekEntries = skillMatrix.get(skill.id) ?? [];
+    const weeksForSkill = weekEntries.map((entry) => ({
+      week_start: entry.weekStart,
+      demand_hours: Math.round(entry.demand * 100) / 100,
+      capacity_hours: Math.round(entry.capacity * 100) / 100,
+      balance_hours: Math.round((entry.capacity - entry.demand) * 100) / 100,
+    }));
+
+    const hasAnySignal = weeksForSkill.some(
+      (entry) => entry.demand_hours > 0 || entry.capacity_hours > 0
+    );
+    if (hasAnySignal) {
+      response.push({
+        skill: skill.name,
+        weeks: weeksForSkill,
+      });
+    }
+  }
+
+  return response;
+}

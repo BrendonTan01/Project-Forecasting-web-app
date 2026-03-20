@@ -3,6 +3,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { ForecastTable } from "@/components/api-views/ForecastTable";
 import { StaffingGapsTable } from "@/components/api-views/StaffingGapsTable";
+import { StaffingRoleGapMatrix } from "@/components/api-views/StaffingRoleGapMatrix";
 import { ForecastRoleInsights } from "@/components/api-views/ForecastRoleInsights";
 
 export default async function ForecastPage() {
@@ -50,8 +51,9 @@ export default async function ForecastPage() {
         </p>
           </div>
         </div>
-        <div className="app-panel-body">
+        <div className="app-panel-body space-y-4">
         <StaffingGapsTable weeks={12} />
+        <StaffingRoleGapMatrix weeks={12} />
         </div>
       </section>
 

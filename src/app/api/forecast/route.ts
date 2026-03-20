@@ -5,6 +5,7 @@ import {
   getForecastForTenant,
   computeSkillShortages,
   computeHiringRecommendations,
+  computeSkillBalanceByWeek,
 } from "@/lib/forecast/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ForecastExplanationEntry } from "@/lib/types";
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
       forecastRows,
       { data: proposalRows },
       skillShortages,
+      skillBalanceByWeek,
       hiringRecommendations,
       { data: leaveRows },
       { data: staffNameRows },
@@ -75,6 +77,7 @@ export async function GET(request: NextRequest) {
         .eq("tenant_id", user.tenantId)
         .in("status", [...PROPOSAL_PIPELINE_STATUSES]),
       computeSkillShortages(user.tenantId, weeks),
+      computeSkillBalanceByWeek(user.tenantId, weeks),
       computeHiringRecommendations(user.tenantId, weeks),
       admin
         .from("leave_requests")
@@ -199,6 +202,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       weeks: responseWeeks,
       skill_shortages: skillShortages,
+      skill_shortages_by_week: skillBalanceByWeek,
       hiring_recommendations: hiringRecommendations,
       proposals: responseProposals,
       planning_hours_per_person_per_week: Number(
