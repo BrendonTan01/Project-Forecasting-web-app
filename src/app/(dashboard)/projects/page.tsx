@@ -410,24 +410,24 @@ export default async function ProjectsPage({
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
           <p className="app-section-caption">Delivery portfolio</p>
-          <h1 className="app-page-title">Projects</h1>
-          <p className="app-page-subtitle mt-1">Strategic visibility into delivery, staffing, and budget signals.</p>
+          <h1 className="text-[2.5rem] font-semibold leading-tight tracking-tight text-zinc-900">Projects</h1>
+          <p className="mt-1 text-lg text-[color:var(--muted-text)]">Strategic visibility into delivery, staffing, and budget signals.</p>
         </div>
         {canManageProjects && (
           <Link
             href="/projects/new"
-            className="app-btn app-btn-primary focus-ring w-full px-4 py-2 text-sm sm:w-auto"
+            className="app-btn app-btn-primary focus-ring w-full px-6 py-3 text-sm sm:w-auto"
           >
             Add project
           </Link>
         )}
       </div>
 
-      <div className="mb-4 space-y-2">
+      <div className="mb-4 space-y-3">
         <ProjectStatusFilter />
         <p className="mt-2 text-sm text-zinc-600">
           Showing {projects?.length ?? 0} project{(projects?.length ?? 0) === 1 ? "" : "s"}
@@ -467,40 +467,19 @@ export default async function ProjectsPage({
         <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Track budget trajectory</span>
       </div>
 
-      <div className="app-table-wrap">
+      <div className="overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border)_14%,transparent)] bg-[color:var(--surface-subtle)] shadow-[var(--shadow-soft)]">
+        <div className="overflow-x-auto">
         <table className="app-table app-table-comfortable min-w-full">
           <thead>
             <tr>
-              <th className="text-left">
-                Project
-              </th>
-              <th className="text-left">
-                Client
-              </th>
-              <th className="text-right">
-                Estimated
-              </th>
-              <th className="text-right">
-                Actual
-              </th>
-              <th className="text-left">
-                Start date
-              </th>
-              <th className="text-left">
-                End date
-              </th>
-              <th className="text-left">
-                Offices
-              </th>
-              <th className="text-left">
-                Status
-              </th>
-              <th className="text-left">
-                Assigned Staff
-              </th>
-              <th className="text-left">
-                Signals
-              </th>
+              <th className="text-left">Project name</th>
+              <th className="text-left">Client</th>
+              <th className="text-left">Est vs Actual</th>
+              <th className="text-left">Timeline</th>
+              <th className="text-left">Scope</th>
+              <th className="text-center">Status</th>
+              <th className="text-left">Signals</th>
+              <th className="text-left">Staff</th>
             </tr>
           </thead>
           <tbody>
@@ -526,6 +505,7 @@ export default async function ProjectsPage({
                   : officeScopeIds
                       .map((officeId) => officeNameById.get(officeId) ?? "Unknown office")
                       .join(", ");
+              const timeline = `${formatProjectDate(project.start_date)} -> ${formatProjectDate(project.end_date)}`;
               const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
               const coveredSkills = new Set<string>();
               for (const staffId of assignmentStaffByProject[project.id] ?? []) {
@@ -582,44 +562,44 @@ export default async function ProjectsPage({
               return (
                 <tr key={project.id}>
                   <td>
-                    <Link
-                      href={`/projects/${project.id}`}
-                      className="app-link font-medium text-zinc-900"
-                    >
-                      {project.name}
-                    </Link>
+                    <div className="flex flex-col">
+                      <Link
+                        href={`/projects/${project.id}`}
+                        className="app-link text-sm font-semibold text-zinc-900"
+                      >
+                        {project.name}
+                      </Link>
+                      <span className="mt-0.5 text-xs text-[color:var(--muted-text)]">ID: {project.id.slice(0, 8)}</span>
+                    </div>
                   </td>
                   <td className="text-sm text-zinc-700">
                     {project.client_name ?? "-"}
                   </td>
-                  <td className="text-right text-sm text-zinc-800">
-                    {estimated > 0 ? `${estimated}h` : "-"}
+                  <td className="text-sm text-zinc-800">
+                    <div className="flex items-center gap-3">
+                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-[color:var(--surface-subtle)]">
+                        <div
+                          className={`h-full rounded-full ${actual > estimated && estimated > 0 ? "bg-red-600" : "bg-[color:var(--accent)]"}`}
+                          style={{ width: `${estimated > 0 ? Math.min(100, (actual / estimated) * 100) : 0}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${actual > estimated && estimated > 0 ? "text-red-700" : "text-zinc-700"}`}>
+                        {actual} / {estimated > 0 ? estimated : "?"}h
+                      </span>
+                    </div>
                   </td>
-                  <td className="text-right text-sm text-zinc-800">
-                    {actual}h
+                  <td className="text-xs font-medium text-[color:var(--muted-text)]">
+                    {timeline}
                   </td>
-                  <td className="text-sm text-zinc-700">
-                    {formatProjectDate(project.start_date)}
-                  </td>
-                  <td className="text-sm text-zinc-700">
-                    {formatProjectDate(project.end_date)}
-                  </td>
-                  <td className="text-sm text-zinc-700">
+                  <td className="text-xs text-zinc-700">
                     {officeScopeLabel}
                   </td>
-                  <td>
+                  <td className="text-center">
                     <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
+                      className={`inline-flex rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${badge.colour}`}
                     >
                       {badge.label}
                     </span>
-                  </td>
-                  <td className="text-sm text-zinc-700">
-                    {staffByProject[project.id]?.length
-                      ? staffByProject[project.id]
-                          .map((s) => `${s.name} (${s.hours}h/wk)`)
-                          .join(", ")
-                      : "—"}
                   </td>
                   <td>
                     <div className="flex flex-wrap items-center gap-2">
@@ -639,11 +619,19 @@ export default async function ProjectsPage({
                       </span>
                     </div>
                   </td>
+                  <td className="text-xs text-zinc-700">
+                    {staffByProject[project.id]?.length
+                      ? staffByProject[project.id]
+                          .map((s) => `${s.name} (${s.hours}h/wk)`)
+                          .join(", ")
+                      : "—"}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {(!projects || projects.length === 0) && (

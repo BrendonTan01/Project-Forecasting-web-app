@@ -26,20 +26,26 @@ export default function ProjectStatusFilter() {
   }
 
   return (
-    <div className="app-toolbar flex gap-1 rounded-xl p-1">
+    <div className="flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--border)_30%,transparent)] pb-0.5">
+      <div className="flex flex-wrap gap-6">
       {statuses.map((s) => (
         <button
           key={s.value}
           onClick={() => handleClick(s.value)}
-          className={`focus-ring rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+          className={`focus-ring border-b-2 pb-3 text-sm font-medium transition-colors ${
             current === s.value
-              ? "bg-[color:var(--accent)] text-[color:var(--accent-contrast)] shadow-sm"
-              : "text-[color:var(--muted-text)] hover:bg-[color:var(--surface-muted)] hover:text-zinc-900"
+              ? "border-[color:var(--accent)] text-[color:var(--accent)]"
+              : "border-transparent text-[color:var(--muted-text)] hover:text-zinc-900"
           }`}
         >
           {s.label}
         </button>
       ))}
+      </div>
+      <div className="flex items-center gap-2 pb-2 text-[color:var(--muted-text)]">
+        <span className="rounded-md p-1 hover:bg-[color:var(--surface-muted)]">Filter</span>
+        <span className="rounded-md p-1 hover:bg-[color:var(--surface-muted)]">Sort</span>
+      </div>
     </div>
   );
 }

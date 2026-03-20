@@ -201,165 +201,184 @@ export default async function DashboardPage() {
       )
     : {};
 
+  const portfolioDeliveryProgress = (activeProjects ?? []).reduce((sum, project) => {
+    const estimated = Number(project.estimated_hours ?? 0);
+    if (estimated <= 0) return sum;
+    const actual = actualHoursByProject[project.id] ?? 0;
+    return sum + Math.max(0, Math.min(100, (actual / estimated) * 100));
+  }, 0);
+  const avgDeliveryProgress =
+    (activeProjects ?? []).length > 0
+      ? portfolioDeliveryProgress / (activeProjects ?? []).length
+      : 0;
+  const activeSignalCount = (activeProjects ?? []).reduce((count, project) => {
+    const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
+    if (requiredSkills.size === 0) return count;
+    const assignedStaffIds = assignmentStaffByProject[project.id] ?? [];
+    const assignedSkillIds = new Set<string>();
+    for (const staffId of assignedStaffIds) {
+      const staffSkills = staffSkillsByStaffId.get(staffId);
+      if (!staffSkills) continue;
+      for (const skillId of staffSkills) assignedSkillIds.add(skillId);
+    }
+    const missing = Array.from(requiredSkills).some((skillId) => !assignedSkillIds.has(skillId));
+    return missing ? count + 1 : count;
+  }, 0);
+
   return (
-    <div className="space-y-6">
-      <section className="app-panel">
-        <div className="app-panel-body">
-          <p className="app-section-caption">Executive command center</p>
-          <h1 className="app-page-title mt-1">Delivery and Capacity Overview</h1>
-          <p className="app-page-subtitle mt-2">
-            Use this page to decide where to rebalance staffing, which bids to prioritize, and where financial or delivery risk is trending.
-          </p>
-        </div>
+    <div className="space-y-10">
+      <section className="rounded-xl border border-[color:color-mix(in_srgb,var(--border)_15%,transparent)] bg-[color:var(--surface-lowest)] p-8 shadow-[var(--shadow-soft)]">
+        <h2 className="text-[1.5rem] font-medium tracking-tight text-zinc-900">Delivery and Capacity Overview</h2>
+        <p className="mt-1 text-sm text-[color:var(--muted-text)]">
+          Strategic visibility into resource allocation, forecasting accuracy, and operational signals.
+        </p>
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-          <h2 className="app-section-heading">At-a-glance overview</h2>
-          <p className="text-sm text-zinc-600">
-            Visual summary for executives with key forecast, utilization, and capacity signals.
-          </p>
-          </div>
+      <section className="space-y-6">
+        <div className="flex items-baseline justify-between">
+          <h3 className="text-base font-semibold text-zinc-900">At-a-glance overview</h3>
           <span className="label-sm text-[color:var(--muted-text)]">Updated recently</span>
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="app-metric-card">
+            <span className="app-metric-label">Active projects</span>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-[3.2rem] font-semibold leading-none tracking-tight text-zinc-900">
+                {(activeProjects ?? []).length}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-[color:var(--muted-text)]">Currently in delivery</p>
+          </div>
+          <div className="app-metric-card">
+            <span className="app-metric-label">Avg delivery progress</span>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-[3.2rem] font-semibold leading-none tracking-tight text-zinc-900">
+                {avgDeliveryProgress.toFixed(0)}
+              </span>
+              <span className="mb-1 text-sm font-medium text-[color:var(--muted-text)]">%</span>
+            </div>
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--surface-subtle)]">
+              <div className="h-full rounded-full bg-[color:var(--accent)]" style={{ width: `${safePercent(avgDeliveryProgress)}%` }} />
+            </div>
+          </div>
+          <div className="app-metric-card">
+            <span className="app-metric-label">Active signals</span>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-[3.2rem] font-semibold leading-none tracking-tight text-zinc-900">
+                {activeSignalCount}
+              </span>
+              <span className="mb-1 text-sm font-medium text-[color:var(--muted-text)]">alerts</span>
+            </div>
+            <p className="mt-2 text-sm text-[color:var(--muted-text)]">Skill coverage and delivery watchouts</p>
+          </div>
         </div>
         <DashboardOverviewClient weeks={26} />
       </section>
 
       {showCurrentProjects && (
-        <section className="app-panel space-y-3 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-zinc-900">Current Projects</h2>
-              <p className="text-sm text-zinc-600">
-                Active projects with delivery and financial progress.
-              </p>
-            </div>
-            <Link href="/projects" className="app-link text-sm font-medium">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-zinc-900">Current Projects</h3>
+            <Link href="/projects" className="app-link group inline-flex items-center gap-1 text-sm font-medium text-[color:var(--muted-text)]">
               View all projects
+              <span aria-hidden className="text-xs transition-transform group-hover:translate-x-0.5">-&gt;</span>
             </Link>
           </div>
-          <div className="app-table-wrap">
-            <table className="app-table app-table-comfortable min-w-full">
-              <thead>
-                <tr>
-                  <th className="text-left">Project</th>
-                  <th className="text-left">Client</th>
-                  <th className="text-left">Progress</th>
-                  <th className="text-left">Skills</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(activeProjects ?? []).map((project) => {
-                  const actualHours = actualHoursByProject[project.id] ?? 0;
-                  const estimatedHours = Number(project.estimated_hours ?? 0);
-                  const deliveryProgress =
-                    estimatedHours > 0 ? (actualHours / estimatedHours) * 100 : null;
-                  const financialData = financialByProject[project.id] ?? {
-                    actualCost: 0,
-                    actualHours: 0,
-                  };
-                  const assignedStaffIds = assignmentStaffByProject[project.id] ?? [];
-                  const assignedCostRates = assignedStaffIds
-                    .map((id) => staffCostRateById.get(id))
-                    .filter((rate): rate is number => rate !== null && rate !== undefined);
-                  const avgAssignedCostRate =
-                    assignedCostRates.length > 0
-                      ? assignedCostRates.reduce((sum, rate) => sum + Number(rate), 0) / assignedCostRates.length
-                      : null;
-                  const estimatedCostBudget =
-                    estimatedHours > 0 && avgAssignedCostRate !== null
-                      ? estimatedHours * avgAssignedCostRate
-                      : null;
-                  const financialProgress =
-                    canViewFinancials && estimatedCostBudget && estimatedCostBudget > 0
-                      ? (financialData.actualCost / estimatedCostBudget) * 100
-                      : null;
-                  const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
-                  const assignedStaffSkills = new Set<string>();
-                  for (const staffId of assignedStaffIds) {
-                    const staffSkills = staffSkillsByStaffId.get(staffId);
-                    if (!staffSkills) continue;
-                    for (const skillId of staffSkills) assignedStaffSkills.add(skillId);
-                  }
-                  const missingRequiredSkills = Array.from(requiredSkills).filter(
-                    (skillId) => !assignedStaffSkills.has(skillId)
-                  );
-                  const missingSkillCount = missingRequiredSkills.length;
-                  const totalRequiredSkills = requiredSkills.size;
-                  const skillTone: SignalTone =
-                    totalRequiredSkills === 0
-                      ? "neutral"
-                      : missingSkillCount > 0
-                        ? "danger"
-                        : "success";
-                  const skillLabel =
-                    totalRequiredSkills === 0
-                      ? "No skill reqs"
-                      : missingSkillCount > 0
-                        ? `${missingSkillCount}/${totalRequiredSkills} missing`
-                        : "All covered";
+          <div className="overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border)_12%,transparent)] bg-[color:var(--surface-subtle)]">
+            <div className="overflow-x-auto">
+              <table className="app-table app-table-comfortable min-w-full">
+                <thead>
+                  <tr>
+                    <th className="text-left">Project</th>
+                    <th className="text-left">Client</th>
+                    <th className="text-left">Delivery Progress</th>
+                    <th className="text-left">Financial Progress</th>
+                    <th className="text-left">Skills Signal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(activeProjects ?? []).map((project) => {
+                    const actualHours = actualHoursByProject[project.id] ?? 0;
+                    const estimatedHours = Number(project.estimated_hours ?? 0);
+                    const deliveryProgress =
+                      estimatedHours > 0 ? (actualHours / estimatedHours) * 100 : null;
+                    const financialData = financialByProject[project.id] ?? {
+                      actualCost: 0,
+                      actualHours: 0,
+                    };
+                    const assignedStaffIds = assignmentStaffByProject[project.id] ?? [];
+                    const assignedCostRates = assignedStaffIds
+                      .map((id) => staffCostRateById.get(id))
+                      .filter((rate): rate is number => rate !== null && rate !== undefined);
+                    const avgAssignedCostRate =
+                      assignedCostRates.length > 0
+                        ? assignedCostRates.reduce((sum, rate) => sum + Number(rate), 0) / assignedCostRates.length
+                        : null;
+                    const estimatedCostBudget =
+                      estimatedHours > 0 && avgAssignedCostRate !== null
+                        ? estimatedHours * avgAssignedCostRate
+                        : null;
+                    const financialProgress =
+                      canViewFinancials && estimatedCostBudget && estimatedCostBudget > 0
+                        ? (financialData.actualCost / estimatedCostBudget) * 100
+                        : null;
+                    const requiredSkills = requiredSkillsByProject.get(project.id) ?? new Set<string>();
+                    const assignedStaffSkills = new Set<string>();
+                    for (const staffId of assignedStaffIds) {
+                      const staffSkills = staffSkillsByStaffId.get(staffId);
+                      if (!staffSkills) continue;
+                      for (const skillId of staffSkills) assignedStaffSkills.add(skillId);
+                    }
+                    const missingRequiredSkills = Array.from(requiredSkills).filter(
+                      (skillId) => !assignedStaffSkills.has(skillId)
+                    );
+                    const missingSkillCount = missingRequiredSkills.length;
+                    const totalRequiredSkills = requiredSkills.size;
+                    const skillTone: SignalTone =
+                      totalRequiredSkills === 0
+                        ? "neutral"
+                        : missingSkillCount > 0
+                          ? "danger"
+                          : "success";
+                    const skillLabel =
+                      totalRequiredSkills === 0
+                        ? "No skill reqs"
+                        : missingSkillCount > 0
+                          ? `${missingSkillCount}/${totalRequiredSkills} missing`
+                          : "All covered";
 
-                  return (
-                    <tr key={project.id}>
-                      <td>
-                        <Link href={`/projects/${project.id}`} className="app-link font-medium text-zinc-900">
-                          {project.name}
-                        </Link>
-                      </td>
-                      <td className="text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
-                      <td className="text-sm text-zinc-800">
-                        <div className="max-w-72 space-y-2">
-                          <div>
-                            <div className="mb-1 flex items-center justify-between text-xs">
-                              <span className="font-medium text-zinc-600">Delivery</span>
-                              <span className="flex items-center gap-1 tabular-nums text-zinc-700">
-                                <span
-                                  className={deliveryProgress !== null && deliveryProgress > 100 ? "font-semibold text-red-700" : ""}
-                                >
-                                  {deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}
-                                </span>
-                                {deliveryProgress !== null && deliveryProgress > 100 && (
-                                  <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                                    &gt;100%
-                                  </span>
-                                )}
-                              </span>
+                    return (
+                      <tr key={project.id}>
+                        <td>
+                          <Link href={`/projects/${project.id}`} className="app-link font-medium text-zinc-900">
+                            {project.name}
+                          </Link>
+                        </td>
+                        <td className="text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
+                        <td className="text-sm text-zinc-800">
+                          <div className="flex max-w-56 items-center gap-3">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--surface-subtle)]">
+                              <div className="h-full rounded-full bg-[color:var(--accent)]" style={{ width: `${safePercent(deliveryProgress ?? 0)}%` }} />
                             </div>
-                            <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
-                              <div
-                                className={`h-full rounded-full ${deliveryProgress !== null && deliveryProgress > 100 ? "bg-red-600" : "bg-blue-600"}`}
-                                style={{ width: `${safePercent(deliveryProgress ?? 0)}%` }}
-                              />
-                            </div>
+                            <span className="w-8 text-xs font-semibold tabular-nums text-zinc-700">
+                              {deliveryProgress === null ? "N/A" : `${deliveryProgress.toFixed(0)}%`}
+                            </span>
                           </div>
-                          <div>
-                            <div className="mb-1 flex items-center justify-between text-xs">
-                              <span className="font-medium text-zinc-600">Financial</span>
-                              <span className="flex items-center gap-1 tabular-nums text-zinc-700">
-                                <span
-                                  className={financialProgress !== null && financialProgress > 100 ? "font-semibold text-red-700" : ""}
-                                >
-                                  {financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}
-                                </span>
-                                {financialProgress !== null && financialProgress > 100 && (
-                                  <span className="inline-flex rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                                    &gt;100%
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="h-2.5 w-full overflow-visible rounded-full bg-zinc-200">
+                        </td>
+                        <td>
+                          <div className="flex max-w-56 items-center gap-3">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--surface-subtle)]">
                               <div
-                                className={`h-full rounded-full ${financialProgress !== null && financialProgress > 100 ? "bg-red-600" : "bg-emerald-600"}`}
+                                className={`h-full rounded-full ${financialProgress !== null && financialProgress > 100 ? "bg-red-600" : "bg-[color:var(--accent)]/70"}`}
                                 style={{ width: `${safePercent(financialProgress ?? 0)}%` }}
                               />
                             </div>
+                            <span className="w-8 text-xs font-semibold tabular-nums text-zinc-700">
+                              {financialProgress === null ? "N/A" : `${financialProgress.toFixed(0)}%`}
+                            </span>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex flex-wrap items-center gap-2">
+                        </td>
+                        <td>
                           <span
                             className={signalBadgeClasses(skillTone)}
                             title={
@@ -373,20 +392,19 @@ export default async function DashboardPage() {
                             <SkillSignalIcon />
                             <span>{skillLabel}</span>
                           </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             {(activeProjects ?? []).length === 0 && (
               <p className="p-4 text-sm text-zinc-600">No active projects found.</p>
             )}
           </div>
         </section>
       )}
-
     </div>
   );
 }
