@@ -11,6 +11,13 @@ type ForecastWeek = {
 type ForecastInsightsResponse = {
   weeks: ForecastWeek[];
   skill_shortages: SkillShortage[];
+  skill_shortages_by_week?: Array<{
+    skill: string;
+    weeks: Array<{
+      week_start: string;
+      balance_hours: number;
+    }>;
+  }>;
   hiring_recommendations: HiringRecommendation[];
   planning_hours_per_person_per_week?: number;
 };
@@ -19,6 +26,44 @@ type RoleGapRow = {
   role: string;
   gapFte: number;
 };
+
+type InsightSeverity = "Low" | "Medium" | "High" | "Critical";
+
+function getInsightSeverity(
+  weeks: ForecastWeek[],
+  roleBalancesByWeek: NonNullable<ForecastInsightsResponse["skill_shortages_by_week"]>
+): InsightSeverity {
+  const maxAggregateGap = weeks.reduce(
+    (maxGap, week) => Math.max(maxGap, Number(week.staffing_gap ?? 0)),
+    0
+  );
+  const maxRoleDeficit = roleBalancesByWeek.reduce((maxDeficit, role) => {
+    const worstForRole = role.weeks.reduce(
+      (worst, week) => Math.max(worst, Math.max(0, Number(week.balance_hours) * -1)),
+      0
+    );
+    return Math.max(maxDeficit, worstForRole);
+  }, 0);
+
+  const riskSignal = Math.max(maxAggregateGap, maxRoleDeficit);
+  if (riskSignal >= 160) return "Critical";
+  if (riskSignal >= 90) return "High";
+  if (riskSignal >= 35) return "Medium";
+  return "Low";
+}
+
+function getSeverityClasses(severity: InsightSeverity): string {
+  switch (severity) {
+    case "Critical":
+      return "border-red-200/40 bg-red-200/20 text-red-100";
+    case "High":
+      return "border-orange-200/40 bg-orange-200/20 text-orange-100";
+    case "Medium":
+      return "border-amber-200/40 bg-amber-200/20 text-amber-100";
+    default:
+      return "border-emerald-200/40 bg-emerald-200/20 text-emerald-100";
+  }
+}
 
 function buildRoleRows(
   skillShortages: SkillShortage[],
@@ -38,9 +83,33 @@ function buildRoleRows(
 
 function buildInsightText(
   recommendations: HiringRecommendation[],
-  weeks: ForecastWeek[]
+  weeks: ForecastWeek[],
+  roleBalancesByWeek: NonNullable<ForecastInsightsResponse["skill_shortages_by_week"]>
 ): string {
+  const worstRoleDeficit = roleBalancesByWeek.reduce<{
+    skill: string;
+    deficitHours: number;
+    weekIndex: number;
+  } | null>((worst, role) => {
+    role.weeks.forEach((week, index) => {
+      const deficit = Math.max(0, Number(week.balance_hours) * -1);
+      if (!worst || deficit > worst.deficitHours) {
+        worst = {
+          skill: role.skill,
+          deficitHours: deficit,
+          weekIndex: index + 1,
+        };
+      }
+    });
+    return worst;
+  }, null);
+
   const topRecommendation = recommendations[0];
+  if (topRecommendation && worstRoleDeficit && worstRoleDeficit.deficitHours > 0) {
+    const windowWeeks = Math.max(1, Number(topRecommendation.recommended_hiring_window_weeks || 1));
+    return `${topRecommendation.skill} is the top delivery risk, peaking at a ${Math.round(worstRoleDeficit.deficitHours)} hour role deficit in WK ${worstRoleDeficit.weekIndex}. Add ${topRecommendation.staff_needed} FTE within ${windowWeeks} week${windowWeeks === 1 ? "" : "s"} to stabilize forecasted demand.`;
+  }
+
   if (topRecommendation) {
     const windowWeeks = Math.max(1, Number(topRecommendation.recommended_hiring_window_weeks || 1));
     return `${topRecommendation.skill} capacity is projected to bottleneck. Plan to add ${topRecommendation.staff_needed} FTE within ${windowWeeks} week${windowWeeks === 1 ? "" : "s"} to protect delivery timelines.`;
@@ -58,7 +127,15 @@ function buildInsightText(
   );
 
   if (peakGap.gap > 0) {
+    if (worstRoleDeficit && worstRoleDeficit.deficitHours > 0) {
+      return `Week ${peakGap.weekIndex} has the highest overall demand pressure, while ${worstRoleDeficit.skill} is the most constrained role in WK ${worstRoleDeficit.weekIndex} (${Math.round(worstRoleDeficit.deficitHours)}h deficit). Consider shifting lower-priority scope or temporary backfill for that role.`;
+    }
+
     return `Week ${peakGap.weekIndex} has the highest demand pressure with a ${Math.round(peakGap.gap)} hour capacity gap. Consider re-sequencing project starts or augmenting with short-term support.`;
+  }
+
+  if (worstRoleDeficit && worstRoleDeficit.deficitHours > 0) {
+    return `${worstRoleDeficit.skill} has the largest role-level shortfall at ${Math.round(worstRoleDeficit.deficitHours)} hours in WK ${worstRoleDeficit.weekIndex}, even though aggregate capacity remains stable. Monitor role assignments and pre-plan targeted hiring.`;
   }
 
   return "No critical staffing bottlenecks are currently forecasted. Continue monitoring utilization and keep a hiring buffer for upcoming changes in demand.";
@@ -96,7 +173,15 @@ export function ForecastRoleInsights({ weeks = 10 }: { weeks?: number }) {
           { role: "Project Managers", gapFte: 0 },
         ];
   const maxGap = Math.max(...rowsToRender.map((item) => Math.abs(item.gapFte)), 1);
-  const insightText = buildInsightText(data?.hiring_recommendations ?? [], data?.weeks ?? []);
+  const insightText = buildInsightText(
+    data?.hiring_recommendations ?? [],
+    data?.weeks ?? [],
+    data?.skill_shortages_by_week ?? []
+  );
+  const insightSeverity = getInsightSeverity(
+    data?.weeks ?? [],
+    data?.skill_shortages_by_week ?? []
+  );
 
   if (loading) {
     return (
@@ -154,7 +239,16 @@ export function ForecastRoleInsights({ weeks = 10 }: { weeks?: number }) {
               <span className="h-3 w-3 rounded-full bg-white" />
             </div>
             <div>
-              <h3 className="text-2xl font-semibold tracking-tight">Strategic Insight</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-2xl font-semibold tracking-tight">Strategic Insight</h3>
+                <span
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${getSeverityClasses(
+                    insightSeverity
+                  )}`}
+                >
+                  {insightSeverity}
+                </span>
+              </div>
               <p className="mt-3 text-sm leading-6 text-white/85">{safeInsightText}</p>
               {error ? <p className="mt-2 text-xs text-amber-200">Data fetch warning: {error}</p> : null}
             </div>
