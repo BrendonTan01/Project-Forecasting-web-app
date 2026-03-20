@@ -1,6 +1,6 @@
 import { rangesOverlap, toUtcDate, toWeekMonday } from "@/lib/utils/week";
 
-export type ProposalWeekHoursInput = {
+type ProposalWeekHoursInput = {
   estimated_hours_per_week: number | null;
   estimated_hours: number | null;
   proposed_start_date: string | null;

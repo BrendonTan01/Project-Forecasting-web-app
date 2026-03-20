@@ -314,7 +314,7 @@ const DRIVER_COLORS: Record<"proposal" | "leave" | "project", string> = {
   project: "#10b981",
 };
 
-export function ForecastDriversSection({
+function ForecastDriversSection({
   weeks,
   selectedProposalIds,
 }: {

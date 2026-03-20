@@ -13,7 +13,7 @@ import type { UserRole } from "@/lib/types";
  * "time_entries:create" – log own hours
  * "leave:approve"       – approve or reject leave requests
  */
-export type Permission =
+type Permission =
   | "projects:manage"
   | "proposals:manage"
   | "proposals:simulate"
@@ -58,7 +58,7 @@ export function hasPermission(role: UserRole, permission: Permission): boolean {
  * Route prefixes that are blocked for specific roles.
  * Used by both the middleware and layout guards.
  */
-export const STAFF_BLOCKED_PREFIXES: string[] = ["/proposals", "/capacity", "/capacity-planner"];
+const STAFF_BLOCKED_PREFIXES: string[] = ["/proposals", "/capacity", "/capacity-planner"];
 
 /** Returns true when `pathname` is under one of the staff-blocked prefixes. */
 export function isStaffBlockedRoute(pathname: string): boolean {

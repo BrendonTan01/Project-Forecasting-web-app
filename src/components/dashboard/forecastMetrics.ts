@@ -1,6 +1,6 @@
 import type { ForecastWeek, HiringRecommendation } from "./types";
 
-export type StaffingRiskLevel = "High" | "Medium" | "None";
+type StaffingRiskLevel = "High" | "Medium" | "None";
 
 export function getDemandUtilizationPercent(demandHours: number, totalCapacity: number): number {
   if (totalCapacity <= 0) return 0;

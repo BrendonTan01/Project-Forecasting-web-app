@@ -1,4 +1,4 @@
-export function SkeletonRow() {
+function SkeletonRow() {
   return (
     <div className="flex items-center gap-4 border-b border-zinc-100 px-4 py-3">
       <div className="h-4 w-1/3 animate-pulse rounded bg-zinc-200" />
@@ -8,7 +8,7 @@ export function SkeletonRow() {
   );
 }
 
-export function SkeletonCard() {
+function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-lg border border-zinc-200 bg-white p-4">
       <div className="mb-2 h-3 w-1/3 rounded bg-zinc-200" />

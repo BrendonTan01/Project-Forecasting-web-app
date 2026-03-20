@@ -1,4 +1,4 @@
-export type ExplanationEntry =
+type ExplanationEntry =
   {
     type: "proposal" | "leave" | "project";
     name: string;

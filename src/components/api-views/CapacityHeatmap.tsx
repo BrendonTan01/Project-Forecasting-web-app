@@ -232,7 +232,7 @@ function CellDetailModal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export type CapacityHeatmapProps = {
+type CapacityHeatmapProps = {
   weeks?: number;
   officeIds?: string[];
   skillId?: string | null;

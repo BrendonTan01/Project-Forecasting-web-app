@@ -76,18 +76,18 @@ export function Badge({
   return <span className={cx("app-badge", badgeVariantClass[variant], className)}>{children}</span>;
 }
 
-export function Panel({ className, ...props }: ComponentPropsWithoutRef<"section">) {
+function Panel({ className, ...props }: ComponentPropsWithoutRef<"section">) {
   return <section className={cx("app-panel", className)} {...props} />;
 }
 
-export function PanelHeader({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+function PanelHeader({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return <div className={cx("app-panel-header", className)} {...props} />;
 }
 
-export function PanelBody({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+function PanelBody({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return <div className={cx("app-panel-body", className)} {...props} />;
 }
 
-export function MetricCard({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+function MetricCard({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return <div className={cx("app-metric-card", className)} {...props} />;
 }
