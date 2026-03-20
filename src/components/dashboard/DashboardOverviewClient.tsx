@@ -100,24 +100,6 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
             Highlights for leadership decisions on demand, utilization, and hiring over the current planning horizon.
           </p>
         </div>
-        <div className="shrink-0 pt-0.5">
-          <label htmlFor="forecast-horizon" className="sr-only">
-            Forecast horizon
-          </label>
-          <select
-            id="forecast-horizon"
-            value={horizonWeeks}
-            onChange={(event) => {
-              setLoading(true);
-              setError(null);
-              setHorizonWeeks(Number(event.target.value));
-            }}
-            className="app-select h-8 w-auto min-w-[8.5rem] rounded-md border-zinc-200 bg-zinc-50/70 px-2.5 py-1 text-[11px] font-medium leading-none text-zinc-600 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
-          >
-            <option value={12}>Next 12 weeks</option>
-            <option value={26}>Next 26 weeks</option>
-          </select>
-        </div>
       </section>
       <DashboardKpiCards
         weeks={data.weeks}
@@ -133,13 +115,31 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
                   <p className="app-section-caption">Signal</p>
                   <h3 className="app-section-heading">Utilization Forecast</h3>
                 </div>
-                <div className="text-right">
-                  <p className="text-[11px] uppercase tracking-wide text-zinc-500">
-                    Global capacity
-                  </p>
-                  <p className="text-3xl font-semibold leading-none text-zinc-900">
-                    {globalCapacity.toFixed(1)}%
-                  </p>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <label htmlFor="forecast-horizon" className="sr-only">
+                    Forecast horizon
+                  </label>
+                  <select
+                    id="forecast-horizon"
+                    value={horizonWeeks}
+                    onChange={(event) => {
+                      setLoading(true);
+                      setError(null);
+                      setHorizonWeeks(Number(event.target.value));
+                    }}
+                    className="app-select h-8 w-auto min-w-[8.5rem] rounded-md border-zinc-200 bg-zinc-50/70 px-2.5 py-1 text-[11px] font-medium leading-none text-zinc-600 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
+                  >
+                    <option value={12}>Next 12 weeks</option>
+                    <option value={26}>Next 26 weeks</option>
+                  </select>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                      Global capacity
+                    </p>
+                    <p className="text-3xl font-semibold leading-none text-zinc-900">
+                      {globalCapacity.toFixed(1)}%
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
