@@ -4,7 +4,7 @@ import { useState } from "react";
 import CapacityPlannerOverview from "./CapacityPlannerOverview";
 import CapacityPlannerClient from "./CapacityPlannerClient";
 import type { CapacityPlannerResponse } from "@/app/api/capacity-planner/route";
-import { ForecastTable } from "@/components/api-views/ForecastTable";
+import { ForecastUtilizationTrend } from "@/components/api-views/ForecastUtilizationTrend";
 import { StaffingGapsTable } from "@/components/api-views/StaffingGapsTable";
 
 type Tab = "office-overview" | "staff-assignments" | "forecasting";
@@ -13,12 +13,14 @@ interface CapacityPlannerTabsProps {
   staffInitialData: CapacityPlannerResponse | null;
   staffFetchError: string | null;
   canEdit: boolean;
+  canViewForecasting: boolean;
 }
 
 export default function CapacityPlannerTabs({
   staffInitialData,
   staffFetchError,
   canEdit,
+  canViewForecasting,
 }: CapacityPlannerTabsProps) {
   const [tab, setTab] = useState<Tab>("office-overview");
 
@@ -54,20 +56,22 @@ export default function CapacityPlannerTabs({
         >
           Staff assignments
         </button>
-        <button
-          type="button"
-          onClick={() => setTab("forecasting")}
-          role="tab"
-          aria-selected={tab === "forecasting"}
-          aria-current={tab === "forecasting" ? "page" : undefined}
-          className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 ${
-            tab === "forecasting"
-              ? "border-[color:var(--accent)] bg-zinc-100 text-zinc-900 shadow-[inset_0_-1px_0_var(--accent)]"
-              : "border-transparent text-[color:var(--muted-text)] hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          Forecasting
-        </button>
+        {canViewForecasting && (
+          <button
+            type="button"
+            onClick={() => setTab("forecasting")}
+            role="tab"
+            aria-selected={tab === "forecasting"}
+            aria-current={tab === "forecasting" ? "page" : undefined}
+            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 ${
+              tab === "forecasting"
+                ? "border-[color:var(--accent)] bg-zinc-100 text-zinc-900 shadow-[inset_0_-1px_0_var(--accent)]"
+                : "border-transparent text-[color:var(--muted-text)] hover:bg-zinc-100 hover:text-zinc-900"
+            }`}
+          >
+            Forecasting
+          </button>
+        )}
         </div>
       </div>
 
@@ -94,15 +98,15 @@ export default function CapacityPlannerTabs({
         </>
       )}
 
-      {tab === "forecasting" && (
+      {canViewForecasting && tab === "forecasting" && (
         <div className="space-y-5">
           <section className="rounded-xl border border-[color:color-mix(in_srgb,var(--border)_20%,transparent)] bg-[color:var(--surface-lowest)] p-4 shadow-[var(--shadow-soft)]">
             <h3 className="text-sm font-semibold text-zinc-900">Weekly utilization forecast</h3>
             <p className="mt-1 text-xs text-[color:var(--muted-text)]">
-              Projected capacity vs project load for the next 12 weeks.
+              Projected capacity pressure over the next 12 weeks.
             </p>
             <div className="mt-4">
-              <ForecastTable weeks={12} />
+              <ForecastUtilizationTrend weeks={12} />
             </div>
           </section>
 
