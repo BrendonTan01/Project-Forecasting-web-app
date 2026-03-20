@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
-import { NavLink } from "@/components/ui/NavLink";
 import { hasPermission } from "@/lib/permissions";
 import type { UserRole } from "@/lib/types";
+import WorkflowNavigation from "@/components/ui/WorkflowNavigation";
 
 type NavItem = {
   href: string;
@@ -78,6 +78,20 @@ export default async function DashboardLayout({
     { key: "delivery", label: "Delivery" },
     { key: "operations", label: "Ops" },
   ] as const;
+  const workflowSections: Array<{
+    key: "overview" | "planning" | "delivery" | "operations";
+    label: string;
+    href: string;
+  }> = [];
+  for (const group of navGroups) {
+    const firstLink = navLinks.find((link) => link.group === group.key);
+    if (!firstLink) continue;
+    workflowSections.push({
+      key: group.key,
+      label: group.label,
+      href: firstLink.href,
+    });
+  }
 
   return (
     <div className="app-shell">
@@ -105,27 +119,13 @@ export default async function DashboardLayout({
               </form>
             </div>
           </div>
-          <nav className="app-toolbar flex items-center gap-2 overflow-x-auto p-2">
-            {navGroups.map((group) => {
-              const groupedLinks = navLinks.filter((link) => link.group === group.key);
-              if (groupedLinks.length === 0) return null;
-              return (
-                <div key={group.key} className="flex shrink-0 items-center gap-1">
-                  <span className="app-nav-group-label whitespace-nowrap">{group.label}</span>
-                  {groupedLinks.map((link) => (
-                    <NavLink key={link.href} href={link.href} label={link.label} />
-                  ))}
-                </div>
-              );
-            })}
-          </nav>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-            <span>Navigate by workflow to reduce context switching.</span>
-          </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {children}
+        <div className="space-y-4">
+          <WorkflowNavigation sections={workflowSections} links={navLinks} />
+          {children}
+        </div>
       </main>
     </div>
   );
