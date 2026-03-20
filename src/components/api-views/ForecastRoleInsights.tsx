@@ -147,8 +147,8 @@ export function ForecastRoleInsights({ weeks = 10 }: { weeks?: number }) {
         </div>
       </article>
 
-      <article className="app-panel overflow-hidden border-0 bg-[#0f1d3d] text-white shadow-[0_12px_32px_rgb(15_29_61/34%)]">
-        <div className="app-panel-body flex h-full flex-col gap-6 p-6">
+      <article className="overflow-hidden rounded-[var(--radius-lg)] border border-white/10 bg-[#0f1d3d] text-white shadow-[0_12px_32px_rgb(15_29_61/34%)]">
+        <div className="flex h-full min-h-[220px] flex-col gap-6 p-6">
           <div className="space-y-4">
             <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
               <span className="h-3 w-3 rounded-full bg-white" />
