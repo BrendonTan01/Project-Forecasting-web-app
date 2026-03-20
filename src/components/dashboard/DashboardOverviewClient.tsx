@@ -127,7 +127,7 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
                       setError(null);
                       setHorizonWeeks(Number(event.target.value));
                     }}
-                    className="app-select h-9 w-auto min-w-[11rem] rounded-md border-zinc-200 bg-zinc-50/70 px-3 py-1.5 text-xs font-medium leading-tight text-zinc-600 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
+                    className="app-select h-10 w-auto min-w-[12rem] rounded-md border-zinc-200 bg-zinc-50/70 px-3 pr-9 text-sm font-medium leading-5 text-zinc-700 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
                   >
                     <option value={12}>Next 12 weeks</option>
                     <option value={26}>Next 26 weeks</option>
