@@ -2,14 +2,12 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { headers } from "next/headers";
 import CapacityPlannerTabs from "./CapacityPlannerTabs";
 import type { CapacityPlannerResponse } from "@/app/api/capacity-planner/route";
-import { hasPermission } from "@/lib/permissions";
 
 export default async function CapacityPlannerPage() {
   const user = await getCurrentUserWithTenant();
   if (!user) return null;
 
   const canEdit = user.role === "manager" || user.role === "administrator";
-  const canViewForecasting = hasPermission(user.role, "financials:view");
 
   // Fetch staff planner data server-side for the Staff assignments tab
   const headersList = await headers();
@@ -52,7 +50,6 @@ export default async function CapacityPlannerPage() {
         staffInitialData={staffData}
         staffFetchError={staffFetchError}
         canEdit={canEdit}
-        canViewForecasting={canViewForecasting}
       />
     </div>
   );
