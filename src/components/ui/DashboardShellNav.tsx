@@ -40,7 +40,11 @@ export default function DashboardShellNav({
 }) {
   const pathname = normalize(usePathname() ?? "/");
   const activeSection =
-    sections.find((section) => isActive(pathname, section.href)) ?? sections[0];
+    sections.find((section) => isActive(pathname, section.href)) ??
+    sections.find((section) =>
+      links.some((link) => link.group === section.key && isActive(pathname, link.href))
+    ) ??
+    sections[0];
   const activePages = activeSection
     ? links.filter((link) => link.group === activeSection.key)
     : [];
