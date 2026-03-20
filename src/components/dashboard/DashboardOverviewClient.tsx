@@ -92,36 +92,37 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2">
-        <p className="app-section-caption">Executive snapshot</p>
-        <h2 className="app-section-heading">Key operating signals</h2>
-        <p className="app-page-subtitle">
-          Highlights for leadership decisions on demand, utilization, and hiring over the current planning horizon.
-        </p>
+      <section className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-3xl space-y-2">
+          <p className="app-section-caption">Executive snapshot</p>
+          <h2 className="app-section-heading">Key operating signals</h2>
+          <p className="app-page-subtitle">
+            Highlights for leadership decisions on demand, utilization, and hiring over the current planning horizon.
+          </p>
+        </div>
+        <div className="shrink-0 pt-0.5">
+          <label htmlFor="forecast-horizon" className="sr-only">
+            Forecast horizon
+          </label>
+          <select
+            id="forecast-horizon"
+            value={horizonWeeks}
+            onChange={(event) => {
+              setLoading(true);
+              setError(null);
+              setHorizonWeeks(Number(event.target.value));
+            }}
+            className="app-select h-8 w-auto min-w-[8.5rem] rounded-md border-zinc-200 bg-zinc-50/70 px-2.5 py-1 text-[11px] font-medium leading-none text-zinc-600 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
+          >
+            <option value={12}>Next 12 weeks</option>
+            <option value={26}>Next 26 weeks</option>
+          </select>
+        </div>
       </section>
       <DashboardKpiCards
         weeks={data.weeks}
         hiringRecommendations={data.hiring_recommendations}
       />
-
-      <div className="app-toolbar flex flex-wrap items-center justify-end gap-2 px-3 py-2">
-        <label htmlFor="forecast-horizon" className="text-xs font-medium text-zinc-600">
-          Forecast horizon
-        </label>
-        <select
-          id="forecast-horizon"
-          value={horizonWeeks}
-          onChange={(event) => {
-            setLoading(true);
-            setError(null);
-            setHorizonWeeks(Number(event.target.value));
-          }}
-          className="app-select w-auto px-2 py-1 text-xs text-zinc-800"
-        >
-          <option value={12}>12 weeks</option>
-          <option value={26}>26 weeks</option>
-        </select>
-      </div>
 
       <section>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
