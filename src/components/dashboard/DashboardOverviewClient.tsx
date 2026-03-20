@@ -110,12 +110,12 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
           <div className="app-panel min-w-0 flex-1">
             <div className="app-panel-header">
-              <div className="flex flex-1 items-start justify-between gap-3">
-                <div>
-                  <p className="app-section-caption">Signal</p>
-                  <h3 className="app-section-heading">Utilization Forecast</h3>
-                </div>
-                <div className="flex flex-col items-end gap-2 text-right">
+              <div className="flex flex-1 items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="app-section-caption">Signal</p>
+                    <h3 className="app-section-heading">Utilization Forecast</h3>
+                  </div>
                   <label htmlFor="forecast-horizon" className="sr-only">
                     Forecast horizon
                   </label>
@@ -127,19 +127,19 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
                       setError(null);
                       setHorizonWeeks(Number(event.target.value));
                     }}
-                    className="app-select h-8 w-auto min-w-[8.5rem] rounded-md border-zinc-200 bg-zinc-50/70 px-2.5 py-1 text-[11px] font-medium leading-none text-zinc-600 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
+                    className="app-select h-9 w-auto min-w-[11rem] rounded-md border-zinc-200 bg-zinc-50/70 px-3 py-1.5 text-xs font-medium leading-tight text-zinc-600 shadow-none hover:border-zinc-300 hover:bg-zinc-50"
                   >
                     <option value={12}>Next 12 weeks</option>
                     <option value={26}>Next 26 weeks</option>
                   </select>
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-zinc-500">
-                      Global capacity
-                    </p>
-                    <p className="text-3xl font-semibold leading-none text-zinc-900">
-                      {globalCapacity.toFixed(1)}%
-                    </p>
-                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                    Global capacity
+                  </p>
+                  <p className="text-3xl font-semibold leading-none text-zinc-900">
+                    {globalCapacity.toFixed(1)}%
+                  </p>
                 </div>
               </div>
             </div>
