@@ -115,9 +115,6 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
                 <p className="app-section-caption">Signal</p>
                 <h3 className="app-section-heading">Utilization Forecast</h3>
               </div>
-              <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 sm:self-center">
-                Decision aid: workload balancing
-              </div>
             </div>
             <div className="app-panel-body">
               <p className="mb-4 text-xs text-zinc-500">
@@ -157,9 +154,6 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
               <div>
                 <p className="app-section-caption">Risk map</p>
                 <h3 className="app-section-heading">Capacity Heatmap</h3>
-              </div>
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 sm:self-center">
-                Decision aid: overload prevention
               </div>
             </div>
             <div className="app-panel-body">
