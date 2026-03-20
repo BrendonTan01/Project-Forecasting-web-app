@@ -62,7 +62,7 @@ export default function CapacityPlannerOverview() {
       : null;
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col gap-4 xl:flex-row">
       <CapacityPlannerFilters
         offices={offices}
         state={filterState}

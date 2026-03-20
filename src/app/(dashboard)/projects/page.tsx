@@ -410,7 +410,7 @@ export default async function ProjectsPage({
     : 0;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
           <p className="app-section-caption">Delivery portfolio</p>
@@ -463,8 +463,8 @@ export default async function ProjectsPage({
       <div className="app-toolbar flex flex-nowrap items-center gap-2 overflow-x-auto px-3 py-2 text-xs text-zinc-600 sm:flex-wrap sm:overflow-visible">
         <span className="font-medium text-zinc-700">Portfolio workflow:</span>
         <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Prioritize risk signals</span>
-        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Rebalance staffing</span>
-        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Track budget trajectory</span>
+        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Optimize staff allocation</span>
+        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Sync timeline shifts</span>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border)_14%,transparent)] bg-[color:var(--surface-subtle)] shadow-[var(--shadow-soft)]">

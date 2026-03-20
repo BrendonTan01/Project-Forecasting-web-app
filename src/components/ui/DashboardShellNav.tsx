@@ -90,6 +90,18 @@ export default function DashboardShellNav({
             href="/settings"
             className="focus-ring flex items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-500 transition-all hover:bg-slate-200/50 hover:text-slate-900"
           >
+            Help Center
+          </Link>
+          <Link
+            href="/settings"
+            className="focus-ring flex items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-500 transition-all hover:bg-slate-200/50 hover:text-slate-900"
+          >
+            Account
+          </Link>
+          <Link
+            href="/settings"
+            className="focus-ring flex items-center gap-3 rounded-lg px-4 py-2 text-sm text-slate-500 transition-all hover:bg-slate-200/50 hover:text-slate-900"
+          >
             Settings
           </Link>
         </div>

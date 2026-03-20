@@ -72,11 +72,12 @@ export default async function ProposalsPage({
   }, {});
 
   return (
-    <div className="space-y-5">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-center">
+    <div className="space-y-6">
+      <section className="app-panel">
+        <div className="app-panel-body flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
           <p className="app-section-caption">Pipeline planning</p>
-          <h1 className="app-page-title">Project Proposals</h1>
+            <h1 className="mt-1 text-[2rem] font-semibold tracking-tight text-zinc-900">Project Proposals</h1>
           <p className="app-page-subtitle">
             Future opportunities — assess staff availability before bidding.
           </p>
@@ -89,9 +90,10 @@ export default async function ProposalsPage({
             Add proposal
           </Link>
         )}
-      </div>
+        </div>
+      </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="app-metric-card">
           <p className="app-metric-label">Total proposals</p>
           <p className="app-metric-value mt-1">{proposalList.length}</p>
@@ -102,99 +104,112 @@ export default async function ProposalsPage({
             <p className="app-metric-value mt-1">{countsByStatus[key] ?? 0}</p>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="app-toolbar flex flex-nowrap gap-2 overflow-x-auto p-2 sm:flex-wrap sm:overflow-visible">
-        <Link
-          href="/proposals"
-            className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
-            !status ? "app-btn-primary" : "app-btn-secondary"
-          }`}
-        >
-          All
-        </Link>
-        {Object.entries(proposalStatusConfig).map(([key, config]) => (
-          <Link
-            key={key}
-            href={`/proposals?status=${key}`}
-            className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
-              status === key ? "app-btn-primary" : "app-btn-secondary"
-            }`}
-          >
-            {config.label} ({countsByStatus[key] ?? 0})
-          </Link>
-        ))}
-      </div>
-      <p className="mb-4 text-sm text-zinc-600">
-        Showing {proposalList.length} proposal{proposalList.length === 1 ? "" : "s"}
-        {status ? ` (${proposalStatusConfig[status]?.label ?? status})` : ""}
-      </p>
-
-      <div className="app-table-wrap">
-        <table className="app-table app-table-comfortable min-w-full">
-          <thead>
-            <tr>
-              <th className="text-left">
-                Proposal
-              </th>
-              <th className="text-left">
-                Client
-              </th>
-              <th className="text-left">
-                Timeline
-              </th>
-              <th className="text-right">
-                Total hours
-              </th>
-              <th className="text-right">
-                Hrs / week
-              </th>
-              <th className="text-left">
-                Status
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {proposalList.map((proposal) => {
-              const badge = proposalStatusConfig[proposal.status] ?? {
-                label: proposal.status,
-                colour: "bg-zinc-100 text-zinc-500",
-              };
-              const timeline =
-                proposal.proposed_start_date || proposal.proposed_end_date
-                  ? `${proposal.proposed_start_date ?? "?"} → ${proposal.proposed_end_date ?? "?"}`
-                  : "—";
-
-              return (
-                <tr key={proposal.id}>
-                  <td>
-                    <Link href={`/proposals/${proposal.id}`} className="app-link font-medium text-zinc-900">
-                      {proposal.name}
-                    </Link>
-                  </td>
-                  <td className="text-sm text-zinc-700">
-                    {proposal.client_name ?? "—"}
-                  </td>
-                  <td className="text-sm text-zinc-700">{timeline}</td>
-                  <td className="text-right text-sm text-zinc-900">
-                    {fmtHours(proposal.estimated_hours)}
-                  </td>
-                  <td className="text-right text-sm text-zinc-900">
-                    {fmtHours(proposal.estimated_hours_per_week)}
-                  </td>
-                  <td>
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
-                    >
-                      {badge.label}
-                    </span>
-                  </td>
+      <section className="app-panel">
+        <div className="app-panel-header border-b border-[color:color-mix(in_srgb,var(--border)_20%,transparent)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/proposals"
+              className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
+                !status ? "app-btn-primary" : "app-btn-secondary"
+              }`}
+            >
+              All
+            </Link>
+            {Object.entries(proposalStatusConfig).map(([key, config]) => (
+              <Link
+                key={key}
+                href={`/proposals?status=${key}`}
+                className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
+                  status === key ? "app-btn-primary" : "app-btn-secondary"
+                }`}
+              >
+                {config.label} ({countsByStatus[key] ?? 0})
+              </Link>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" className="app-btn app-btn-secondary px-3 py-1.5 text-xs">
+              Advanced filters
+            </button>
+            <button type="button" className="app-btn app-btn-secondary px-3 py-1.5 text-xs">
+              Export
+            </button>
+          </div>
+        </div>
+        <div className="app-panel-body">
+          <p className="mb-4 text-sm text-zinc-600">
+            Showing {proposalList.length} proposal{proposalList.length === 1 ? "" : "s"}
+            {status ? ` (${proposalStatusConfig[status]?.label ?? status})` : ""}
+          </p>
+          <div className="app-table-wrap">
+            <table className="app-table app-table-comfortable min-w-full">
+              <thead>
+                <tr>
+                  <th className="text-left">
+                    Proposal
+                  </th>
+                  <th className="text-left">
+                    Client
+                  </th>
+                  <th className="text-left">
+                    Timeline
+                  </th>
+                  <th className="text-right">
+                    Total hours
+                  </th>
+                  <th className="text-right">
+                    Hrs / week
+                  </th>
+                  <th className="text-left">
+                    Status
+                  </th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {proposalList.map((proposal) => {
+                  const badge = proposalStatusConfig[proposal.status] ?? {
+                    label: proposal.status,
+                    colour: "bg-zinc-100 text-zinc-500",
+                  };
+                  const timeline =
+                    proposal.proposed_start_date || proposal.proposed_end_date
+                      ? `${proposal.proposed_start_date ?? "?"} → ${proposal.proposed_end_date ?? "?"}`
+                      : "—";
+
+                  return (
+                    <tr key={proposal.id}>
+                      <td>
+                        <Link href={`/proposals/${proposal.id}`} className="app-link font-medium text-zinc-900">
+                          {proposal.name}
+                        </Link>
+                      </td>
+                      <td className="text-sm text-zinc-700">
+                        {proposal.client_name ?? "—"}
+                      </td>
+                      <td className="text-sm text-zinc-700">{timeline}</td>
+                      <td className="text-right text-sm text-zinc-900">
+                        {fmtHours(proposal.estimated_hours)}
+                      </td>
+                      <td className="text-right text-sm text-zinc-900">
+                        {fmtHours(proposal.estimated_hours_per_week)}
+                      </td>
+                      <td>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       {proposalList.length === 0 && (
         <p className="app-empty-state mt-4 p-8 text-center">

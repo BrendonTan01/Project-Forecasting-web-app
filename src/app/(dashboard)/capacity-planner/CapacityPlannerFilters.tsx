@@ -67,7 +67,7 @@ export default function CapacityPlannerFilters({
     state.officeIds.length === 0 || state.officeIds.length === offices.length;
 
   return (
-    <aside className="w-56 shrink-0 space-y-4 rounded border border-zinc-200 bg-white p-4">
+    <aside className="w-60 shrink-0 space-y-4 rounded-xl border border-[color:color-mix(in_srgb,var(--border)_20%,transparent)] bg-[color:var(--surface-lowest)] p-4 shadow-[var(--shadow-soft)]">
       <h2 className="text-sm font-semibold text-zinc-800">Filters</h2>
 
       {/* Office */}
@@ -78,7 +78,7 @@ export default function CapacityPlannerFilters({
         <button
           type="button"
           onClick={handleSelectAllOffices}
-          className={`mb-2 block w-full rounded border px-2 py-1.5 text-left text-sm focus-ring ${
+          className={`mb-2 block w-full rounded-md border px-2 py-1.5 text-left text-sm focus-ring ${
             allOfficesSelected
               ? "border-zinc-300 bg-zinc-100 text-zinc-900"
               : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"

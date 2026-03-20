@@ -10,11 +10,11 @@ export default async function ForecastPage() {
   if (!hasPermission(user.role, "financials:view")) redirect("/dashboard");
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <section className="app-panel">
         <div className="app-panel-body">
           <p className="app-section-caption">Delivery intelligence</p>
-          <h1 className="mt-1 text-[2.25rem] font-semibold tracking-tight text-zinc-900">Forecast</h1>
+          <h1 className="mt-1 text-[2rem] font-semibold tracking-tight text-zinc-900">Forecast</h1>
           <p className="mt-2 text-sm text-[color:var(--muted-text)]">
           12-week rolling forecast of team capacity, project load, and staffing gaps.
         </p>

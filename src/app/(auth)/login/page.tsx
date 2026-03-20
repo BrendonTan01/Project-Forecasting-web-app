@@ -42,9 +42,9 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="mb-10 text-center">
             <div className="mx-auto mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-[color:#131b2e] text-white shadow-sm">
-              <span aria-hidden className="text-lg">A</span>
+              <span aria-hidden className="text-xs font-semibold tracking-wider">CI</span>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+            <h1 className="text-[1.5rem] font-semibold tracking-tight text-zinc-900">
               Capacity Intelligence Platform
             </h1>
             <p className="mt-2 text-sm text-[color:var(--muted-text)]">Sign in to your account</p>

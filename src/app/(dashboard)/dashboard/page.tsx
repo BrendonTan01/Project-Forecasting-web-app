@@ -237,7 +237,7 @@ export default async function DashboardPage() {
       <section className="space-y-6">
         <div className="flex items-baseline justify-between">
           <h3 className="text-base font-semibold text-zinc-900">At-a-glance overview</h3>
-          <span className="label-sm text-[color:var(--muted-text)]">Updated recently</span>
+          <span className="label-sm uppercase tracking-widest text-[color:var(--muted-text)]">Updated recently</span>
         </div>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="app-metric-card">

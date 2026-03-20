@@ -36,11 +36,11 @@ export default async function CapacityPlannerPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section className="app-panel">
         <div className="app-panel-body">
           <p className="app-section-caption">Planning intelligence</p>
-          <h1 className="app-page-title mt-1">Capacity Planner</h1>
+          <h1 className="mt-1 text-[2rem] font-semibold tracking-tight text-zinc-900">Capacity Planner</h1>
           <p className="app-page-subtitle mt-2">
             Identify overload by office and week, or manage staff assignments.
           </p>

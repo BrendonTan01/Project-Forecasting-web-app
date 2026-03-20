@@ -86,12 +86,20 @@ export default async function StaffPage() {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2">
-        <p className="app-section-caption">Operations workforce</p>
-        <h1 className="app-page-title">Staff Directory</h1>
-        <p className="app-page-subtitle">
-          Monitor real-time resource allocation and workforce utilization across offices.
-        </p>
+      <section className="app-panel">
+        <div className="app-panel-body flex flex-wrap items-start justify-between gap-3 sm:items-center">
+          <div className="space-y-2">
+            <p className="app-section-caption">Operations workforce</p>
+            <h1 className="mt-1 text-[2rem] font-semibold tracking-tight text-zinc-900">Staff Directory</h1>
+            <p className="app-page-subtitle">
+              Monitor real-time resource allocation and workforce utilization across offices.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" className="app-btn app-btn-secondary px-3 py-1.5 text-xs">Filter</button>
+            <button type="button" className="app-btn app-btn-secondary px-3 py-1.5 text-xs">Export</button>
+          </div>
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -117,74 +125,90 @@ export default async function StaffPage() {
         </div>
       </section>
 
-      <div className="app-table-wrap">
-        <table className="app-table app-table-comfortable min-w-full">
-          <thead>
-            <tr>
-              <th className="text-left">
-                Staff
-              </th>
-              <th className="text-left">
-                Office
-              </th>
-              <th className="text-left">
-                Role
-              </th>
-              <th className="text-right">
-                Allocation
-              </th>
-              <th className="text-right">
-                Utilisation
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {staffProfiles?.map((sp) => {
-              const u = getRelationOne((sp as { users?: unknown }).users) as {
-                name?: string | null;
-                email?: string | null;
-                role: string;
-                offices?: { name: string; country: string } | { name: string; country: string }[] | null;
-              } | null;
-              const office = u?.offices ? getRelationOne(u.offices) as { name: string; country: string } | null : null;
-              const displayName = getStaffDisplayName(sp.name, u);
-              const capacity = sp.weekly_capacity_hours * (30 / 7);
-              const billable = billableByStaff[sp.id] ?? 0;
-              const utilisation = calculateUtilisation(billable, capacity);
-              const weeklyHours = weeklyHoursByStaff[sp.id] ?? 0;
-              const allocationPercent =
-                sp.weekly_capacity_hours > 0
-                  ? (weeklyHours / Number(sp.weekly_capacity_hours)) * 100
-                  : 0;
-
-              return (
-                <tr key={sp.id}>
-                  <td>
-                    <Link
-                      href={`/staff/${sp.id}`}
-                      className="app-link font-medium text-zinc-900"
-                    >
-                      {displayName}
-                    </Link>
-                  </td>
-                  <td className="text-sm text-zinc-700">
-                    {office ? `${office.name} (${office.country})` : "-"}
-                  </td>
-                  <td className="text-sm text-zinc-700">
-                    {u?.role ?? sp.job_title ?? "-"}
-                  </td>
-                  <td className="text-right text-sm font-medium text-zinc-800">
-                    {allocationPercent.toFixed(0)}%
-                  </td>
-                  <td className="text-right text-sm font-medium text-zinc-800">
-                    {formatUtilisation(utilisation)}
-                  </td>
+      <section className="app-panel">
+        <div className="app-panel-body">
+          <div className="app-table-wrap">
+            <table className="app-table app-table-comfortable min-w-full">
+              <thead>
+                <tr>
+                  <th className="text-left">
+                    Staff
+                  </th>
+                  <th className="text-left">
+                    Office
+                  </th>
+                  <th className="text-left">
+                    Role
+                  </th>
+                  <th className="text-right">
+                    Allocation
+                  </th>
+                  <th className="text-right">
+                    Utilisation
+                  </th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {staffProfiles?.map((sp) => {
+                  const u = getRelationOne((sp as { users?: unknown }).users) as {
+                    name?: string | null;
+                    email?: string | null;
+                    role: string;
+                    offices?: { name: string; country: string } | { name: string; country: string }[] | null;
+                  } | null;
+                  const office = u?.offices ? getRelationOne(u.offices) as { name: string; country: string } | null : null;
+                  const displayName = getStaffDisplayName(sp.name, u);
+                  const capacity = sp.weekly_capacity_hours * (30 / 7);
+                  const billable = billableByStaff[sp.id] ?? 0;
+                  const utilisation = calculateUtilisation(billable, capacity);
+                  const weeklyHours = weeklyHoursByStaff[sp.id] ?? 0;
+                  const allocationPercent =
+                    sp.weekly_capacity_hours > 0
+                      ? (weeklyHours / Number(sp.weekly_capacity_hours)) * 100
+                      : 0;
+                  const initials = displayName
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join("")
+                    .toUpperCase();
+
+                  return (
+                    <tr key={sp.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                            {initials || "?"}
+                          </span>
+                          <Link
+                            href={`/staff/${sp.id}`}
+                            className="app-link font-medium text-zinc-900"
+                          >
+                            {displayName}
+                          </Link>
+                        </div>
+                      </td>
+                      <td className="text-sm text-zinc-700">
+                        {office ? `${office.name} (${office.country})` : "-"}
+                      </td>
+                      <td className="text-sm text-zinc-700">
+                        {u?.role ?? sp.job_title ?? "-"}
+                      </td>
+                      <td className="text-right text-sm font-medium text-zinc-800">
+                        {allocationPercent.toFixed(0)}%
+                      </td>
+                      <td className="text-right text-sm font-medium text-zinc-800">
+                        {formatUtilisation(utilisation)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       {(!staffProfiles || staffProfiles.length === 0) && (
         <p className="app-empty-state p-8 text-center">

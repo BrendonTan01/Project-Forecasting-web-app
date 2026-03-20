@@ -22,14 +22,15 @@ export default function CapacityPlannerTabs({
 
   return (
     <div className="space-y-5">
-      <div className="app-toolbar flex items-center gap-2 p-2">
+      <div className="border-b border-[color:color-mix(in_srgb,var(--border)_26%,transparent)]">
+        <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => setTab("overview")}
-          className={`app-btn rounded-full px-4 py-1.5 text-xs font-semibold focus-ring ${
+            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
             tab === "overview"
-              ? "app-btn-primary"
-              : "app-btn-secondary text-[color:var(--muted-text)]"
+                ? "border-[color:var(--accent)] text-zinc-900"
+                : "border-transparent text-[color:var(--muted-text)] hover:text-zinc-900"
           }`}
         >
           Overview
@@ -37,14 +38,15 @@ export default function CapacityPlannerTabs({
         <button
           type="button"
           onClick={() => setTab("staff")}
-          className={`app-btn rounded-full px-4 py-1.5 text-xs font-semibold focus-ring ${
+            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
             tab === "staff"
-              ? "app-btn-primary"
-              : "app-btn-secondary text-[color:var(--muted-text)]"
+                ? "border-[color:var(--accent)] text-zinc-900"
+                : "border-transparent text-[color:var(--muted-text)] hover:text-zinc-900"
           }`}
         >
           Staff assignments
         </button>
+        </div>
       </div>
 
       {tab === "overview" && <CapacityPlannerOverview />}
