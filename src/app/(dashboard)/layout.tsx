@@ -71,7 +71,13 @@ export default async function DashboardLayout({
       canAccess: (role) => hasPermission(role, "admin:access"),
     },
   ];
-  const navLinks = navItems.filter((item) => item.canAccess(user.role));
+  const navLinks = navItems
+    .filter((item) => item.canAccess(user.role))
+    .map((item) => ({
+      href: item.href,
+      label: item.label,
+      group: item.group,
+    }));
   const navGroups = [
     { key: "overview", label: "Overview" },
     { key: "planning", label: "Plan & Bid" },
