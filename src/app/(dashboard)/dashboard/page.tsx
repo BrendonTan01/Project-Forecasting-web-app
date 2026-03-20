@@ -226,7 +226,7 @@ export default async function DashboardPage() {
   }, 0);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <section className="rounded-xl border border-[color:color-mix(in_srgb,var(--border)_15%,transparent)] bg-[color:var(--surface-lowest)] p-8 shadow-[var(--shadow-soft)]">
         <h2 className="text-[1.5rem] font-medium tracking-tight text-zinc-900">Delivery and Capacity Overview</h2>
         <p className="mt-1 text-sm text-[color:var(--muted-text)]">
