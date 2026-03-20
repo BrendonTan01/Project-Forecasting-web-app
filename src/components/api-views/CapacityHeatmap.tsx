@@ -11,11 +11,15 @@ function formatWeekLabel(weekStart: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function getCellStyle(utilization: number): { bg: string; text: string } {
-  if (utilization > 95) {
+function getCellStyle(
+  utilization: number,
+  warningThreshold: number,
+  criticalThreshold: number
+): { bg: string; text: string } {
+  if (utilization >= criticalThreshold) {
     return { bg: "bg-red-100 hover:bg-red-200", text: "text-red-800" };
   }
-  if (utilization >= 80) {
+  if (utilization >= warningThreshold) {
     return { bg: "bg-yellow-100 hover:bg-yellow-200", text: "text-yellow-800" };
   }
   return { bg: "bg-green-100 hover:bg-green-200", text: "text-green-800" };
@@ -238,6 +242,8 @@ type CapacityHeatmapProps = {
   skillId?: string | null;
   data?: CapacityHeatmapResponse | null;
   onCellClick?: (cell: SelectedCell) => void;
+  warningThreshold?: number;
+  criticalThreshold?: number;
 };
 
 export function CapacityHeatmap({
@@ -246,6 +252,8 @@ export function CapacityHeatmap({
   skillId,
   data: externalData,
   onCellClick,
+  warningThreshold = 80,
+  criticalThreshold = 95,
 }: CapacityHeatmapProps) {
   const [internalData, setInternalData] = useState<CapacityHeatmapResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -382,7 +390,11 @@ export function CapacityHeatmap({
                   }
 
                   const showNoMatchingStaff = Boolean(skillId) && cell.matchingStaffCount === 0;
-                  const { bg, text } = getCellStyle(cell.utilization);
+                  const { bg, text } = getCellStyle(
+                    cell.utilization,
+                    warningThreshold,
+                    criticalThreshold
+                  );
                   return (
                     <td key={ws} className="px-1.5 py-1.5 text-center">
                       <button
@@ -416,15 +428,15 @@ export function CapacityHeatmap({
           <span className="text-xs text-zinc-500">Committed work only</span>
           <span className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-3 w-3 rounded bg-green-100" />
-            <span className="text-zinc-600">&lt; 80%</span>
+            <span className="text-zinc-600">&lt; {warningThreshold}%</span>
           </span>
           <span className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-3 w-3 rounded bg-yellow-100" />
-            <span className="text-zinc-600">80–95%</span>
+            <span className="text-zinc-600">{warningThreshold}–{Math.max(warningThreshold, criticalThreshold - 1)}%</span>
           </span>
           <span className="flex items-center gap-1.5 text-xs">
             <span className="inline-block h-3 w-3 rounded bg-red-100" />
-            <span className="text-zinc-600">&gt; 95%</span>
+            <span className="text-zinc-600">&gt;= {criticalThreshold}%</span>
           </span>
           <span className="text-xs text-zinc-400">(click cell for details)</span>
         </div>

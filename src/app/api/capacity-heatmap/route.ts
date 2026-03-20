@@ -15,6 +15,11 @@ export type HeatmapCell = {
   weekStart: string;
   utilization: number;
   matchingStaffCount: number;
+  totalCapacityHours: number;
+  allocatedHours: number;
+  remainingHours: number;
+  positiveRemainingHours: number;
+  overbookedStaffCount: number;
 };
 
 export type CapacityHeatmapResponse = {
@@ -50,7 +55,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!hasPermission(user.role, "financials:view")) {
+  const canViewCapacity =
+    hasPermission(user.role, "financials:view") ||
+    hasPermission(user.role, "assignments:manage");
+  if (!canViewCapacity) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -179,12 +187,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const activeAssignments = allAssignments.filter((a) => a.projects?.status === "active");
 
-  // Build: officeId → weekStart → { totalCapacity, totalAllocated }
-  const officeWeekMap = new Map<string, Map<string, { cap: number; alloc: number }>>();
+  // Build: officeId → weekStart → aggregate summary used by KPI cards.
+  const officeWeekMap = new Map<
+    string,
+    Map<string, { cap: number; alloc: number; overbookedStaffCount: number }>
+  >();
   for (const office of officeRows ?? []) {
     officeWeekMap.set(office.id, new Map());
     for (const ws of weekStarts) {
-      officeWeekMap.get(office.id)!.set(ws, { cap: 0, alloc: 0 });
+      officeWeekMap.get(office.id)!.set(ws, { cap: 0, alloc: 0, overbookedStaffCount: 0 });
     }
   }
 
@@ -202,6 +213,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   // Accumulate allocated hours from assignments using shared effective-week semantics.
+  const allocationByStaffWeek = new Map<string, number>();
   for (const ws of weekStarts) {
     const effectiveForWeek = filterEffectiveAssignmentsForWeek(activeAssignments, ws);
     for (const assignment of effectiveForWeek) {
@@ -210,6 +222,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const officeWeeks = officeWeekMap.get(meta.officeId);
       if (!officeWeeks) continue;
       officeWeeks.get(ws)!.alloc += assignment.weekly_hours_allocated;
+
+      const staffWeekKey = `${assignment.staff_id}::${ws}`;
+      allocationByStaffWeek.set(
+        staffWeekKey,
+        (allocationByStaffWeek.get(staffWeekKey) ?? 0) + assignment.weekly_hours_allocated
+      );
+    }
+  }
+
+  // Count overbooked staff by office/week (allocated > capacity).
+  for (const [staffId, meta] of staffMeta) {
+    if (!meta.officeId) continue;
+    const officeWeeks = officeWeekMap.get(meta.officeId);
+    if (!officeWeeks) continue;
+
+    for (const ws of weekStarts) {
+      const cell = officeWeeks.get(ws);
+      if (!cell) continue;
+      const capacity = availMap.get(staffId)?.get(ws) ?? meta.weeklyCap;
+      const allocated = allocationByStaffWeek.get(`${staffId}::${ws}`) ?? 0;
+      if (allocated > capacity) {
+        cell.overbookedStaffCount += 1;
+      }
     }
   }
 
@@ -222,6 +257,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     weekStarts.forEach((ws, idx) => {
       const { cap, alloc } = officeWeeks.get(ws)!;
       const utilization = cap > 0 ? Math.round((alloc / cap) * 10000) / 100 : 0;
+      const remainingHours = Math.round((cap - alloc) * 100) / 100;
       cells.push({
         officeId: office.id,
         office: office.name,
@@ -229,6 +265,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         weekStart: ws,
         utilization,
         matchingStaffCount: matchingStaffCountByOfficeId.get(office.id) ?? 0,
+        totalCapacityHours: Math.round(cap * 100) / 100,
+        allocatedHours: Math.round(alloc * 100) / 100,
+        remainingHours,
+        positiveRemainingHours: Math.max(0, remainingHours),
+        overbookedStaffCount: officeWeeks.get(ws)?.overbookedStaffCount ?? 0,
       });
     });
   }

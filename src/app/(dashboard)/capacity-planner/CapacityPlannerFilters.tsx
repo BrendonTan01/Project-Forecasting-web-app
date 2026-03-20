@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui/primitives";
 import type { SkillItem } from "@/app/api/skills/route";
 
@@ -23,12 +23,14 @@ interface CapacityPlannerFiltersProps {
   offices: OfficeOption[];
   state: CapacityPlannerFilterState;
   onChange: (state: CapacityPlannerFilterState) => void;
+  onExportPlan?: () => void;
 }
 
 export default function CapacityPlannerFilters({
   offices,
   state,
   onChange,
+  onExportPlan,
 }: CapacityPlannerFiltersProps) {
   const [skills, setSkills] = useState<SkillItem[]>([]);
 
@@ -38,20 +40,6 @@ export default function CapacityPlannerFilters({
       .then((data) => setSkills(data.skills ?? []))
       .catch(() => setSkills([]));
   }, []);
-
-  const handleOfficeToggle = (officeId: string) => {
-    const isAll = state.officeIds.length === 0;
-    const next = isAll
-      ? offices.filter((o) => o.id !== officeId).map((o) => o.id)
-      : state.officeIds.includes(officeId)
-        ? state.officeIds.filter((id) => id !== officeId)
-        : [...state.officeIds, officeId];
-    onChange({ ...state, officeIds: next });
-  };
-
-  const handleSelectAllOffices = () => {
-    onChange({ ...state, officeIds: [] });
-  };
 
   const handleSkillChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value;
@@ -63,98 +51,106 @@ export default function CapacityPlannerFilters({
     if (!isNaN(v)) onChange({ ...state, weeks: v });
   };
 
-  const allOfficesSelected =
-    state.officeIds.length === 0 || state.officeIds.length === offices.length;
+  const selectedOffice = useMemo(
+    () => (state.officeIds.length === 1 ? state.officeIds[0] : ""),
+    [state.officeIds]
+  );
+
+  const handleOfficeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    onChange({ ...state, officeIds: value ? [value] : [] });
+  };
 
   return (
-    <aside className="w-60 shrink-0 space-y-4 rounded-xl border border-[color:color-mix(in_srgb,var(--border)_20%,transparent)] bg-[color:var(--surface-lowest)] p-4 shadow-[var(--shadow-soft)]">
-      <h2 className="text-sm font-semibold text-zinc-800">Filters</h2>
-
-      {/* Office */}
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-zinc-500">
-          Office
-        </label>
-        <button
-          type="button"
-          onClick={handleSelectAllOffices}
-          className={`mb-2 block w-full rounded-md border px-2 py-1.5 text-left text-sm focus-ring ${
-            allOfficesSelected
-              ? "border-zinc-300 bg-zinc-100 text-zinc-900"
-              : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
-          }`}
-        >
-          All offices
-        </button>
-        {offices.length > 0 && (
-          <div className="max-h-32 space-y-1 overflow-y-auto">
-            {offices.map((o) => (
-              <label
-                key={o.id}
-                className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700"
-              >
-                <input
-                  type="checkbox"
-                  checked={
-                    allOfficesSelected || state.officeIds.includes(o.id)
-                  }
-                  onChange={() => handleOfficeToggle(o.id)}
-                  className="rounded border-zinc-300 text-zinc-600 focus:ring-zinc-500"
-                />
-                <span className="truncate">{o.name}</span>
-              </label>
+    <section className="space-y-3 rounded-xl border border-[color:color-mix(in_srgb,var(--border)_20%,transparent)] bg-[color:var(--surface-lowest)] p-4 shadow-[var(--shadow-soft)]">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div>
+          <label
+            htmlFor="weeks-filter"
+            className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500"
+          >
+            Timeframe
+          </label>
+          <Select
+            id="weeks-filter"
+            value={state.weeks}
+            onChange={handleWeeksChange}
+            className="w-full"
+          >
+            {WEEK_PRESETS.map((w) => (
+              <option key={w.value} value={w.value}>
+                {w.label}
+              </option>
             ))}
+          </Select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="office-filter"
+            className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500"
+          >
+            Office location
+          </label>
+          <Select
+            id="office-filter"
+            value={selectedOffice}
+            onChange={handleOfficeChange}
+            className="w-full"
+          >
+            <option value="">All offices</option>
+            {offices.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="skill-filter"
+            className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500"
+          >
+            Skill filter
+          </label>
+          <Select
+            id="skill-filter"
+            value={state.skillId ?? ""}
+            onChange={handleSkillChange}
+            className="w-full"
+          >
+            <option value="">All skills</option>
+            {skills.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="md:col-span-2 xl:col-span-2">
+          <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Actions
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="app-btn app-btn-secondary px-3 py-2 text-xs"
+              onClick={() => onChange({ ...state, officeIds: [], skillId: null })}
+            >
+              Clear filters
+            </button>
+            <button
+              type="button"
+              className="app-btn app-btn-primary px-3 py-2 text-xs"
+              onClick={onExportPlan}
+            >
+              Export plan
+            </button>
           </div>
-        )}
+        </div>
       </div>
-
-      {/* Skill */}
-      <div>
-        <label
-          htmlFor="skill-filter"
-          className="mb-1.5 block text-xs font-medium text-zinc-500"
-        >
-          Skill
-        </label>
-        <Select
-          id="skill-filter"
-          value={state.skillId ?? ""}
-          onChange={handleSkillChange}
-          className="w-full"
-        >
-          <option value="">All skills</option>
-          {skills.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </Select>
-        {skills.length === 0 && (
-          <p className="mt-1 text-xs text-zinc-400">No skills configured</p>
-        )}
-      </div>
-
-      {/* Time range */}
-      <div>
-        <label
-          htmlFor="weeks-filter"
-          className="mb-1.5 block text-xs font-medium text-zinc-500"
-        >
-          Time range
-        </label>
-        <Select
-          id="weeks-filter"
-          value={state.weeks}
-          onChange={handleWeeksChange}
-          className="w-full"
-        >
-          {WEEK_PRESETS.map((w) => (
-            <option key={w.value} value={w.value}>
-              {w.label}
-            </option>
-          ))}
-        </Select>
-      </div>
-    </aside>
+    </section>
   );
 }

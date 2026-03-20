@@ -60,7 +60,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!hasPermission(user.role, "financials:view")) {
+  const canViewCapacity =
+    hasPermission(user.role, "financials:view") ||
+    hasPermission(user.role, "assignments:manage");
+  if (!canViewCapacity) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
