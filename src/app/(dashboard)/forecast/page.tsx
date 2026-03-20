@@ -3,6 +3,7 @@ import { getCurrentUserWithTenant } from "@/lib/supabase/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { ForecastTable } from "@/components/api-views/ForecastTable";
 import { StaffingGapsTable } from "@/components/api-views/StaffingGapsTable";
+import { ForecastRoleInsights } from "@/components/api-views/ForecastRoleInsights";
 
 export default async function ForecastPage() {
   const user = await getCurrentUserWithTenant();
@@ -10,7 +11,7 @@ export default async function ForecastPage() {
   if (!hasPermission(user.role, "financials:view")) redirect("/dashboard");
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <section className="app-panel">
         <div className="app-panel-body">
           <p className="app-section-caption">Delivery intelligence</p>
@@ -21,31 +22,12 @@ export default async function ForecastPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="app-metric-card">
-          <p className="app-metric-label">Avg. utilization</p>
-          <p className="app-metric-value mt-2">84.2%</p>
-        </div>
-        <div className="app-metric-card">
-          <p className="app-metric-label">Total capacity</p>
-          <p className="app-metric-value mt-2">14,400h</p>
-        </div>
-        <div className="app-metric-card">
-          <p className="app-metric-label">Active gaps</p>
-          <p className="app-metric-value mt-2 text-[color:var(--danger)]">12</p>
-        </div>
-        <div className="app-metric-card">
-          <p className="app-metric-label">Forecast accuracy</p>
-          <p className="app-metric-value mt-2">96.8%</p>
-        </div>
-      </section>
-
       <section className="app-panel">
         <div className="app-panel-header">
           <div>
             <h2 className="text-base font-semibold text-zinc-800">Weekly Utilization Forecast</h2>
             <p className="mt-1 text-xs text-[color:var(--muted-text)]">
-          Projected capacity vs. project hours and resulting utilization rate per week.
+          Detailed project load breakdown per week.
         </p>
           </div>
           <div className="flex gap-2">
@@ -54,7 +36,7 @@ export default async function ForecastPage() {
           </div>
         </div>
         <div className="app-panel-body">
-        <ForecastTable weeks={12} />
+        <ForecastTable weeks={9} />
         </div>
       </section>
 
@@ -69,9 +51,11 @@ export default async function ForecastPage() {
           </div>
         </div>
         <div className="app-panel-body">
-        <StaffingGapsTable weeks={12} />
+        <StaffingGapsTable weeks={10} />
         </div>
       </section>
+
+      <ForecastRoleInsights weeks={10} />
     </div>
   );
 }
