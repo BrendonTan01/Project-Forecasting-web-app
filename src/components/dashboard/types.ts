@@ -30,6 +30,7 @@ export interface ForecastProposal {
   proposed_end_date: string | null;
   estimated_hours: number | null;
   estimated_hours_per_week: number | null;
+  win_probability: number | null;
   has_complete_dates: boolean;
 }
 

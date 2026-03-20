@@ -74,6 +74,22 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
 
   if (!data) return null;
 
+  const selectedIdSet = new Set(selectedProposalIds);
+  const selectedExpectedUtilization = data.weeks
+    .map((week) => {
+      const selectedProposalExpectedHours = (week.proposal_demands ?? [])
+        .filter((demand) => selectedIdSet.has(demand.proposal_id))
+        .reduce((sum, demand) => sum + Number(demand.expected_hours ?? 0), 0);
+      const expectedDemand = Number(week.total_project_hours) + selectedProposalExpectedHours;
+      return week.total_capacity > 0 ? (expectedDemand / Number(week.total_capacity)) * 100 : 0;
+    })
+    .filter((value) => Number.isFinite(value));
+  const globalCapacity =
+    selectedExpectedUtilization.length > 0
+      ? selectedExpectedUtilization.reduce((sum, value) => sum + value, 0) /
+        selectedExpectedUtilization.length
+      : 0;
+
   return (
     <div className="space-y-6">
       <section className="space-y-2">
@@ -111,9 +127,19 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
           <div className="app-panel min-w-0 flex-1">
             <div className="app-panel-header">
-              <div>
-                <p className="app-section-caption">Signal</p>
-                <h3 className="app-section-heading">Utilization Forecast</h3>
+              <div className="flex flex-1 items-start justify-between gap-3">
+                <div>
+                  <p className="app-section-caption">Signal</p>
+                  <h3 className="app-section-heading">Utilization Forecast</h3>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                    Global capacity
+                  </p>
+                  <p className="text-3xl font-semibold leading-none text-zinc-900">
+                    {globalCapacity.toFixed(1)}%
+                  </p>
+                </div>
               </div>
             </div>
             <div className="app-panel-body">
@@ -125,6 +151,22 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
                 proposals={data.proposals}
                 selectedProposalIds={selectedProposalIds}
               />
+              <div className="mt-6">
+                <DashboardActionPanel
+                  weeks={data.weeks}
+                  hiringRecommendations={data.hiring_recommendations}
+                  proposals={data.proposals}
+                  selectedProposalIds={selectedProposalIds}
+                  onSelectedProposalIdsChange={setSelectedProposalIds}
+                  planningHoursPerPersonPerWeek={Number(
+                    data.planning_hours_per_person_per_week ?? 40
+                  )}
+                  showProposalSelection={false}
+                  showStaffingRisks={false}
+                  showHiringRecommendations={false}
+                  showForecastDrivers
+                />
+              </div>
             </div>
           </div>
 
@@ -141,7 +183,8 @@ export default function DashboardOverviewClient({ weeks = 26 }: Props) {
               showProposalSelection
               showStaffingRisks={false}
               showHiringRecommendations={false}
-              showForecastDrivers
+              showForecastDrivers={false}
+              showExecutiveInsight
             />
           </div>
         </div>

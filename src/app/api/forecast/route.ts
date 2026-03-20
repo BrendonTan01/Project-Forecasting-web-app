@@ -105,6 +105,10 @@ export async function GET(request: NextRequest) {
         proposal.estimated_hours_per_week === null
           ? null
           : Number(proposal.estimated_hours_per_week),
+      win_probability:
+        proposal.win_probability === null
+          ? null
+          : Number(proposal.win_probability),
       has_complete_dates:
         Boolean(proposal.proposed_start_date) &&
         Boolean(proposal.proposed_end_date),

@@ -63,20 +63,21 @@ const LINES = [
   {
     key: "best_case" as const,
     label: "Committed Work Only",
-    // TODO: Replace with best_case_utilization if API provides it directly
-    color: "#10b981",
+    color: "#111827",
+    strokeWidth: 3,
   },
   {
     key: "expected" as const,
     label: "Pipeline Expected",
-    // TODO: Replace with expected_utilization if API provides it directly
-    color: "#1d4ed8",
+    color: "#64748b",
+    strokeDasharray: "5 4",
+    strokeWidth: 2,
   },
   {
     key: "worst_case" as const,
     label: "All Pipeline Won",
-    // TODO: Replace with worst_case_utilization if API provides it directly
-    color: "#f59e0b",
+    color: "#cbd5e1",
+    strokeWidth: 2,
   },
 ];
 
@@ -254,7 +255,8 @@ export function UtilizationForecastChart({ weeks, proposals = [], selectedPropos
             points={buildPoints(weeks, line.getter, maxPct)}
             fill="none"
             stroke={line.color}
-            strokeWidth={2}
+            strokeWidth={line.strokeWidth}
+            strokeDasharray={line.strokeDasharray}
             strokeLinejoin="round"
             strokeLinecap="round"
           />
