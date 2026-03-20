@@ -36,7 +36,7 @@ export default async function ForecastPage() {
           </div>
         </div>
         <div className="app-panel-body">
-        <ForecastTable weeks={9} />
+        <ForecastTable weeks={12} />
         </div>
       </section>
 
@@ -51,11 +51,11 @@ export default async function ForecastPage() {
           </div>
         </div>
         <div className="app-panel-body">
-        <StaffingGapsTable weeks={10} />
+        <StaffingGapsTable weeks={12} />
         </div>
       </section>
 
-      <ForecastRoleInsights weeks={10} />
+      <ForecastRoleInsights weeks={12} />
     </div>
   );
 }

@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
       .map((row) => ({
         week_start: row.week_start,
         staffing_gap: row.staffing_gap,
+        capacity_balance_hours: row.total_capacity - row.total_project_hours,
         additional_staff_needed:
           row.staffing_gap > 0
             ? Math.ceil(row.staffing_gap / avgWeeklyCapacity)

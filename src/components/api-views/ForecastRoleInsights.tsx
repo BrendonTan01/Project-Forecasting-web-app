@@ -107,9 +107,9 @@ export function ForecastRoleInsights({ weeks = 10 }: { weeks?: number }) {
     );
   }
 
-  if (error) {
-    return <p className="text-sm text-red-600">Failed to load role insights: {error}</p>;
-  }
+  const safeInsightText = error
+    ? "Insight data is temporarily unavailable. Review weekly utilization and staffing gap trends while the forecast service reconnects."
+    : insightText;
 
   return (
     <section className="grid gap-4 xl:grid-cols-[1.8fr_1fr]">
@@ -148,22 +148,17 @@ export function ForecastRoleInsights({ weeks = 10 }: { weeks?: number }) {
       </article>
 
       <article className="app-panel overflow-hidden border-0 bg-[#0f1d3d] text-white shadow-[0_12px_32px_rgb(15_29_61/34%)]">
-        <div className="app-panel-body flex h-full flex-col justify-between gap-6 p-6">
+        <div className="app-panel-body flex h-full flex-col gap-6 p-6">
           <div className="space-y-4">
             <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
               <span className="h-3 w-3 rounded-full bg-white" />
             </div>
             <div>
               <h3 className="text-2xl font-semibold tracking-tight">Strategic Insight</h3>
-              <p className="mt-3 text-sm leading-6 text-white/85">{insightText}</p>
+              <p className="mt-3 text-sm leading-6 text-white/85">{safeInsightText}</p>
+              {error ? <p className="mt-2 text-xs text-amber-200">Data fetch warning: {error}</p> : null}
             </div>
           </div>
-          <button
-            type="button"
-            className="w-full rounded-xl border border-white/10 bg-white px-4 py-2.5 text-sm font-semibold text-[#0f1d3d] transition hover:bg-zinc-100"
-          >
-            Draft Resource Request
-          </button>
         </div>
       </article>
     </section>

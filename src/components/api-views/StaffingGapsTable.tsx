@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 interface StaffingWeek {
   week_start: string;
   staffing_gap: number;
+  capacity_balance_hours?: number;
   additional_staff_needed: number;
 }
 
@@ -64,7 +65,10 @@ export function StaffingGapsTable({ weeks = 12 }: { weeks?: number }) {
           <tr>
             <td className="font-semibold text-zinc-700">Demand vs Capacity (h)</td>
             {data.map((row) => {
-              const demandVsCapacity = Number(row.staffing_gap) * -1;
+              const demandVsCapacity =
+                row.capacity_balance_hours !== undefined
+                  ? Number(row.capacity_balance_hours)
+                  : Number(row.staffing_gap) * -1;
               const positive = demandVsCapacity >= 0;
               return (
                 <td
