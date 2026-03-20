@@ -25,14 +25,17 @@ export default function CapacityPlannerTabs({
   return (
     <div className="space-y-5">
       <div className="border-b border-[color:color-mix(in_srgb,var(--border)_26%,transparent)]">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" role="tablist" aria-label="Capacity planner sections">
         <button
           type="button"
           onClick={() => setTab("office-overview")}
-            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+          role="tab"
+          aria-selected={tab === "office-overview"}
+          aria-current={tab === "office-overview" ? "page" : undefined}
+            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 ${
             tab === "office-overview"
-                ? "border-[color:var(--accent)] text-zinc-900"
-                : "border-transparent text-[color:var(--muted-text)] hover:text-zinc-900"
+                ? "border-[color:var(--accent)] bg-zinc-100 text-zinc-900 shadow-[inset_0_-1px_0_var(--accent)]"
+                : "border-transparent text-[color:var(--muted-text)] hover:bg-zinc-100 hover:text-zinc-900"
           }`}
         >
           Office overview
@@ -40,10 +43,13 @@ export default function CapacityPlannerTabs({
         <button
           type="button"
           onClick={() => setTab("staff-assignments")}
-            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+          role="tab"
+          aria-selected={tab === "staff-assignments"}
+          aria-current={tab === "staff-assignments" ? "page" : undefined}
+            className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 ${
             tab === "staff-assignments"
-                ? "border-[color:var(--accent)] text-zinc-900"
-                : "border-transparent text-[color:var(--muted-text)] hover:text-zinc-900"
+                ? "border-[color:var(--accent)] bg-zinc-100 text-zinc-900 shadow-[inset_0_-1px_0_var(--accent)]"
+                : "border-transparent text-[color:var(--muted-text)] hover:bg-zinc-100 hover:text-zinc-900"
           }`}
         >
           Staff assignments
@@ -51,10 +57,13 @@ export default function CapacityPlannerTabs({
         <button
           type="button"
           onClick={() => setTab("forecasting")}
-          className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+          role="tab"
+          aria-selected={tab === "forecasting"}
+          aria-current={tab === "forecasting" ? "page" : undefined}
+          className={`focus-ring rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-2 ${
             tab === "forecasting"
-              ? "border-[color:var(--accent)] text-zinc-900"
-              : "border-transparent text-[color:var(--muted-text)] hover:text-zinc-900"
+              ? "border-[color:var(--accent)] bg-zinc-100 text-zinc-900 shadow-[inset_0_-1px_0_var(--accent)]"
+              : "border-transparent text-[color:var(--muted-text)] hover:bg-zinc-100 hover:text-zinc-900"
           }`}
         >
           Forecasting
