@@ -577,10 +577,20 @@ function ExecutiveInsightSection({
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Intelligence Insight
+        Intelligence Insight (Executive Overview)
       </h3>
-      <div className="rounded-xl bg-slate-900 px-4 py-3.5 text-sm leading-relaxed text-slate-100">
-        {message}
+      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-white/10 bg-[#0f1d3d] text-white shadow-[0_12px_32px_rgb(15_29_61/34%)]">
+        <div className="flex min-h-[220px] flex-col gap-6 p-6">
+          <div className="space-y-4">
+            <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
+              <span className="h-3 w-3 rounded-full bg-white" />
+            </div>
+            <div>
+              <h4 className="text-2xl font-semibold tracking-tight">Intelligence Insight</h4>
+              <p className="mt-3 text-sm leading-6 text-white/85">{message}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
