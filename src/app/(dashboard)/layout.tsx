@@ -81,15 +81,15 @@ export default async function DashboardLayout({
 
   return (
     <div className="app-shell">
-      <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-white/92 backdrop-blur supports-[backdrop-filter]:bg-white/82">
+      <header className="sticky top-0 z-30 border-b border-[color:color-mix(in_srgb,var(--border)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-lowest)_88%,transparent)] backdrop-blur-xl supports-[backdrop-filter]:bg-[color:color-mix(in_srgb,var(--surface-lowest)_76%,transparent)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
             <div>
               <p className="app-section-caption">Capacity Intelligence Platform</p>
-              <h1 className="text-sm font-semibold text-zinc-900">Consulting Delivery Workspace</h1>
+              <h1 className="text-sm font-semibold tracking-tight text-zinc-900">Strategic Intelligence</h1>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-              <span className="w-full truncate rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-xs font-medium text-zinc-600 sm:w-auto sm:max-w-[22rem]">
+              <span className="w-full truncate rounded-full border border-[color:color-mix(in_srgb,var(--border)_30%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1 text-xs font-medium text-zinc-600 sm:w-auto sm:max-w-[22rem]">
                 {user.email}
               </span>
               <Link href="/settings" className="app-nav-link focus-ring">

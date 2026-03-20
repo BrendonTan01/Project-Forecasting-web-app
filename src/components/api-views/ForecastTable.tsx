@@ -32,36 +32,36 @@ export function ForecastTable({ weeks = 12 }: { weeks?: number }) {
       .finally(() => setLoading(false));
   }, [weeks]);
 
-  if (loading) return <p className="text-sm text-zinc-500">Loading…</p>;
-  if (error) return <p className="text-sm text-red-500">Failed to load: {error}</p>;
-  if (!data.length) return <p className="text-sm text-zinc-500">No data available.</p>;
+  if (loading) return <p className="text-sm text-[color:var(--muted-text)]">Loading…</p>;
+  if (error) return <p className="text-sm text-red-600">Failed to load: {error}</p>;
+  if (!data.length) return <p className="text-sm text-[color:var(--muted-text)]">No data available.</p>;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+    <div className="app-table-wrap">
+      <table className="app-table app-table-comfortable min-w-full">
         <thead>
-          <tr className="border-b bg-zinc-50">
-            <th className="px-3 py-2 text-left font-medium text-zinc-700">Week Start</th>
-            <th className="px-3 py-2 text-right font-medium text-zinc-700">Total Capacity (hrs)</th>
-            <th className="px-3 py-2 text-right font-medium text-zinc-700">Project Hours (hrs)</th>
-            <th className="px-3 py-2 text-right font-medium text-zinc-700">Utilization %</th>
-            <th className="px-3 py-2 text-right font-medium text-zinc-700">Staffing Gap (hrs)</th>
+          <tr>
+            <th className="text-left">Week Start</th>
+            <th className="text-right">Total Capacity (hrs)</th>
+            <th className="text-right">Project Hours (hrs)</th>
+            <th className="text-right">Utilization %</th>
+            <th className="text-right">Staffing Gap (hrs)</th>
           </tr>
         </thead>
         <tbody>
           {data.map((row) => (
-            <tr key={row.week_start} className="border-b hover:bg-zinc-50">
-              <td className="px-3 py-2 tabular-nums">{row.week_start}</td>
-              <td className="px-3 py-2 text-right tabular-nums">
+            <tr key={row.week_start}>
+              <td className="tabular-nums">{row.week_start}</td>
+              <td className="text-right tabular-nums">
                 {Number(row.total_capacity).toFixed(1)}
               </td>
-              <td className="px-3 py-2 text-right tabular-nums">
+              <td className="text-right tabular-nums">
                 {Number(row.total_project_hours).toFixed(1)}
               </td>
-              <td className="px-3 py-2 text-right tabular-nums">
+              <td className="text-right tabular-nums">
                 {(row.utilization_rate * 100).toFixed(1)}%
               </td>
-              <td className="px-3 py-2 text-right tabular-nums">
+              <td className="text-right tabular-nums">
                 <span className={Number(row.staffing_gap) > 0 ? "text-red-600" : "text-green-600"}>
                   {Number(row.staffing_gap).toFixed(1)}
                 </span>

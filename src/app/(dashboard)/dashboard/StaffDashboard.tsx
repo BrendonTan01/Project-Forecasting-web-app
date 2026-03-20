@@ -182,16 +182,16 @@ export default async function StaffDashboard() {
               Active assignments with progress against estimated hours.
             </p>
           </div>
-          <div className="app-card overflow-x-auto">
-          <table className="app-table min-w-full">
+          <div className="app-table-wrap">
+          <table className="app-table app-table-comfortable min-w-full">
             <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Status</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Allocation</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Progress</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Health</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Action</th>
+              <tr>
+                <th className="text-left">Project</th>
+                <th className="text-left">Status</th>
+                <th className="text-right">Allocation</th>
+                <th className="text-right">Progress</th>
+                <th className="text-right">Health</th>
+                <th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -218,22 +218,22 @@ export default async function StaffDashboard() {
                 };
 
                 return (
-                  <tr key={project.id} className="border-b border-zinc-100 last:border-0">
-                    <td className="px-4 py-3">
+                  <tr key={project.id}>
+                    <td>
                       <p className="font-medium text-zinc-900">{project.name}</p>
                       <p className="text-sm text-zinc-600">{project.clientName ?? "Internal"}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge.colour}`}>
                         {statusBadge.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
+                    <td className="text-right text-sm font-medium text-zinc-800">
                       {weeklyCapacity > 0
                         ? `${((project.weeklyHoursAllocated / weeklyCapacity) * 100).toFixed(0)}%`
                         : "0%"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-zinc-800">
+                    <td className="text-sm text-zinc-800">
                       <div className="ml-auto w-44">
                         <div className="mb-1 flex items-center justify-between text-xs">
                           <span className="font-medium text-zinc-600">Delivery</span>
@@ -252,7 +252,7 @@ export default async function StaffDashboard() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium">
+                    <td className="text-right text-sm font-medium">
                       <HealthStatusWithReason
                         label={getProjectHealthLabel(health)}
                         colourClass={getProjectHealthColour(health)}
@@ -260,7 +260,7 @@ export default async function StaffDashboard() {
                         align="right"
                       />
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="text-right">
                       <StaffProjectQuickAddTime projectId={project.id} />
                     </td>
                   </tr>

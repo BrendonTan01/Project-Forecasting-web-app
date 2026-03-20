@@ -1,34 +1,36 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f6fb;
-  --foreground: #111827;
-  --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --surface-subtle: #eef2f9;
-  --border: #d7dde7;
-  --border-strong: #c2ccdb;
-  --muted-text: #4b5563;
-  --accent: #0f172a;
+  --background: #f7f9fb;
+  --foreground: #191c1e;
+  --surface: #f7f9fb;
+  --surface-muted: #f2f4f6;
+  --surface-subtle: #eceef0;
+  --surface-lowest: #ffffff;
+  --surface-high: #e6e8ea;
+  --border: #c6c6cd;
+  --border-strong: #a8acb3;
+  --muted-text: #515f74;
+  --accent: #000000;
   --accent-contrast: #ffffff;
-  --accent-soft: #e6ecfb;
-  --focus-ring: #1d4ed8;
-  --success: #047857;
+  --accent-soft: #dae2fd;
+  --focus-ring: #bec6e0;
+  --success: #15803d;
   --warning: #b45309;
-  --danger: #b91c1c;
-  --info: #1d4ed8;
+  --danger: #ba1a1a;
+  --info: #0f172a;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
-  --radius-lg: 1rem;
+  --radius-lg: 0.875rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.25rem;
   --space-6: 1.5rem;
-  --shadow-soft: 0 1px 2px 0 rgb(15 23 42 / 8%), 0 2px 8px 0 rgb(15 23 42 / 6%);
-  --shadow-hover: 0 4px 16px 0 rgb(15 23 42 / 12%);
-  --shadow-pop: 0 12px 28px -14px rgb(15 23 42 / 40%);
+  --shadow-soft: 0 4px 18px 0 rgb(15 23 42 / 5%);
+  --shadow-hover: 0 10px 26px 0 rgb(15 23 42 / 10%);
+  --shadow-pop: 0 20px 40px 0 rgb(15 23 42 / 6%);
 }
 
 @theme inline {
@@ -65,7 +67,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: Inter, var(--font-sans), system-ui, sans-serif;
 }
 
 html {
@@ -121,18 +123,17 @@ html {
 
 .app-shell {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 0% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 42%),
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--info) 8%, transparent), transparent 36%),
-    var(--background);
+  background: var(--background);
 }
 
 .app-toolbar {
-  background: color-mix(in srgb, var(--surface) 92%, white);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-lowest) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
-  transition: border-color 160ms ease, box-shadow 180ms ease, background-color 180ms ease;
+  transition: border-color 160ms ease, box-shadow 180ms ease, background-color 180ms ease, transform 160ms ease;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .app-nav-group-label {
@@ -158,8 +159,8 @@ html {
 }
 
 .app-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--surface-lowest);
+  border: 1px solid color-mix(in srgb, var(--border) 22%, transparent);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
   transition: box-shadow 160ms ease, border-color 160ms ease;
@@ -167,13 +168,13 @@ html {
 
 .app-card-soft {
   background: var(--surface-muted);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 20%, transparent);
   border-radius: var(--radius-md);
 }
 
 .app-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--surface-lowest);
+  border: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
   transition: box-shadow 180ms ease, border-color 180ms ease;
@@ -184,7 +185,7 @@ html {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
   padding: var(--space-4) var(--space-5);
 }
 
@@ -193,30 +194,26 @@ html {
 }
 
 .app-metric-card {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface) 95%, white),
-    color-mix(in srgb, var(--surface-muted) 65%, white)
-  );
-  border: 1px solid var(--border);
+  background: var(--surface-lowest);
+  border: 1px solid color-mix(in srgb, var(--border) 18%, transparent);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
-  padding: var(--space-4);
+  padding: var(--space-5);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
 .app-metric-label {
-  color: #64748b;
-  font-size: 0.78rem;
+  color: var(--muted-text);
+  font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .app-metric-value {
   color: var(--foreground);
-  font-size: 1.7rem;
-  font-weight: 700;
+  font-size: clamp(2rem, 3.6vw, 3rem);
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -237,12 +234,12 @@ html {
 .app-select,
 .app-textarea {
   width: 100%;
-  border: 1px solid var(--border-strong);
+  border: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
   border-radius: 0.5rem;
-  background: var(--surface);
+  background: var(--surface-lowest);
   color: var(--foreground);
   font-size: 0.875rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.65rem 0.875rem;
   transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
@@ -261,8 +258,8 @@ html {
 .app-select:focus-visible,
 .app-textarea:focus-visible {
   outline: none;
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+  border-color: color-mix(in srgb, var(--focus-ring) 80%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 55%, transparent);
 }
 
 .app-btn {
@@ -284,19 +281,19 @@ html {
 }
 
 .app-btn-primary {
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), #131b2e);
   color: var(--accent-contrast);
 }
 
 .app-btn-primary:hover:not(:disabled) {
-  box-shadow: var(--shadow-hover), inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, white);
-  filter: brightness(1.03);
+  box-shadow: var(--shadow-hover), inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, white);
+  filter: brightness(1.02);
   transform: translateY(-1px);
 }
 
 .app-btn-secondary {
-  background: var(--surface);
-  border-color: var(--border-strong);
+  background: var(--surface-lowest);
+  border-color: color-mix(in srgb, var(--border) 35%, transparent);
   color: var(--foreground);
 }
 
@@ -318,24 +315,26 @@ html {
 .app-nav-link {
   border-radius: var(--radius-sm);
   color: var(--muted-text);
-  font-size: 0.83rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.8rem;
   min-height: 2rem;
   display: inline-flex;
   align-items: center;
-  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .app-nav-link:hover {
   color: var(--foreground);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  background: color-mix(in srgb, var(--surface-high) 65%, var(--surface-lowest));
 }
 
 .app-nav-link-active {
   color: var(--foreground);
-  background: color-mix(in srgb, var(--accent) 17%, var(--surface));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: var(--surface-lowest);
+  box-shadow:
+    0 1px 1px rgb(15 23 42 / 5%),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 20%, transparent);
 }
 
 .app-badge {
@@ -382,20 +381,22 @@ html {
 .app-table-wrap {
   overflow: auto;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 15%, transparent);
+  background: var(--surface-subtle);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
 
 .app-table thead tr {
-  background: color-mix(in srgb, var(--surface-muted) 80%, var(--surface));
+  background: color-mix(in srgb, var(--surface-high) 60%, var(--surface-subtle));
 }
 
 .app-table th {
-  color: #334155;
-  font-size: 0.8rem;
+  color: var(--muted-text);
+  font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   white-space: nowrap;
   position: sticky;
   top: 0;
@@ -404,11 +405,12 @@ html {
 
 .app-table th,
 .app-table td {
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 14%, transparent);
 }
 
 .app-table td {
   font-size: 0.86rem;
+  background: var(--surface-lowest);
 }
 
 .app-table-dense th,
@@ -426,7 +428,7 @@ html {
 }
 
 .app-table tbody tr:hover {
-  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  background: var(--surface-muted);
 }
 
 .app-alert {
@@ -539,6 +541,13 @@ html {
   border-color: #93c5fd;
   background: #eff6ff;
   color: #1e40af;
+}
+
+.label-sm {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .app-toggle {

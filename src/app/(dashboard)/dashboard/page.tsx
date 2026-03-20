@@ -214,17 +214,20 @@ export default async function DashboardPage() {
       </section>
 
       <section className="space-y-3">
-        <div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
           <h2 className="app-section-heading">At-a-glance overview</h2>
           <p className="text-sm text-zinc-600">
             Visual summary for executives with key forecast, utilization, and capacity signals.
           </p>
+          </div>
+          <span className="label-sm text-[color:var(--muted-text)]">Updated recently</span>
         </div>
         <DashboardOverviewClient weeks={26} />
       </section>
 
       {showCurrentProjects && (
-        <section className="space-y-3">
+        <section className="app-panel space-y-3 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-zinc-900">Current Projects</h2>
@@ -239,11 +242,11 @@ export default async function DashboardPage() {
           <div className="app-table-wrap">
             <table className="app-table app-table-comfortable min-w-full">
               <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Client</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Progress</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Skills</th>
+                <tr>
+                  <th className="text-left">Project</th>
+                  <th className="text-left">Client</th>
+                  <th className="text-left">Progress</th>
+                  <th className="text-left">Skills</th>
                 </tr>
               </thead>
               <tbody>
@@ -298,14 +301,14 @@ export default async function DashboardPage() {
                         : "All covered";
 
                   return (
-                    <tr key={project.id} className="border-b border-zinc-100 last:border-0">
-                      <td className="px-4 py-3">
+                    <tr key={project.id}>
+                      <td>
                         <Link href={`/projects/${project.id}`} className="app-link font-medium text-zinc-900">
                           {project.name}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-800">
+                      <td className="text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
+                      <td className="text-sm text-zinc-800">
                         <div className="max-w-72 space-y-2">
                           <div>
                             <div className="mb-1 flex items-center justify-between text-xs">
@@ -355,7 +358,7 @@ export default async function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <div className="flex flex-wrap items-center gap-2">
                           <span
                             className={signalBadgeClasses(skillTone)}

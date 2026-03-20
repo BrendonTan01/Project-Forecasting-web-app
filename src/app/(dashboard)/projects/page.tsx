@@ -410,11 +410,12 @@ export default async function ProjectsPage({
     : 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
           <p className="app-section-caption">Delivery portfolio</p>
           <h1 className="app-page-title">Projects</h1>
+          <p className="app-page-subtitle mt-1">Strategic visibility into delivery, staffing, and budget signals.</p>
         </div>
         {canManageProjects && (
           <Link
@@ -461,43 +462,43 @@ export default async function ProjectsPage({
 
       <div className="app-toolbar flex flex-nowrap items-center gap-2 overflow-x-auto px-3 py-2 text-xs text-zinc-600 sm:flex-wrap sm:overflow-visible">
         <span className="font-medium text-zinc-700">Portfolio workflow:</span>
-        <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1">Prioritize risk signals</span>
-        <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1">Rebalance staffing</span>
-        <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1">Track budget trajectory</span>
+        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Prioritize risk signals</span>
+        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Rebalance staffing</span>
+        <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] px-2.5 py-1">Track budget trajectory</span>
       </div>
 
       <div className="app-table-wrap">
         <table className="app-table app-table-comfortable min-w-full">
           <thead>
-            <tr className="border-b border-zinc-200">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+            <tr>
+              <th className="text-left">
                 Project
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Client
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+              <th className="text-right">
                 Estimated
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+              <th className="text-right">
                 Actual
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Start date
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 End date
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Offices
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Status
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Assigned Staff
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Signals
               </th>
             </tr>
@@ -579,8 +580,8 @@ export default async function ProjectsPage({
                     : "All required skills are covered.";
 
               return (
-                <tr key={project.id} className="border-b border-zinc-100">
-                  <td className="px-4 py-3">
+                <tr key={project.id}>
+                  <td>
                     <Link
                       href={`/projects/${project.id}`}
                       className="app-link font-medium text-zinc-900"
@@ -588,39 +589,39 @@ export default async function ProjectsPage({
                       {project.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {project.client_name ?? "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
+                  <td className="text-right text-sm text-zinc-800">
                     {estimated > 0 ? `${estimated}h` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-800">
+                  <td className="text-right text-sm text-zinc-800">
                     {actual}h
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {formatProjectDate(project.start_date)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {formatProjectDate(project.end_date)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {officeScopeLabel}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <span
                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
                     >
                       {badge.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {staffByProject[project.id]?.length
                       ? staffByProject[project.id]
                           .map((s) => `${s.name} (${s.hours}h/wk)`)
                           .join(", ")
                       : "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={signalBadgeClasses(deliveryTone)} title={healthReason}>
                         <DeliverySignalIcon />

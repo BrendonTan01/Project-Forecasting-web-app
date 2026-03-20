@@ -107,7 +107,7 @@ export default async function ProposalsPage({
       <div className="app-toolbar flex flex-nowrap gap-2 overflow-x-auto p-2 sm:flex-wrap sm:overflow-visible">
         <Link
           href="/proposals"
-          className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
+            className={`app-btn focus-ring shrink-0 rounded-full px-3 py-1 text-xs ${
             !status ? "app-btn-primary" : "app-btn-secondary"
           }`}
         >
@@ -133,23 +133,23 @@ export default async function ProposalsPage({
       <div className="app-table-wrap">
         <table className="app-table app-table-comfortable min-w-full">
           <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+            <tr>
+              <th className="text-left">
                 Proposal
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Client
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Timeline
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+              <th className="text-right">
                 Total hours
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+              <th className="text-right">
                 Hrs / week
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Status
               </th>
             </tr>
@@ -166,23 +166,23 @@ export default async function ProposalsPage({
                   : "—";
 
               return (
-                <tr key={proposal.id} className="border-b border-zinc-100 last:border-0">
-                  <td className="px-4 py-3">
+                <tr key={proposal.id}>
+                  <td>
                     <Link href={`/proposals/${proposal.id}`} className="app-link font-medium text-zinc-900">
                       {proposal.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {proposal.client_name ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">{timeline}</td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-900">
+                  <td className="text-sm text-zinc-700">{timeline}</td>
+                  <td className="text-right text-sm text-zinc-900">
                     {fmtHours(proposal.estimated_hours)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-zinc-900">
+                  <td className="text-right text-sm text-zinc-900">
                     {fmtHours(proposal.estimated_hours_per_week)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <span
                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.colour}`}
                     >

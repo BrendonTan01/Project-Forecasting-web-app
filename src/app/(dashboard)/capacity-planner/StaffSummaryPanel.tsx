@@ -37,7 +37,7 @@ export default function StaffSummaryPanel({
   );
 
   return (
-    <div className="w-72 shrink-0 rounded border border-zinc-200 bg-white p-4 text-sm">
+    <div className="w-72 shrink-0 rounded-xl border border-[color:color-mix(in_srgb,var(--border)_22%,transparent)] bg-[color:var(--surface-lowest)] p-4 text-sm shadow-[var(--shadow-soft)]">
       <div className="mb-4 flex items-start justify-between">
         <div>
           <p className="font-semibold text-zinc-900">{staff.name}</p>
@@ -47,7 +47,7 @@ export default function StaffSummaryPanel({
         </div>
         <button
           onClick={onClose}
-          className="ml-2 text-zinc-400 hover:text-zinc-700"
+          className="ml-2 text-zinc-400 transition-colors hover:text-zinc-700"
           aria-label="Close panel"
         >
           ✕
@@ -56,14 +56,14 @@ export default function StaffSummaryPanel({
 
       {/* Summary stats */}
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <div className="rounded bg-zinc-50 p-2">
-          <p className="text-xs text-zinc-500">Weekly capacity</p>
+        <div className="rounded-lg bg-[color:var(--surface-muted)] p-2">
+          <p className="text-xs text-[color:var(--muted-text)]">Weekly capacity</p>
           <p className="font-semibold text-zinc-900">
             {staff.weekly_capacity_hours}h
           </p>
         </div>
-        <div className="rounded bg-zinc-50 p-2">
-          <p className="text-xs text-zinc-500">Avg utilization</p>
+        <div className="rounded-lg bg-[color:var(--surface-muted)] p-2">
+          <p className="text-xs text-[color:var(--muted-text)]">Avg utilization</p>
           <p
             className={`font-semibold ${
               avgUtilization > 1
@@ -76,8 +76,8 @@ export default function StaffSummaryPanel({
             {(avgUtilization * 100).toFixed(0)}%
           </p>
         </div>
-        <div className="col-span-2 rounded bg-zinc-50 p-2">
-          <p className="text-xs text-zinc-500">
+        <div className="col-span-2 rounded-lg bg-[color:var(--surface-muted)] p-2">
+          <p className="text-xs text-[color:var(--muted-text)]">
             Total assigned (next {weeks.length} weeks)
           </p>
           <p className="font-semibold text-zinc-900">
@@ -88,7 +88,7 @@ export default function StaffSummaryPanel({
 
       {/* Overbooking alert */}
       {overbookedWeeks.length > 0 && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-2">
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-2">
           <p className="font-semibold text-red-700">
             Overbooked in {overbookedWeeks.length} week
             {overbookedWeeks.length > 1 ? "s" : ""}

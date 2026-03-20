@@ -32,37 +32,52 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4" style={{ backgroundColor: "var(--background)" }}>
-      <Card className="w-full max-w-md p-8">
-        <h1 className="mb-6 text-2xl font-semibold text-zinc-900">
-          Capacity Intelligence Platform
-        </h1>
-        <p className="mb-6 text-sm text-zinc-700">
-          Sign in to your account
-        </p>
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[color:var(--surface)]">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-16 -top-16 h-72 w-72 rounded-full bg-[color:color-mix(in_srgb,var(--accent-soft)_25%,transparent)] blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] blur-3xl" />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="mb-10 text-center">
+            <div className="mx-auto mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-[color:#131b2e] text-white shadow-sm">
+              <span aria-hidden className="text-lg">A</span>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+              Capacity Intelligence Platform
+            </h1>
+            <p className="mt-2 text-sm text-[color:var(--muted-text)]">Sign in to your account</p>
+          </div>
+
+          <Card className="w-full p-8 md:p-10">
+            <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-zinc-700">
-              Email
+                <label htmlFor="email" className="mb-2 block label-sm text-[color:var(--muted-text)]">
+                  Email address
             </label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
               required
             />
           </div>
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-zinc-700">
-              Password
-            </label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label htmlFor="password" className="label-sm text-[color:var(--muted-text)]">
+                    Password
+                  </label>
+                  <span className="text-xs font-medium text-[color:var(--muted-text)]">Forgot password?</span>
+                </div>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
               required
             />
           </div>
@@ -77,14 +92,24 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
+          </Card>
 
-        <p className="mt-4 text-center text-sm text-zinc-700">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="app-link font-medium">
-            Sign up
-          </Link>
-        </p>
-      </Card>
+          <p className="mt-6 text-center text-sm text-[color:var(--muted-text)]">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="app-link font-semibold">
+              Sign up
+            </Link>
+          </p>
+        </div>
+      </main>
+
+      <footer className="relative z-10 px-4 pb-8">
+        <div className="mx-auto flex max-w-md justify-center gap-6 text-xs text-zinc-500">
+          <span>Privacy Policy</span>
+          <span>Terms</span>
+          <span>Security</span>
+        </div>
+      </footer>
     </div>
   );
 }

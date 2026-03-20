@@ -21,15 +21,15 @@ export default function CapacityPlannerTabs({
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
+    <div className="space-y-5">
+      <div className="app-toolbar flex items-center gap-2 p-2">
         <button
           type="button"
           onClick={() => setTab("overview")}
-          className={`rounded border px-3 py-1.5 text-sm font-medium focus-ring ${
+          className={`app-btn rounded-full px-4 py-1.5 text-xs font-semibold focus-ring ${
             tab === "overview"
-              ? "border-zinc-300 bg-zinc-100 text-zinc-900"
-              : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+              ? "app-btn-primary"
+              : "app-btn-secondary text-[color:var(--muted-text)]"
           }`}
         >
           Overview
@@ -37,10 +37,10 @@ export default function CapacityPlannerTabs({
         <button
           type="button"
           onClick={() => setTab("staff")}
-          className={`rounded border px-3 py-1.5 text-sm font-medium focus-ring ${
+          className={`app-btn rounded-full px-4 py-1.5 text-xs font-semibold focus-ring ${
             tab === "staff"
-              ? "border-zinc-300 bg-zinc-100 text-zinc-900"
-              : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+              ? "app-btn-primary"
+              : "app-btn-secondary text-[color:var(--muted-text)]"
           }`}
         >
           Staff assignments
@@ -52,8 +52,8 @@ export default function CapacityPlannerTabs({
       {tab === "staff" && (
         <>
           {staffFetchError && (
-            <div className="rounded border border-red-200 bg-red-50 px-4 py-3">
-              <p className="text-sm text-red-700">{staffFetchError}</p>
+            <div className="app-alert app-alert-error">
+              <p className="text-sm">{staffFetchError}</p>
             </div>
           )}
           {staffInitialData && !staffFetchError && (
@@ -63,7 +63,7 @@ export default function CapacityPlannerTabs({
             />
           )}
           {!staffInitialData && !staffFetchError && (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-[color:var(--muted-text)]">
               Loading staff capacity data…
             </p>
           )}

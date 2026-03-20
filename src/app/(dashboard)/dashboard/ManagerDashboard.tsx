@@ -387,7 +387,7 @@ export default async function ManagerDashboard() {
         </div>
       </div>
 
-      <section className="space-y-3">
+      <section className="app-panel space-y-3 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold text-zinc-900">Ongoing Projects</h2>
@@ -402,15 +402,15 @@ export default async function ManagerDashboard() {
         <div className="app-table-wrap">
           <table className="app-table app-table-comfortable min-w-full">
             <thead>
-              <tr className="border-b border-zinc-200 bg-zinc-50">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Project</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Client</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Progress</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Status</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">Assigned staff</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">This week logged</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Staffing risks</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">Time outliers</th>
+              <tr>
+                <th className="text-left">Project</th>
+                <th className="text-left">Client</th>
+                <th className="text-left">Progress</th>
+                <th className="text-left">Status</th>
+                <th className="text-right">Assigned staff</th>
+                <th className="text-right">This week logged</th>
+                <th className="text-left">Staffing risks</th>
+                <th className="text-left">Time outliers</th>
               </tr>
             </thead>
             <tbody>
@@ -480,14 +480,14 @@ export default async function ManagerDashboard() {
                     ? `${outliers.flaggedStaffCount} flagged (peak ${outliers.peakRatio.toFixed(1)}x)`
                     : "No major spikes";
                 return (
-                  <tr key={project.id} className="border-b border-zinc-100 last:border-0">
-                    <td className="px-4 py-3">
+                  <tr key={project.id}>
+                    <td>
                       <Link href={`/projects/${project.id}`} className="app-link font-medium text-zinc-900">
                         {project.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
-                    <td className="px-4 py-3 text-sm text-zinc-800">
+                    <td className="text-sm text-zinc-700">{project.client_name ?? "Internal"}</td>
+                    <td className="text-sm text-zinc-800">
                       <div className="max-w-72 space-y-2">
                         <div>
                           <div className="mb-1 flex items-center justify-between text-xs">
@@ -537,8 +537,8 @@ export default async function ManagerDashboard() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-zinc-700 capitalize">{project.status}</td>
-                    <td className="px-4 py-3 text-right text-sm text-zinc-800">
+                    <td className="text-sm text-zinc-700 capitalize">{project.status}</td>
+                    <td className="text-right text-sm text-zinc-800">
                       {assignedCount > 0 ? (
                         <details className="group relative inline-block text-left">
                           <summary className="cursor-pointer list-none text-right font-medium text-zinc-800 hover:text-zinc-900">
@@ -614,10 +614,10 @@ export default async function ManagerDashboard() {
                         0
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm text-zinc-800">
+                    <td className="text-right text-sm text-zinc-800">
                       {(currentWeekHoursByProject[project.id] ?? 0).toFixed(1)}h
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <div className="flex flex-wrap items-center gap-2">
                         {startedUnstaffed && (
                           <span
@@ -650,7 +650,7 @@ export default async function ManagerDashboard() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td className="text-sm">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           outliers.flaggedStaffCount > 0
@@ -670,7 +670,7 @@ export default async function ManagerDashboard() {
             <p className="p-4 text-sm text-zinc-600">No active projects in your assigned office.</p>
           )}
         </div>
-        <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+        <div className="rounded-md border border-[color:color-mix(in_srgb,var(--border)_24%,transparent)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs text-zinc-600">
           <span className="font-medium text-zinc-700">Staffing risk legend:</span>{" "}
           <span>
             <strong className="font-semibold text-zinc-700">No skill reqs</strong> = no project skill requirements configured,{" "}

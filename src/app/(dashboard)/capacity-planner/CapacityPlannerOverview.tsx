@@ -71,23 +71,23 @@ export default function CapacityPlannerOverview() {
 
       <main className="min-w-0 flex-1">
         {selectedSkillName && (
-          <div className="mb-3 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+          <div className="mb-3 rounded-lg border border-[color:color-mix(in_srgb,var(--border)_24%,transparent)] bg-[color:var(--surface-muted)] px-3 py-2 text-sm text-zinc-700">
             Filtered by skill:{" "}
             <span className="font-medium text-zinc-900">{selectedSkillName}</span>
           </div>
         )}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <p className="text-sm text-zinc-500">Loading capacity heatmap…</p>
+            <p className="text-sm text-[color:var(--muted-text)]">Loading capacity heatmap…</p>
           </div>
         )}
         {error && (
-          <div className="rounded border border-red-200 bg-red-50 px-4 py-3">
-            <p className="text-sm text-red-700">Failed to load: {error}</p>
+          <div className="app-alert app-alert-error">
+            <p className="text-sm">Failed to load: {error}</p>
           </div>
         )}
         {heatmapData && !loading && (
-          <div className="rounded border border-zinc-200 bg-white p-4">
+          <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border)_20%,transparent)] bg-[color:var(--surface-lowest)] p-4 shadow-[var(--shadow-soft)]">
             <CapacityHeatmap
               weeks={filterState.weeks}
               officeIds={

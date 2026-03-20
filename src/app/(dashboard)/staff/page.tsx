@@ -85,26 +85,55 @@ export default async function StaffPage() {
   );
 
   return (
-    <div>
-      <h1 className="app-page-title mb-6">Staff Directory</h1>
+    <div className="space-y-6">
+      <section className="space-y-2">
+        <p className="app-section-caption">Operations workforce</p>
+        <h1 className="app-page-title">Staff Directory</h1>
+        <p className="app-page-subtitle">
+          Monitor real-time resource allocation and workforce utilization across offices.
+        </p>
+      </section>
 
-      <div className="app-card overflow-hidden">
-        <table className="app-table min-w-full">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="app-metric-card">
+          <p className="app-metric-label">Total staff</p>
+          <p className="app-metric-value mt-2">{staffProfiles?.length ?? 0}</p>
+        </div>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Allocated this week</p>
+          <p className="app-metric-value mt-2">
+            {Object.values(weeklyHoursByStaff).reduce((sum, value) => sum + Number(value), 0).toFixed(0)}h
+          </p>
+        </div>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Billable in period</p>
+          <p className="app-metric-value mt-2">
+            {Object.values(billableByStaff).reduce((sum, value) => sum + Number(value), 0).toFixed(0)}h
+          </p>
+        </div>
+        <div className="app-metric-card">
+          <p className="app-metric-label">Window</p>
+          <p className="app-metric-value mt-2">30d</p>
+        </div>
+      </section>
+
+      <div className="app-table-wrap">
+        <table className="app-table app-table-comfortable min-w-full">
           <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50">
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+            <tr>
+              <th className="text-left">
                 Staff
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Office
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-800">
+              <th className="text-left">
                 Role
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+              <th className="text-right">
                 Allocation
               </th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-zinc-800">
+              <th className="text-right">
                 Utilisation
               </th>
             </tr>
@@ -129,8 +158,8 @@ export default async function StaffPage() {
                   : 0;
 
               return (
-                <tr key={sp.id} className="border-b border-zinc-100">
-                  <td className="px-4 py-3">
+                <tr key={sp.id}>
+                  <td>
                     <Link
                       href={`/staff/${sp.id}`}
                       className="app-link font-medium text-zinc-900"
@@ -138,16 +167,16 @@ export default async function StaffPage() {
                       {displayName}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {office ? `${office.name} (${office.country})` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-zinc-700">
+                  <td className="text-sm text-zinc-700">
                     {u?.role ?? sp.job_title ?? "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
+                  <td className="text-right text-sm font-medium text-zinc-800">
                     {allocationPercent.toFixed(0)}%
                   </td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-zinc-800">
+                  <td className="text-right text-sm font-medium text-zinc-800">
                     {formatUtilisation(utilisation)}
                   </td>
                 </tr>
